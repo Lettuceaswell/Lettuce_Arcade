@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Tap Race — Hansen Arcade</title>
+<meta name="theme-color" content="#1e1b2e">
+<link rel="stylesheet" href="/shared/arcade.css">
+<style>
+  body { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; text-align: center; gap: 18px; }
+  #timer { font-size: 1.3rem; color: var(--fg-dim); }
+  #score { font-size: 3rem; font-weight: 800; }
+  #best { font-size: 1rem; color: var(--fg-dim); }
+  #tap { width: 220px; height: 220px; border-radius: 50%; font-size: 1.5rem; font-weight: 700; }
+</style>
+</head>
+<body>
+<div id="timer">15s</div>
+<div id="score">0</div>
+<button id="tap" class="btn">TAP!</button>
+<div id="best"></div>
+<script src="/shared/arcade.js"></script>
+<script>
+  Arcade.backButton();
+
+  var timerEl = document.getElementById("timer");
+  var scoreEl = document.getElementById("score");
+  var bestEl = document.getElementById("best");
+  var tapBtn = document.getElementById("tap");
+
+  var DURATION = 15;
+  var taps = 0;
+  var timeLeft = DURATION;
+  var running = false;
+  var intervalId = null;
+
+  function showBest() {
+    var best = Arcade.load("best", 0);
+    bestEl.textContent = "Best: " + best;
+  }
+
+  function endGame() {
+    running = false;
+    clearInterval(intervalId);
+    tapBtn.disabled = true;
+    timerEl.textContent = "Time's up!";
+    var best = Arcade.load("best", 0);
+    if (taps > best) {
+      Arcade.save("best", taps);
+    }
+    showBest();
+  }
+
+  function tick() {
+    timeLeft -= 1;
+    timerEl.textContent = timeLeft + "s";
+    if (timeLeft <= 0) endGame();
+  }
+
+  function start() {
+    showBest();
+    tapBtn.addEventListener("pointerdown", function () {
+      if (!running) return;
+      taps += 1;
+      scoreEl.textContent = taps;
+    });
+    running = true;
+    intervalId = setInterval(tick, 1000);
+  }
+
+  Arcade.boot(start);
+</script>
+</body>
+</html>

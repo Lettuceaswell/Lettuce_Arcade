@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Hansen Arcade</title>
+<meta name="theme-color" content="#1e1b2e">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="apple-touch-icon" href="/icon-192.png">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="stylesheet" href="/shared/arcade.css">
+<style>
+  body {
+    display: flex;
+    justify-content: center;
+  }
+
+  main {
+    width: 100%;
+    max-width: 500px;
+    padding: 24px 16px calc(24px + var(--safe-bottom));
+  }
+
+  h1 {
+    font-size: 2rem;
+    margin-bottom: 24px;
+    text-align: center;
+  }
+
+  .tile-list {
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+
+  .tile {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    min-height: 88px;
+    padding: 14px 18px;
+    border-radius: 16px;
+    background: var(--bg-elevated);
+    color: var(--fg);
+    text-decoration: none;
+  }
+
+  .tile:active {
+    background: var(--accent-dim);
+  }
+
+  .tile-emoji {
+    font-size: 2.5rem;
+    line-height: 1;
+    flex-shrink: 0;
+  }
+
+  .tile-title {
+    font-size: 1.3rem;
+    font-weight: 700;
+  }
+
+  .tile-blurb {
+    font-size: 1rem;
+    color: var(--fg-dim);
+    margin-top: 2px;
+  }
+
+  .empty, .error {
+    text-align: center;
+    color: var(--fg-dim);
+    padding: 24px;
+  }
+</style>
+</head>
+<body>
+<main>
+  <h1>Hansen Arcade</h1>
+  <ul class="tile-list" id="tile-list" aria-live="polite"></ul>
+</main>
+<script src="/shared/arcade.js"></script>
+<script>
+  (function () {
+    var list = document.getElementById("tile-list");
+
+    fetch("/games.json")
+      .then(function (res) {
+        if (!res.ok) throw new Error("failed to load games.json");
+        return res.json();
+      })
+      .then(function (games) {
+        if (!Array.isArray(games) || games.length === 0) {
+          list.innerHTML = '<li class="empty">No games yet.</li>';
+          return;
+        }
+        games.forEach(function (game) {
+          var li = document.createElement("li");
+          var a = document.createElement("a");
+          a.className = "tile";
+          a.href = "/games/" + encodeURIComponent(game.slug) + "/";
+
+          var emoji = document.createElement("div");
+          emoji.className = "tile-emoji";
+          emoji.textContent = game.emoji || "🎮";
+          emoji.setAttribute("aria-hidden", "true");
+
+          var text = document.createElement("div");
+          var title = document.createElement("div");
+          title.className = "tile-title";
+          title.textContent = game.title || game.slug;
+          var blurb = document.createElement("div");
+          blurb.className = "tile-blurb";
+          blurb.textContent = game.blurb || "";
+          text.appendChild(title);
+          text.appendChild(blurb);
+
+          a.appendChild(emoji);
+          a.appendChild(text);
+          li.appendChild(a);
+          list.appendChild(li);
+        });
+      })
+      .catch(function () {
+        list.innerHTML = '<li class="error">Could not load the game list.</li>';
+      });
+  })();
+</script>
+</body>
+</html>
