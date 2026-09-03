@@ -15,8 +15,8 @@ Cloudflare Pages as-is.
   it has no back button and doesn't need a tap-to-start gate.
 - Adding a game means: one new folder under `games/`, one new object
   appended to `games.json` (`slug`, `title`, `blurb`, `emoji`, and optionally
-  `icon` — a PNG inside the game's own folder, shown instead of the emoji). Nothing else
-  in the codebase should need to change.
+  `icon` — a PNG inside the game's own folder, shown instead of the emoji).
+  Nothing else in the codebase should need to change.
 - Portrait-first, one-thumb play. Minimum 44×44px tap targets. No reliance
   on hover states or precise dragging — assume a thumb on glass.
 - Assume the target device is an older iPhone on cell data. Keep total page
