@@ -1,0 +1,340 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Lettuce Slots — Lettuce Arcade</title>
+<meta name="theme-color" content="#0b4d49">
+<link rel="stylesheet" href="/shared/arcade.css">
+<style>
+  body {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 18px;
+    min-height: 100vh;
+    text-align: center;
+    padding:
+      calc(64px + var(--safe-top))
+      calc(16px + var(--safe-right))
+      calc(40px + var(--safe-bottom))
+      calc(16px + var(--safe-left));
+  }
+
+  h1 { font-size: 1.35rem; letter-spacing: 0.02em; }
+
+  .reels { display: flex; gap: 10px; }
+
+  .reel {
+    width: clamp(76px, 26vw, 98px);
+    height: clamp(88px, 30vw, 112px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: clamp(48px, 16vw, 66px);
+    line-height: 1;
+    background: var(--bg-elevated);
+    border-radius: 16px;
+    border: 3px solid transparent;
+  }
+
+  /* Applied only when reels 1 and 2 match, and only once reel 2 has landed. */
+  .reel.hot { border-color: #ffe066; }
+
+  /* Fixed height so the result text never reflows the reels. */
+  #status {
+    height: 3rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.15rem;
+    font-weight: 700;
+    color: var(--fg-dim);
+  }
+
+  #status.jackpot { color: #ffe066; font-size: 1.4rem; }
+  #status.match   { color: var(--accent); }
+  #status.near    { color: #ffb4a2; }
+
+  #spin {
+    width: min(360px, 82vw);
+    height: 72px;
+    font-size: 1.5rem;
+    font-weight: 800;
+    letter-spacing: 0.04em;
+  }
+
+  #stats { font-size: 0.95rem; color: var(--fg-dim); }
+
+  #mute {
+    position: fixed;
+    top: calc(8px + var(--safe-top));
+    right: calc(8px + var(--safe-right));
+    min-height: 44px;
+    min-width: 44px;
+    font-size: 1.2rem;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 9999;
+  }
+</style>
+</head>
+<body>
+<h1>🥬 Lettuce Slots</h1>
+
+<div class="reels" aria-hidden="true">
+  <div class="reel" id="reel0">🥬</div>
+  <div class="reel" id="reel1">🍅</div>
+  <div class="reel" id="reel2">🥕</div>
+</div>
+
+<div id="status" aria-live="polite"></div>
+
+<button id="spin" class="btn">SPIN</button>
+
+<div id="stats"></div>
+
+<button id="mute" class="btn" aria-label="Mute sound">🔊</button>
+
+<script src="/shared/arcade.js"></script>
+<script>
+  Arcade.backButton();
+
+  // ---- symbols ----------------------------------------------------------
+  // Fixed ring order. Lettuce sits between olive and tomato, so a near-miss
+  // that lands one slot forward from lettuce shows a tomato.
+  var STRIP = ["🍅", "🥕", "🧀", "🫒", "🥬"];
+  var LETTUCE = 4;
+  var N = STRIP.length;
+
+  // ---- tick schedules ---------------------------------------------------
+  // Explicit interval arrays: the length of each array is the number of
+  // symbol advances, which lets us back-solve a start index that lands the
+  // reel exactly on its predetermined symbol (see spinReel).
+  function steady(count, ms) {
+    var a = [];
+    for (var i = 0; i < count; i++) a.push(ms);
+    return a;
+  }
+
+  var REEL1 = steady(10, 60);                        // lands  600ms
+  var REEL2 = steady(17, 60);                        // lands 1020ms
+  var REEL3_NORMAL = steady(23, 60);                 // lands 1380ms
+  var REEL3_TENSION = steady(20, 60)                 // lands 2800ms
+    .concat([90, 120, 160, 210, 270, 340, 410]);
+  var TENSION_TAIL_FROM = 20; // tail ticks get their own slowing audio
+
+  // ---- audio ------------------------------------------------------------
+  var muted = Arcade.load("muted", false) === true;
+
+  function tone(freq, dur, delay, vol) {
+    var ctx = Arcade.audioCtx;
+    if (!ctx || muted) return;
+    try {
+      var t0 = ctx.currentTime + (delay || 0);
+      var osc = ctx.createOscillator();
+      var gain = ctx.createGain();
+      osc.type = "triangle";
+      osc.frequency.value = freq;
+      gain.gain.setValueAtTime(0.0001, t0);
+      gain.gain.exponentialRampToValueAtTime(vol || 0.18, t0 + 0.012);
+      gain.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(t0);
+      osc.stop(t0 + dur + 0.02);
+    } catch (e) {
+      /* audio unavailable; gameplay continues silently */
+    }
+  }
+
+  // Ascending pitch across the three reel stops reads as "building".
+  var STOP_TONES = [440, 554, 659];
+
+  function jackpotSound() {
+    [523, 659, 784, 1047].forEach(function (f, i) {
+      tone(f, 0.3, i * 0.11, 0.22);
+    });
+  }
+
+  function matchSound() {
+    tone(523, 0.22, 0, 0.2);
+    tone(784, 0.26, 0.12, 0.2);
+  }
+
+  // ---- elements ---------------------------------------------------------
+  var reelEls = [
+    document.getElementById("reel0"),
+    document.getElementById("reel1"),
+    document.getElementById("reel2")
+  ];
+  var statusEl = document.getElementById("status");
+  var spinBtn = document.getElementById("spin");
+  var statsEl = document.getElementById("stats");
+  var muteBtn = document.getElementById("mute");
+
+  // ---- state ------------------------------------------------------------
+  function num(v) {
+    var n = Number(v);
+    return isFinite(n) ? n : 0;
+  }
+
+  var points = num(Arcade.load("points", 0));
+  var jackpots = num(Arcade.load("jackpots", 0));
+  var dry = num(Arcade.load("dry", 0));
+  var spinning = false;
+
+  function renderStats() {
+    statsEl.textContent =
+      points.toLocaleString() + " pts · " +
+      jackpots.toLocaleString() + " jackpot" + (jackpots === 1 ? "" : "s") + " · " +
+      dry.toLocaleString() + " since last 🥬";
+  }
+
+  function setStatus(text, cls) {
+    statusEl.textContent = text;
+    statusEl.className = cls || "";
+  }
+
+  // ---- reel animation ---------------------------------------------------
+  // Walks the strip one slot per tick. Starting at (final - ticks) means the
+  // reel arrives on `finalIndex` with every intermediate step contiguous —
+  // no snap on the last frame, which is where the illusion would break.
+  function spinReel(el, intervals, finalIndex, onTick, onDone) {
+    var ticks = intervals.length;
+    var idx = ((finalIndex - ticks) % N + N) % N;
+
+    function step(i) {
+      setTimeout(function () {
+        idx = (idx + 1) % N;
+        el.textContent = STRIP[idx];
+        if (onTick) onTick(i);
+        if (i + 1 < ticks) step(i + 1);
+        else onDone();
+      }, intervals[i]);
+    }
+
+    step(0);
+  }
+
+  // ---- the spin ---------------------------------------------------------
+  function roll() {
+    return Math.floor(Math.random() * N);
+  }
+
+  function spin() {
+    if (spinning) return;
+    spinning = true;
+    spinBtn.disabled = true;
+    setStatus("");
+    reelEls.forEach(function (el) { el.classList.remove("hot"); });
+
+    // Three independent uniform draws. This alone gives the real odds:
+    // jackpot (1/5)^3 = 0.8%, any three-of-a-kind 4%, reels 1&2 matching 20%.
+    var r1 = roll();
+    var r2 = roll();
+    var r3 = roll();
+
+    var tension = (r1 === r2);
+
+    // Presentation only: on half of near-misses, land reel 3 one slot past
+    // the target so the winning symbol is the last thing replaced. This
+    // picks *which* losing symbol shows; it cannot turn a win into a loss
+    // or vice versa, since (r1 + 1) % N is never equal to r1.
+    if (tension && r3 !== r1 && Math.random() < 0.5) {
+      r3 = (r1 + 1) % N;
+    }
+
+    var third = tension ? REEL3_TENSION : REEL3_NORMAL;
+
+    spinReel(reelEls[0], REEL1, r1, null, function () {
+      tone(STOP_TONES[0], 0.09, 0, 0.16);
+    });
+
+    spinReel(reelEls[1], REEL2, r2, null, function () {
+      tone(STOP_TONES[1], 0.09, 0, 0.16);
+      // Ring goes on only once reel 2 has actually landed.
+      if (tension) {
+        reelEls[0].classList.add("hot");
+        reelEls[1].classList.add("hot");
+        setStatus("TWO " + STRIP[r1] + " — one to go…", "near");
+      }
+    });
+
+    spinReel(
+      reelEls[2],
+      third,
+      r3,
+      function (i) {
+        // Slowing ticks through the tension tail.
+        if (tension && i >= TENSION_TAIL_FROM) tone(300, 0.05, 0, 0.08);
+      },
+      function () {
+        tone(STOP_TONES[2], 0.09, 0, 0.16);
+        resolve(r1, r2, r3, tension);
+      }
+    );
+  }
+
+  function resolve(r1, r2, r3, tension) {
+    var win = (r1 === r2 && r2 === r3);
+
+    if (win && r1 === LETTUCE) {
+      points += 500;
+      jackpots += 1;
+      dry = 0;
+      setStatus("JACKPOT! 🥬🥬🥬", "jackpot");
+      jackpotSound();
+    } else if (win) {
+      points += 50;
+      dry += 1;
+      setStatus("MATCH — " + STRIP[r1].repeat(3), "match");
+      matchSound();
+    } else {
+      points += 1;
+      dry += 1;
+      // No failure sound, ever.
+      setStatus(tension ? "so close — one off" : "no match", tension ? "near" : "");
+    }
+
+    // On a win the third reel joins the ring; otherwise clear it.
+    reelEls.forEach(function (el) {
+      if (win) el.classList.add("hot");
+      else el.classList.remove("hot");
+    });
+
+    Arcade.save("points", points);
+    Arcade.save("jackpots", jackpots);
+    Arcade.save("dry", dry);
+    renderStats();
+
+    spinning = false;
+    spinBtn.disabled = false;
+  }
+
+  // ---- input ------------------------------------------------------------
+  function renderMute() {
+    muteBtn.textContent = muted ? "🔇" : "🔊";
+    muteBtn.setAttribute("aria-label", muted ? "Unmute sound" : "Mute sound");
+  }
+
+  muteBtn.addEventListener("click", function () {
+    muted = !muted;
+    Arcade.save("muted", muted);
+    renderMute();
+  });
+
+  spinBtn.addEventListener("pointerdown", spin);
+
+  function start() {
+    renderMute();
+    renderStats();
+    reelEls[0].textContent = STRIP[LETTUCE];
+    reelEls[1].textContent = STRIP[0];
+    reelEls[2].textContent = STRIP[1];
+  }
+
+  Arcade.boot(start);
+</script>
+</body>
+</html>

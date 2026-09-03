@@ -4,5 +4,11 @@
     "title": "Tap Race",
     "blurb": "Tap the button as many times as you can in 15 seconds.",
     "emoji": "🕹️"
+  },
+  {
+    "slug": "lettuce-slots",
+    "title": "Lettuce Slots",
+    "blurb": "Three reels. One button. The third one takes its time.",
+    "emoji": "🥬"
   }
 ]
