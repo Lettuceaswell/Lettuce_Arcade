@@ -12,7 +12,7 @@
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: 16px;
+    gap: 12px;
     min-height: 100vh;
     text-align: center;
     padding:
@@ -29,6 +29,11 @@
     font-size: 0.95rem;
     font-weight: 700;
     color: var(--fg-dim);
+  }
+
+  #scoreline {
+    font-size: 1.05rem;
+    font-weight: 700;
   }
 
   .board {
@@ -49,7 +54,7 @@
     line-height: 1;
     border-radius: calc(var(--cell) * 0.2);
     background: var(--bg-elevated);
-    transition: transform 150ms ease, opacity 150ms ease;
+    transition: transform 150ms ease, opacity 150ms ease, box-shadow 150ms ease;
     will-change: transform;
   }
 
@@ -57,7 +62,43 @@
     box-shadow: 0 0 0 3px #ffe066 inset;
   }
 
-  #stats { font-size: 0.95rem; color: var(--fg-dim); }
+  .tile.special-row {
+    box-shadow: 0 0 0 3px #ffd23f inset, 0 0 10px 2px rgba(255, 210, 63, 0.65);
+  }
+
+  .tile.special-col {
+    box-shadow: 0 0 0 3px #4fd6ff inset, 0 0 10px 2px rgba(79, 214, 255, 0.65);
+  }
+
+  .tile.special-cross {
+    box-shadow: 0 0 0 3px #ff5fd6 inset, 0 0 10px 2px rgba(255, 95, 214, 0.7);
+  }
+
+  @keyframes hintPulse {
+    0%, 100% { box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.15) inset; }
+    50% { box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.85) inset; }
+  }
+
+  .tile.hint {
+    animation: hintPulse 900ms ease-in-out infinite;
+  }
+
+  #stats { font-size: 0.85rem; color: var(--fg-dim); }
+
+  #runover {
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    margin-top: 4px;
+  }
+
+  #runover.show { display: flex; }
+
+  #runover .headline {
+    font-size: 1.1rem;
+    font-weight: 800;
+  }
 
   #mute {
     position: fixed;
@@ -75,8 +116,14 @@
 <h1>🍖 Keto Krush</h1>
 
 <div id="status" aria-live="polite"></div>
+<div id="scoreline"></div>
 
 <div class="board" id="board"></div>
+
+<div id="runover">
+  <div class="headline" id="runover-headline"></div>
+  <button id="restart" class="btn">Play again</button>
+</div>
 
 <div id="stats"></div>
 
@@ -88,23 +135,30 @@
 
   // ---- config ----------------------------------------------------------
   var N = 6; // 6x6 keeps every tile >=44px on the smallest supported phone
-  var ICONS = ["🍖", "🧀", "🍞", "🥐", "🍬", "🥨"];
+  var ICONS = ["🍖", "🧀", "🍕", "🥐", "🍪"];
+  var PROTEIN_ICONS = { "🍖": true, "🧀": true };
   var GAP = 4;
   var SWAP_MS = 150;
   var CLEAR_MS = 160;
   var FALL_MS = 190;
+  var HINT_IDLE_MS = 5000;
 
   var boardEl = document.getElementById("board");
   var statusEl = document.getElementById("status");
+  var scorelineEl = document.getElementById("scoreline");
   var statsEl = document.getElementById("stats");
   var muteBtn = document.getElementById("mute");
+  var runoverEl = document.getElementById("runover");
+  var runoverHeadlineEl = document.getElementById("runover-headline");
+  var restartBtn = document.getElementById("restart");
 
   function num(v) {
     var n = Number(v);
     return isFinite(n) ? n : 0;
   }
 
-  var cleared = num(Arcade.load("cleared", 0));
+  var cleared = num(Arcade.load("cleared", 0)); // lifetime tiles cleared
+  var highScore = num(Arcade.load("highScore", 0));
   var muted = Arcade.load("muted", false) === true;
   var CELL = 44;
   var grid = [];
@@ -113,6 +167,11 @@
   var selected = null;
   var pointerStart = null;
   var statusTimer = null;
+  var score = 0;
+  var comboStep = 0;
+  var runOver = false;
+  var hintTimer = null;
+  var hintTiles = null;
 
   // ---- audio -------------------------------------------------------------
   function tone(freq, dur, delay, vol) {
@@ -138,6 +197,7 @@
 
   function matchSound() { tone(659, 0.12, 0, 0.15); }
   function failSound() { tone(220, 0.1, 0, 0.1); }
+  function specialSound() { tone(880, 0.18, 0, 0.18); }
 
   function renderMute() {
     muteBtn.textContent = muted ? "🔇" : "🔊";
@@ -160,7 +220,11 @@
   }
 
   function renderStats() {
-    statsEl.textContent = cleared.toLocaleString() + " tiles cleared";
+    statsEl.textContent = cleared.toLocaleString() + " tiles cleared (lifetime)";
+  }
+
+  function renderScoreline() {
+    scorelineEl.textContent = "Score: " + score.toLocaleString() + "   Best: " + highScore.toLocaleString();
   }
 
   // ---- layout --------------------------------------------------------------
@@ -198,7 +262,7 @@
     el.className = "tile";
     el.textContent = icon;
     boardEl.appendChild(el);
-    var t = { id: nextId++, row: row, col: col, icon: icon, el: el };
+    var t = { id: nextId++, row: row, col: col, icon: icon, el: el, type: "normal" };
     el.dataset.row = row;
     el.dataset.col = col;
     return t;
@@ -212,6 +276,14 @@
       void t.el.offsetWidth;
       t.el.style.transition = "";
     }
+  }
+
+  function markSpecial(t, kind) {
+    if (t.type === kind) return;
+    if (t.type !== "normal" && t.type !== kind) kind = "cross";
+    t.type = kind;
+    t.el.classList.remove("special-row", "special-col", "special-cross");
+    t.el.classList.add("special-" + kind);
   }
 
   // ---- board generation --------------------------------------------------
@@ -245,32 +317,53 @@
   }
 
   // ---- matching ------------------------------------------------------------
-  function findMatches() {
-    var flags = [];
-    for (var r = 0; r < N; r++) { flags.push([]); for (var c = 0; c < N; c++) flags[r].push(false); }
-
+  // Returns an array of runs: { positions: [{row,col},...], orientation: "row"|"col" }
+  // for every straight run of 3+ identical icons currently on the board.
+  function findMatchRuns() {
+    var runs = [];
     var row, col, runStart, runIcon;
+
     for (row = 0; row < N; row++) {
       runStart = 0; runIcon = grid[row][0].icon;
       for (col = 1; col <= N; col++) {
         var icon = col < N ? grid[row][col].icon : null;
         if (col < N && icon === runIcon) continue;
-        if (col - runStart >= 3) for (var k = runStart; k < col; k++) flags[row][k] = true;
+        if (col - runStart >= 3) {
+          var positions = [];
+          for (var k = runStart; k < col; k++) positions.push({ row: row, col: k });
+          runs.push({ positions: positions, orientation: "row" });
+        }
         runStart = col; runIcon = icon;
       }
     }
+
     for (col = 0; col < N; col++) {
       runStart = 0; runIcon = grid[0][col].icon;
       for (row = 1; row <= N; row++) {
         var icon2 = row < N ? grid[row][col].icon : null;
         if (row < N && icon2 === runIcon) continue;
-        if (row - runStart >= 3) for (var k2 = runStart; k2 < row; k2++) flags[k2][col] = true;
+        if (row - runStart >= 3) {
+          var positions2 = [];
+          for (var k2 = runStart; k2 < row; k2++) positions2.push({ row: k2, col: col });
+          runs.push({ positions: positions2, orientation: "col" });
+        }
         runStart = row; runIcon = icon2;
       }
     }
 
+    return runs;
+  }
+
+  function findMatches() {
+    var runs = findMatchRuns();
+    var seen = {};
     var out = [];
-    for (row = 0; row < N; row++) for (col = 0; col < N; col++) if (flags[row][col]) out.push({ row: row, col: col });
+    runs.forEach(function (run) {
+      run.positions.forEach(function (p) {
+        var key = p.row + "," + p.col;
+        if (!seen[key]) { seen[key] = true; out.push(p); }
+      });
+    });
     return out;
   }
 
@@ -305,11 +398,63 @@
     return false;
   }
 
-  // Silent grid-only swap used for move-availability probing (no DOM writes).
+  // Silent grid-only swap used for move-availability / hint probing (no DOM writes).
   function swapCells(r1, c1, r2, c2) {
     var tmp = grid[r1][c1];
     grid[r1][c1] = grid[r2][c2];
     grid[r2][c2] = tmp;
+  }
+
+  // ---- hints -----------------------------------------------------------
+  // Scans every adjacent swap for one that produces a match, preferring a
+  // meat/cheese ("protein") combo; falls back to any carb combo.
+  function findHint() {
+    var carbHint = null;
+    for (var row = 0; row < N; row++) {
+      for (var col = 0; col < N; col++) {
+        var dirs = [];
+        if (col + 1 < N) dirs.push({ row: row, col: col + 1 });
+        if (row + 1 < N) dirs.push({ row: row + 1, col: col });
+        for (var d = 0; d < dirs.length; d++) {
+          var target = dirs[d];
+          swapCells(row, col, target.row, target.col);
+          var matches = findMatches();
+          var isProtein = matches.some(function (p) { return PROTEIN_ICONS[grid[p.row][p.col].icon]; });
+          swapCells(row, col, target.row, target.col);
+          if (matches.length) {
+            var pair = { a: { row: row, col: col }, b: target };
+            if (isProtein) return pair;
+            if (!carbHint) carbHint = pair;
+          }
+        }
+      }
+    }
+    return carbHint;
+  }
+
+  function clearHint() {
+    if (hintTiles) {
+      hintTiles.forEach(function (t) { t.el.classList.remove("hint"); });
+      hintTiles = null;
+    }
+  }
+
+  function showHint() {
+    if (busy || runOver) return;
+    var pair = findHint();
+    if (!pair) return;
+    clearHint();
+    var ta = grid[pair.a.row][pair.a.col];
+    var tb = grid[pair.b.row][pair.b.col];
+    ta.el.classList.add("hint");
+    tb.el.classList.add("hint");
+    hintTiles = [ta, tb];
+  }
+
+  function scheduleHint() {
+    clearHint();
+    if (hintTimer) clearTimeout(hintTimer);
+    hintTimer = setTimeout(showHint, HINT_IDLE_MS);
   }
 
   // ---- resolve / cascade --------------------------------------------------
@@ -318,17 +463,20 @@
   }
 
   function attemptSwap(a, b) {
-    if (busy || !isAdjacent(a, b)) return;
+    if (busy || runOver || !isAdjacent(a, b)) return;
     busy = true;
+    clearHint();
+    if (hintTimer) clearTimeout(hintTimer);
     swapEntries(a, b);
     setTimeout(function () {
-      var matches = findMatches();
-      if (matches.length) {
-        resolveCascade(matches);
+      var runs = findMatchRuns();
+      if (runs.length) {
+        comboStep = 0;
+        resolveCascade(runs);
       } else {
         failSound();
         swapEntries(a, b);
-        setTimeout(function () { busy = false; }, SWAP_MS);
+        setTimeout(function () { busy = false; scheduleHint(); }, SWAP_MS);
       }
     }, SWAP_MS);
   }
@@ -361,19 +509,89 @@
     }
   }
 
-  function resolveCascade(matches) {
-    function step(current) {
-      cleared += current.length;
-      matchSound();
+  function endRun() {
+    runOver = true;
+    busy = true;
+    var beat = score > highScore;
+    if (beat) {
+      highScore = score;
+      Arcade.save("highScore", highScore);
+    }
+    renderScoreline();
+    runoverHeadlineEl.textContent = beat
+      ? "New best! " + score.toLocaleString() + " points 🎉"
+      : "Run over — " + score.toLocaleString() + " points";
+    runoverEl.classList.add("show");
+  }
+
+  function resolveCascade(runs) {
+    function step(currentRuns) {
+      comboStep++;
+
+      // Which positions clear this step, and which become new special tiles.
+      var clearedSet = {};
+      var newSpecials = {};
+      currentRuns.forEach(function (run) {
+        run.positions.forEach(function (p) { clearedSet[p.row + "," + p.col] = true; });
+        if (run.positions.length >= 4) {
+          var mid = run.positions[Math.floor(run.positions.length / 2)];
+          var key = mid.row + "," + mid.col;
+          var kind = run.orientation === "row" ? "row" : "col";
+          if (newSpecials[key] && newSpecials[key] !== kind) newSpecials[key] = "cross";
+          else if (!newSpecials[key]) newSpecials[key] = kind;
+        }
+      });
+
+      // Chain-activate any existing special tiles swept up in this clear.
+      var queue = Object.keys(clearedSet);
+      var qi = 0;
+      var triggeredSpecial = false;
+      while (qi < queue.length) {
+        var key = queue[qi++];
+        var parts = key.split(",");
+        var r = Number(parts[0]), c = Number(parts[1]);
+        var t = grid[r] && grid[r][c];
+        if (!t || newSpecials[key]) continue; // fresh specials-in-the-making don't self-detonate
+        if (t.type === "row" || t.type === "cross") {
+          triggeredSpecial = true;
+          for (var cc = 0; cc < N; cc++) {
+            var k2 = r + "," + cc;
+            if (!clearedSet[k2]) { clearedSet[k2] = true; queue.push(k2); }
+          }
+        }
+        if (t.type === "col" || t.type === "cross") {
+          triggeredSpecial = true;
+          for (var rr = 0; rr < N; rr++) {
+            var k3 = rr + "," + c;
+            if (!clearedSet[k3]) { clearedSet[k3] = true; queue.push(k3); }
+          }
+        }
+      }
+
+      var gained = Object.keys(clearedSet).length;
+      cleared += gained;
+      score += gained * comboStep;
+      renderScoreline();
+
+      if (triggeredSpecial) specialSound(); else matchSound();
+      if (comboStep > 1) setStatus("🔥 x" + comboStep + " combo!");
+
       var cols = {};
       var toRemove = [];
-      current.forEach(function (pos) {
-        var t = grid[pos.row][pos.col];
+      Object.keys(clearedSet).forEach(function (key) {
+        var parts = key.split(",");
+        var r = Number(parts[0]), c = Number(parts[1]);
+        if (newSpecials[key]) {
+          markSpecial(grid[r][c], newSpecials[key]);
+          return; // stays on the board, converted rather than cleared
+        }
+        var t = grid[r][c];
+        if (!t) return;
         t.el.style.transform = t.el.style.transform + " scale(0.3)";
         t.el.style.opacity = "0";
         toRemove.push(t.el);
-        grid[pos.row][pos.col] = null;
-        cols[pos.col] = true;
+        grid[r][c] = null;
+        cols[c] = true;
       });
 
       setTimeout(function () {
@@ -391,22 +609,24 @@
         });
 
         setTimeout(function () {
-          var next = findMatches();
+          var next = findMatchRuns();
           if (next.length) {
             step(next);
           } else {
             Arcade.save("cleared", cleared);
             renderStats();
             if (!hasAnyMove()) {
-              setStatus("No moves left — reshuffling");
-              generateBoard();
+              busy = false;
+              endRun();
+            } else {
+              busy = false;
+              scheduleHint();
             }
-            busy = false;
           }
         }, FALL_MS);
       }, CLEAR_MS);
     }
-    step(matches);
+    step(runs);
   }
 
   // ---- input ---------------------------------------------------------------
@@ -428,8 +648,10 @@
   var SWIPE_THRESHOLD = 20;
 
   boardEl.addEventListener("pointerdown", function (e) {
+    clearHint();
+    if (hintTimer) clearTimeout(hintTimer);
     var el = e.target.closest(".tile");
-    if (!el || busy) return;
+    if (!el || busy || runOver) return;
     el.setPointerCapture(e.pointerId);
     pointerStart = { x: e.clientX, y: e.clientY, coord: coordsFromEl(el) };
   });
@@ -438,7 +660,7 @@
     if (!pointerStart) return;
     var start = pointerStart;
     pointerStart = null;
-    if (busy) return;
+    if (busy || runOver) return;
 
     var dx = e.clientX - start.x;
     var dy = e.clientY - start.y;
@@ -471,13 +693,26 @@
     }
   });
 
+  restartBtn.addEventListener("click", function () {
+    runOver = false;
+    runoverEl.classList.remove("show");
+    score = 0;
+    comboStep = 0;
+    renderScoreline();
+    generateBoard();
+    busy = false;
+    scheduleHint();
+  });
+
   // ---- boot ------------------------------------------------------------
   function start() {
     renderMute();
     computeLayout();
     generateBoard();
     renderStats();
+    renderScoreline();
     busy = false;
+    scheduleHint();
   }
 
   Arcade.boot(start);
