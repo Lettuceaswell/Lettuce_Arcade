@@ -105,7 +105,16 @@
   }
 
   body.ketosis #ketosis-fill { box-shadow: 0 0 8px 2px rgba(74, 222, 128, 0.7); }
+  body.deep #ketosis-fill { box-shadow: 0 0 10px 3px rgba(56, 189, 248, 0.75); }
   body.carbcrash #ketosis-fill { box-shadow: 0 0 8px 2px rgba(255, 107, 107, 0.7); }
+
+  @keyframes frenzyPulse {
+    0%, 100% { box-shadow: 0 0 8px 2px rgba(192, 132, 252, 0.6); }
+    50% { box-shadow: 0 0 16px 5px rgba(192, 132, 252, 1); }
+  }
+
+  body.frenzy #ketosis-fill { animation: frenzyPulse 700ms ease-in-out infinite; }
+  body.frenzy #ketosis-label { color: #e9d5ff; font-weight: 700; }
 
   #stats { font-size: 0.85rem; color: var(--fg-dim); }
 
@@ -169,10 +178,30 @@
   var FALL_MS = 190;
   var HINT_IDLE_MS = 5000;
   var KETOSIS_START = 50;
-  var KETOSIS_HIGH = 70; // at/above this: fat-burning, 2x score
-  var KETOSIS_LOW = 15;  // at/below this: carb crash, 0.5x score
   var KETOSIS_PROTEIN_GAIN = 4; // per protein tile cleared
   var KETOSIS_CARB_LOSS = 3;    // per carb tile cleared
+
+  // Meter bands, low to high. `drain` is the upkeep charged once per resolved
+  // move, so holding a high tier costs more than holding a low one — that's
+  // what makes a keto chain worth sustaining rather than merely reaching.
+  // 100 has no band of its own: hitting it fires the frenzy instead.
+  var TIERS = [
+    { name: "crash",  min: 0,  mult: 0.5, drain: 1 },
+    { name: "normal", min: 16, mult: 1,   drain: 1 },
+    { name: "keto",   min: 70, mult: 2,   drain: 3 },
+    { name: "deep",   min: 85, mult: 3,   drain: 5 }
+  ];
+  var KETOSIS_DRAIN_FLOOR = 40; // drain never pushes you below this: only
+                                // carbs can crash you, never attrition
+  var SUGAR_RUSH = 1.5;     // score bonus on an all-carb clear step
+  var FRENZY_MULT = 4;
+  var FRENZY_MOVES = 5;     // Fat-Adapted duration, in player moves
+  var FRENZY_LAND = 70;     // meter drops back to base ketosis on expiry
+  var POINTS_PER_TILE = 10; // the tiers are unreadable at a base of 1
+
+  // Bumping this resets the personal best: scores earned under an older
+  // economy aren't comparable to scores earned under this one.
+  var ECON = 2;
 
   var boardEl = document.getElementById("board");
   var statusEl = document.getElementById("status");
@@ -191,8 +220,17 @@
   }
 
   var cleared = num(Arcade.load("cleared", 0)); // lifetime tiles cleared
+  var frenzies = num(Arcade.load("frenzies", 0)); // lifetime Fat-Adapted runs
   var highScore = num(Arcade.load("highScore", 0));
   var muted = Arcade.load("muted", false) === true;
+
+  // Lifetime tile count carries over — it counts tiles, not points — but the
+  // best score doesn't survive an economy change.
+  if (num(Arcade.load("econ", 1)) !== ECON) {
+    highScore = 0;
+    Arcade.save("highScore", 0);
+    Arcade.save("econ", ECON);
+  }
   var CELL = 44;
   var grid = [];
   var nextId = 1;
@@ -206,7 +244,10 @@
   var hintTimer = null;
   var hintTiles = null;
   var ketosis = KETOSIS_START;
-  var ketosisState = "normal"; // "high" | "normal" | "low"
+  var ketosisState = "normal"; // a TIERS name, or "frenzy"
+  var frenzyMoves = 0;         // >0 while Fat-Adapted
+  var frenzyJustStarted = false; // so the triggering move doesn't burn a turn
+  var meterFrozen = false;     // set per move when the board offers no protein
 
   // ---- audio -------------------------------------------------------------
   function tone(freq, dur, delay, vol) {
@@ -235,6 +276,11 @@
   function specialSound() { tone(880, 0.18, 0, 0.18); }
   function ketosisInSound() { tone(784, 0.14, 0, 0.16); tone(1046, 0.16, 0.08, 0.16); }
   function ketosisOutSound() { tone(196, 0.22, 0, 0.14); }
+  function frenzyInSound() {
+    tone(523, 0.12, 0, 0.17); tone(659, 0.12, 0.09, 0.17);
+    tone(784, 0.12, 0.18, 0.17); tone(1046, 0.3, 0.27, 0.2);
+  }
+  function frenzyOutSound() { tone(587, 0.16, 0, 0.13); tone(392, 0.28, 0.12, 0.12); }
 
   function renderMute() {
     muteBtn.textContent = muted ? "🔇" : "🔊";
@@ -257,31 +303,101 @@
   }
 
   function renderStats() {
-    statsEl.textContent = cleared.toLocaleString() + " tiles cleared (lifetime)";
+    statsEl.textContent = cleared.toLocaleString() + " tiles cleared · "
+      + frenzies.toLocaleString() + " fat-adapted (lifetime)";
   }
 
   function renderScoreline() {
     scorelineEl.textContent = "Score: " + score.toLocaleString() + "   Best: " + highScore.toLocaleString();
   }
 
-  function renderKetosis() {
-    ketosisFillEl.style.width = ketosis + "%";
-    if (ketosis >= KETOSIS_HIGH) {
-      ketosisFillEl.style.background = "#4ade80";
-      ketosisLabelEl.textContent = "🥑 Ketosis — 2x score";
-    } else if (ketosis <= KETOSIS_LOW) {
-      ketosisFillEl.style.background = "#ff6b6b";
-      ketosisLabelEl.textContent = "🍩 Carb crash — 0.5x score";
-    } else {
-      ketosisFillEl.style.background = "#ffd23f";
-      ketosisLabelEl.textContent = "Ketosis " + ketosis + "%";
+  // ---- ketosis tiers -------------------------------------------------------
+  function tierFor(value) {
+    var t = TIERS[0];
+    for (var i = 1; i < TIERS.length; i++) {
+      if (value >= TIERS[i].min) t = TIERS[i];
     }
+    return t;
+  }
+
+  function currentMultiplier() {
+    return frenzyMoves > 0 ? FRENZY_MULT : tierFor(ketosis).mult;
+  }
+
+  function currentStateName() {
+    return frenzyMoves > 0 ? "frenzy" : tierFor(ketosis).name;
+  }
+
+  var TIER_LABELS = {
+    crash: "🍩 Carb crash — 0.5x",
+    keto: "🥑 Ketosis — 2x",
+    deep: "🔥 Deep ketosis — 3x"
+  };
+
+  var TIER_COLORS = {
+    crash: "#ff6b6b",
+    normal: "#ffd23f",
+    keto: "#4ade80",
+    deep: "#38bdf8",
+    frenzy: "#c084fc"
+  };
+
+  function renderKetosis() {
+    var state = currentStateName();
+    ketosisFillEl.style.width = (state === "frenzy" ? 100 : ketosis) + "%";
+    ketosisFillEl.style.background = TIER_COLORS[state];
+    if (state === "frenzy") {
+      ketosisLabelEl.textContent = "⚡ Fat-adapted — 4x · " + frenzyMoves
+        + (frenzyMoves === 1 ? " move" : " moves");
+    } else if (meterFrozen) {
+      ketosisLabelEl.textContent = "🧊 No protein — carbs are free this move";
+    } else {
+      ketosisLabelEl.textContent = TIER_LABELS[state] || ("Ketosis " + ketosis + "%");
+    }
+  }
+
+  // Fires the banner + sound when the meter crosses a band. Called after any
+  // meter change — cascade gains, per-move drain, or frenzy expiry — so a
+  // tier lost to upkeep announces itself the same way one lost to carbs does.
+  function syncKetosisState(announce) {
+    var next = currentStateName();
+    if (next === ketosisState) return false;
+    var prev = ketosisState;
+    ketosisState = next;
+    document.body.classList.toggle("ketosis", next === "keto");
+    document.body.classList.toggle("deep", next === "deep");
+    document.body.classList.toggle("carbcrash", next === "crash");
+    document.body.classList.toggle("frenzy", next === "frenzy");
+    if (!announce) return true;
+    if (next === "frenzy") {
+      frenzyInSound();
+      setStatus("⚡ Fat-adapted! 4x — carbs can't touch you");
+    } else if (prev === "frenzy") {
+      frenzyOutSound();
+      setStatus("Back down to ketosis");
+    } else if (next === "deep") {
+      ketosisInSound();
+      setStatus("🔥 Deep ketosis — 3x");
+    } else if (next === "keto") {
+      ketosisInSound();
+      setStatus("🥑 Ketosis — 2x");
+    } else if (next === "crash") {
+      ketosisOutSound();
+      setStatus("🍩 Carb crash — 0.5x");
+    } else {
+      ketosisOutSound();
+      setStatus("Out of ketosis");
+    }
+    return true;
   }
 
   function resetKetosis() {
     ketosis = KETOSIS_START;
     ketosisState = "normal";
-    document.body.classList.remove("ketosis", "carbcrash");
+    frenzyMoves = 0;
+    frenzyJustStarted = false;
+    meterFrozen = !hasProteinMove(); // needs a generated board — call after it
+    document.body.classList.remove("ketosis", "deep", "carbcrash", "frenzy");
     renderKetosis();
   }
 
@@ -464,10 +580,12 @@
   }
 
   // ---- hints -----------------------------------------------------------
-  // Scans every adjacent swap for one that produces a match, preferring a
-  // meat/cheese ("protein") combo; falls back to any carb combo.
-  function findHint() {
-    var carbHint = null;
+  // One scan answers two questions: which swap to hint (preferring a
+  // meat/cheese "protein" combo), and whether the board offers any protein
+  // move at all. They're the same question, so they share a pass — the second
+  // answer drives the freeze valve in endOfMove().
+  function scanMoves() {
+    var carbPair = null;
     for (var row = 0; row < N; row++) {
       for (var col = 0; col < N; col++) {
         var dirs = [];
@@ -481,13 +599,22 @@
           swapCells(row, col, target.row, target.col);
           if (matches.length) {
             var pair = { a: { row: row, col: col }, b: target };
-            if (isProtein) return pair;
-            if (!carbHint) carbHint = pair;
+            if (isProtein) return { protein: pair, carb: carbPair };
+            if (!carbPair) carbPair = pair;
           }
         }
       }
     }
-    return carbHint;
+    return { protein: null, carb: carbPair };
+  }
+
+  function findHint() {
+    var scan = scanMoves();
+    return scan.protein || scan.carb;
+  }
+
+  function hasProteinMove() {
+    return scanMoves().protein !== null;
   }
 
   function clearHint() {
@@ -582,6 +709,33 @@
     runoverEl.classList.add("show");
   }
 
+  // Charged once per resolved move — never per cascade step, since taxing a
+  // cascade would punish the best outcome in the game. Holding a high tier
+  // costs more than holding a low one, so a keto chain has to be sustained
+  // rather than merely reached.
+  function endOfMove() {
+    if (frenzyMoves > 0) {
+      if (frenzyJustStarted) {
+        frenzyJustStarted = false;
+      } else {
+        frenzyMoves--;
+        if (frenzyMoves === 0) ketosis = FRENZY_LAND; // you earned base ketosis
+      }
+    } else if (ketosis > KETOSIS_DRAIN_FLOOR) {
+      // Drain is not suppressed by meterFrozen. Upkeep is ambient — your
+      // metabolism runs whatever the board is offering. The freeze exists to
+      // stop you being punished for *eating carbs you had no alternative to*,
+      // which is the carb loss, not the drain. Waiving both let the meter
+      // coast through protein-poor stretches and turned the frenzy into the
+      // default state rather than a payoff.
+      ketosis = Math.max(KETOSIS_DRAIN_FLOOR, ketosis - tierFor(ketosis).drain);
+    }
+    // Re-evaluated on the settled board, so it governs the *next* move.
+    meterFrozen = !hasProteinMove();
+    syncKetosisState(true);
+    renderKetosis();
+  }
+
   function resolveCascade(runs) {
     function step(currentRuns) {
       comboStep++;
@@ -636,26 +790,37 @@
       });
       cleared += gained;
 
-      ketosis = Math.max(0, Math.min(100, ketosis + proteinCount * KETOSIS_PROTEIN_GAIN - carbCount * KETOSIS_CARB_LOSS));
-      var multiplier = ketosis >= KETOSIS_HIGH ? 2 : (ketosis <= KETOSIS_LOW ? 0.5 : 1);
-      score += Math.round(gained * comboStep * multiplier);
+      // Score at the tier you were holding when you committed this clear,
+      // BEFORE the meter reacts to it. Order matters more than it looks: if
+      // the meter moved first, a carb run taken from deep ketosis would lose
+      // the tier *and* score at the lower one — a double penalty that makes
+      // carbs strictly worse and kills the temptation the rush exists to
+      // create. Sugar rush: an all-carb clear pays 50% more right now,
+      // against the compounding tier you give up to take it.
+      var rush = (gained > 0 && proteinCount === 0) ? SUGAR_RUSH : 1;
+      score += Math.round(gained * POINTS_PER_TILE * comboStep * currentMultiplier() * rush);
+
+      // Then pay the metabolic price. Gains always land; losses don't, while
+      // Fat-Adapted (you burn carbs) or while the meter is frozen (the board
+      // offered you no protein, so the carbs weren't a choice).
+      if (frenzyMoves === 0) {
+        var loss = meterFrozen ? 0 : carbCount * KETOSIS_CARB_LOSS;
+        ketosis = Math.max(0, Math.min(100, ketosis + proteinCount * KETOSIS_PROTEIN_GAIN - loss));
+        if (ketosis >= 100) {
+          frenzyMoves = FRENZY_MOVES;
+          frenzyJustStarted = true; // the triggering move shouldn't burn a turn
+          frenzies++;
+        }
+      }
+
       renderScoreline();
       renderKetosis();
 
-      var newKetosisState = ketosis >= KETOSIS_HIGH ? "high" : (ketosis <= KETOSIS_LOW ? "low" : "normal");
-      var ketosisTransitioned = newKetosisState !== ketosisState;
-      if (ketosisTransitioned) {
-        ketosisState = newKetosisState;
-        document.body.classList.toggle("ketosis", newKetosisState === "high");
-        document.body.classList.toggle("carbcrash", newKetosisState === "low");
-        if (newKetosisState === "high") ketosisInSound();
-        else if (newKetosisState === "low") ketosisOutSound();
-      }
-
       if (triggeredSpecial) specialSound(); else matchSound();
-      if (ketosisTransitioned && newKetosisState === "high") setStatus("🥑 Ketosis! 2x score");
-      else if (ketosisTransitioned && newKetosisState === "low") setStatus("🍩 Carb crash — 0.5x score");
-      else if (comboStep > 1) setStatus("🔥 x" + comboStep + " combo!");
+      if (!syncKetosisState(true)) {
+        if (comboStep > 1) setStatus("🔥 x" + comboStep + " combo!");
+        else if (rush > 1) setStatus("🍩 Sugar rush +50%");
+      }
 
       var cols = {};
       var toRemove = [];
@@ -694,7 +859,9 @@
           if (next.length) {
             step(next);
           } else {
+            endOfMove();
             Arcade.save("cleared", cleared);
+            Arcade.save("frenzies", frenzies);
             renderStats();
             if (!hasAnyMove()) {
               busy = false;
@@ -780,8 +947,8 @@
     score = 0;
     comboStep = 0;
     renderScoreline();
-    resetKetosis();
     generateBoard();
+    resetKetosis();
     busy = false;
     scheduleHint();
   });
