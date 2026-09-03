@@ -804,7 +804,7 @@
 
   function phase() {
     var h = new Date().getHours();
-    if (h >= 23 || h < 5) return "night";
+    if (h >= 0 || h < 5) return "night";
     if (h < 8) return "dawn";
     if (h < 12) return "morning";
     if (h < 17) return "afternoon";
