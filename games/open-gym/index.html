@@ -11,28 +11,44 @@
     display: flex;
     flex-direction: column;
     align-items: center;
-    justify-content: center;
-    gap: 12px;
+    gap: 8px;
     min-height: 100vh;
     text-align: center;
     padding:
-      calc(64px + var(--safe-top))
-      calc(12px + var(--safe-right))
-      calc(40px + var(--safe-bottom))
-      calc(12px + var(--safe-left));
+      calc(56px + var(--safe-top))
+      calc(10px + var(--safe-right))
+      calc(24px + var(--safe-bottom))
+      calc(10px + var(--safe-left));
   }
 
-  h1 { font-size: 1.35rem; letter-spacing: 0.02em; }
+  h1 { font-size: 1.2rem; letter-spacing: 0.02em; margin-bottom: 2px; }
+
+  #levelbar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.85rem;
+    color: var(--fg-dim);
+  }
+
+  #levelbar button { min-height: 32px; min-width: 32px; padding: 4px 10px; font-size: 0.9rem; }
+
+  #teach {
+    font-size: 0.8rem;
+    color: var(--fg-dim);
+    max-width: 360px;
+  }
 
   #status {
-    height: 1.4rem;
-    font-size: 0.95rem;
+    min-height: 1.3rem;
+    font-size: 0.88rem;
     font-weight: 700;
     color: var(--fg-dim);
   }
 
   .board {
     position: relative;
+    margin: 4px 0;
   }
 
   .hex {
@@ -44,165 +60,900 @@
     clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%);
     background: var(--hex-sedentary);
     display: flex;
+    flex-direction: column;
     align-items: center;
     justify-content: center;
-    font-size: calc(var(--hex-w) * 0.34);
     line-height: 1;
-    transition: transform 120ms ease, box-shadow 120ms ease;
+    transition: transform 100ms ease, box-shadow 100ms ease;
+    font-weight: 800;
+    color: #06302d;
   }
+
+  /* Corners of a pointy-top hex are clipped to a sliver by clip-path, so all
+     content stacks in the wide middle band instead of using absolute corners. */
+  .hex .main { font-size: calc(var(--hex-w) * 0.4); }
+  .hex .sub { font-size: calc(var(--hex-w) * 0.22); margin-top: 1px; white-space: nowrap; }
 
   .hex.owner-player { background: var(--hex-player); }
   .hex.owner-rival { background: var(--hex-rival); }
   .hex.owner-lapsed { background: var(--hex-lapsed); }
+  .hex.owner-blank { background: var(--hex-blank); }
 
-  .hex.selected {
-    box-shadow: 0 0 0 3px #ffe066 inset;
-    transform: scale(0.94);
+  .hex.selected { box-shadow: 0 0 0 3px #ffe066 inset; transform: scale(0.94); }
+  .hex.hl-move { box-shadow: 0 0 0 3px #4fd6ff inset; }
+  .hex.hl-capture { box-shadow: 0 0 0 3px #ff5f5f inset; }
+  .hex.hl-merge { box-shadow: 0 0 0 3px #c084fc inset; }
+  .hex.hl-sign { box-shadow: 0 0 0 3px #ffd23f inset; }
+
+  #panel {
+    display: none;
+    flex-direction: column;
+    gap: 6px;
+    background: var(--bg-elevated);
+    border-radius: 12px;
+    padding: 10px;
+    width: min(90vw, 380px);
   }
+  #panel.show { display: flex; }
+  #panel .row { display: flex; gap: 6px; flex-wrap: wrap; justify-content: center; }
+  #panel button { font-size: 0.85rem; padding: 8px 10px; min-height: 40px; }
 
-  #legend {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 10px;
-    justify-content: center;
-    font-size: 0.8rem;
-    color: var(--fg-dim);
-    max-width: 320px;
-  }
+  #controls { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
+  #controls button { font-size: 0.9rem; }
+  #controls button.active { outline: 3px solid #ffd23f; }
 
-  #legend span {
-    display: inline-flex;
+  #turncounter { font-size: 0.85rem; color: var(--fg-dim); }
+
+  #overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(6, 30, 28, 0.92);
+    z-index: 500;
     align-items: center;
-    gap: 5px;
+    justify-content: center;
+    flex-direction: column;
+    gap: 14px;
+    padding: 20px;
+    text-align: center;
   }
-
-  #legend i {
-    display: inline-block;
-    width: 12px;
-    height: 12px;
-    border-radius: 3px;
-  }
-
-  .swatch-player { background: var(--hex-player); }
-  .swatch-rival { background: var(--hex-rival); }
-  .swatch-sedentary { background: var(--hex-sedentary); }
-  .swatch-lapsed { background: var(--hex-lapsed); }
+  #overlay.show { display: flex; }
+  #overlay h2 { font-size: 1.4rem; }
 </style>
 </head>
-<body style="--hex-player:#4adec5; --hex-rival:#ff6b6b; --hex-sedentary:#2a6f6a; --hex-lapsed:#a8632c;">
+<body style="
+  --hex-player:#4adec5; --hex-rival:#ff6b6b;
+  --hex-sedentary:#2a6f6a; --hex-lapsed:#a8632c; --hex-blank:#184744;
+">
 <h1>🏋️ Open Gym</h1>
+
+<div id="levelbar">
+  <button id="prevlevel" class="btn">◀</button>
+  <span id="levellabel"></span>
+  <button id="nextlevel" class="btn">▶</button>
+</div>
+<div id="teach"></div>
 
 <div id="status" aria-live="polite"></div>
 
 <div class="board" id="board"></div>
 
-<div id="legend">
-  <span><i class="swatch-player"></i>Your Circuit</span>
-  <span><i class="swatch-rival"></i>Rival</span>
-  <span><i class="swatch-sedentary"></i>Sedentary</span>
-  <span><i class="swatch-lapsed"></i>Lapsed</span>
+<div id="panel"></div>
+
+<div id="controls">
+  <button id="branchbtn" class="btn">🏗️ Branch (15)</button>
+  <button id="undobtn" class="btn">↩ Undo</button>
+  <button id="endturnbtn" class="btn">End Turn ▶</button>
+</div>
+<div id="turncounter"></div>
+
+<div id="overlay">
+  <h2 id="overlay-headline"></h2>
+  <div id="overlay-sub" style="color:var(--fg-dim); font-size:0.9rem;"></div>
+  <button id="overlay-btn" class="btn">Continue</button>
 </div>
 
 <script src="/shared/arcade.js"></script>
 <script>
   Arcade.backButton();
 
-  // ---- placeholder map ---------------------------------------------------
-  // Hex-grid render only (GDD build order step 1). No Circuits, Momentum, or
-  // Rival logic yet — this is a hand-drawn hexagon of radius 3 so there's
-  // something to tap and look at while the render pipeline gets built.
-  // Real levels arrive later via a JSON loader (build order step 9).
-  var RADIUS = 3;
+  // ============================================================
+  // Constants
+  // ============================================================
+  var TIERS = ["trial", "member", "regular", "lifer"];
+  var TIER_LABEL = { trial: "Trial", member: "Member", regular: "Regular", lifer: "Lifer" };
+  var STRENGTH = { trial: 1, member: 2, regular: 3, lifer: 4 };
+  var COST = { trial: 10, member: 20, regular: 30, lifer: 40 };
+  var LOAD = { trial: 2, member: 6, regular: 18, lifer: 54 };
+  var BRANCH_COST = 15;
+  var LAPSE_TURNS = 5;
+  var SEDENTARY_SPREAD = 0.30;
+  var LAPSED_SPREAD = 0.50;
+  var DRAG_PENALTY = 1;
 
-  function buildDemoMap() {
-    var blocks = [];
-    for (var q = -RADIUS; q <= RADIUS; q++) {
-      var rMin = Math.max(-RADIUS, -q - RADIUS);
-      var rMax = Math.min(RADIUS, -q + RADIUS);
-      for (var r = rMin; r <= rMax; r++) {
-        var owner = "sedentary";
-        var label = "";
-        if (q === 0 && r === 0) { owner = "player"; label = "🏋️"; }
-        else if (q === RADIUS && r === -RADIUS) { owner = "rival"; label = "🏢"; }
-        else if (q === -1 && r === 2) { owner = "lapsed"; }
-        blocks.push({ q: q, r: r, owner: owner, label: label });
+  // Axial neighbor offsets, pointy-top hexes.
+  var DIRS = [[1, 0], [1, -1], [0, -1], [-1, 0], [-1, 1], [0, 1]];
+
+  function key(q, r) { return q + "," + r; }
+  function neighborsOf(q, r) {
+    return DIRS.map(function (d) { return { q: q + d[0], r: r + d[1] }; });
+  }
+  function hexDist(a, b) {
+    return (Math.abs(a.q - b.q) + Math.abs(a.q + a.r - b.q - b.r) + Math.abs(a.r - b.r)) / 2;
+  }
+
+  // ============================================================
+  // Level generation
+  // ------------------------------------------------------------
+  // Levels are generated deterministically (seeded, not random) from a
+  // small set of per-level knobs, per the GDD's four arcs. Precise
+  // hand-placement of every hex (GDD section 8) is left for a future
+  // playtesting pass — these fix the teaching order, rival introduction,
+  // and difficulty multiplier the GDD specifies, which is what's testable
+  // without real players in the room (see GDD section 10).
+  // ============================================================
+  function hexagonCoords(radius) {
+    var out = [];
+    for (var q = -radius; q <= radius; q++) {
+      var rMin = Math.max(-radius, -q - radius);
+      var rMax = Math.min(radius, -q + radius);
+      for (var r = rMin; r <= rMax; r++) out.push({ q: q, r: r });
+    }
+    return out;
+  }
+
+  function makeLevel(cfg) {
+    var rand = Arcade.seededRandom("open-gym-level-" + cfg.id);
+    var coords = hexagonCoords(cfg.radius);
+    var blocks = coords.map(function (c) {
+      return { q: c.q, r: c.r, owner: null, unit: null, isGym: false, isBranch: false, injury: false, state: "sedentary", sedentaryTurns: 0, momentum: 0 };
+    });
+    function find(q, r) { return blocks.filter(function (b) { return b.q === q && b.r === r; })[0]; }
+
+    var gym = find(0, 0);
+    gym.owner = "player"; gym.isGym = true; gym.state = null; gym.momentum = cfg.startMomentum;
+    gym.unit = { tier: "trial", movedThisTurn: false };
+
+    if (cfg.rival) {
+      var edge = find(cfg.radius, -cfg.radius);
+      edge.owner = "rival"; edge.isGym = true; edge.state = null; edge.momentum = cfg.startMomentum;
+      edge.unit = { tier: "trial", movedThisTurn: false };
+    }
+
+    // Pre-seed some Lapsed blocks for the later arcs, deterministically.
+    if (cfg.preLapsed) {
+      var sedentaryBlocks = blocks.filter(function (b) { return b.owner === null; });
+      for (var i = 0; i < cfg.preLapsed && i < sedentaryBlocks.length; i++) {
+        var idx = Math.floor(rand() * sedentaryBlocks.length);
+        var pick = sedentaryBlocks.splice(idx, 1)[0];
+        if (pick.q === 0 && pick.r === 0) continue;
+        pick.state = "lapsed";
       }
     }
-    return blocks;
-  }
 
-  var blocks = buildDemoMap();
-  var boardEl = document.getElementById("board");
-  var statusEl = document.getElementById("status");
-  var statusTimer = null;
-  var selected = null;
-  var SIZE = 34; // hex "radius", recomputed to fit viewport in layout()
+    if (cfg.preBranch) {
+      var g = find(0, 0);
+      var nb = neighborsOf(g.q, g.r).map(function (c) { return find(c.q, c.r); }).filter(Boolean);
+      if (nb.length) { var b = nb[0]; b.owner = "player"; b.isBranch = true; b.state = null; }
+    }
 
-  function setStatus(text) {
-    statusEl.textContent = text;
-    if (statusTimer) clearTimeout(statusTimer);
-    if (text) statusTimer = setTimeout(function () { statusEl.textContent = ""; }, 2200);
-  }
-
-  // pointy-top axial -> pixel center, per the standard hex-grid formulas
-  function hexCenter(q, r, size) {
     return {
-      x: size * Math.sqrt(3) * (q + r / 2),
-      y: size * 1.5 * r
+      id: cfg.id,
+      title: cfg.title,
+      teach: cfg.teach,
+      radius: cfg.radius,
+      startMomentum: cfg.startMomentum,
+      rival: cfg.rival ? { mult: cfg.rivalMult } : null,
+      blocks: blocks
     };
   }
 
+  var LEVEL_CFG = [
+    { id: 1, radius: 1, startMomentum: 30, title: "First Signup", teach: "Tap an empty Block you own to sign a Trial. Tap a Sedentary Block next to a member to recruit it." },
+    { id: 2, radius: 1, startMomentum: 40, title: "Filling the Floor", teach: "Momentum is Blocks-per-turn. More Blocks, more Momentum." },
+    { id: 3, radius: 2, startMomentum: 50, title: "The Whole Block", teach: "Clear every Sedentary Block to win." },
+    { id: 4, radius: 2, startMomentum: 40, title: "The Price of Commitment", teach: "Load is upkeep, paid every turn. Sign too many members and your Circuit runs dry." },
+    { id: 5, radius: 2, startMomentum: 30, title: "Fold", teach: "Overspend on purpose. Watch your Circuit Fold — then recover. It's survivable." },
+    { id: 6, radius: 2, startMomentum: 45, title: "Living With Load", teach: "Balance signups against income. Don't let Load catch you off guard." },
+    { id: 7, radius: 2, startMomentum: 55, title: "Merge Up", teach: "Two Trials on the same Circuit merge into a Member. Merging is cheaper than signing." },
+    { id: 8, radius: 2, startMomentum: 55, rival: true, rivalMult: 0.75, title: "The Rival Opens", teach: "A rival gym just opened. Same rules, same Sedentary problem — first to clear wins." },
+    { id: 9, radius: 2, startMomentum: 55, rival: true, rivalMult: 0.75, preBranch: true, title: "Branches", teach: "A Branch costs Momentum once, then defends its neighborhood for free, forever." },
+    { id: 10, radius: 3, startMomentum: 60, rival: true, rivalMult: 1.0, title: "Splitting Circuits", teach: "Recruit a Block that connects two halves of an enemy Circuit and it splits into two — each too small to survive." },
+    { id: 11, radius: 3, startMomentum: 60, rival: true, rivalMult: 1.0, title: "Protect the Seam", teach: "The rival can split you too. Don't leave a single connecting Block undefended." },
+    { id: 12, radius: 3, startMomentum: 60, rival: true, rivalMult: 1.0, title: "Even Fight", teach: "No more hints — just take the neighborhood." },
+    { id: 13, radius: 3, startMomentum: 45, rival: true, rivalMult: 1.25, preLapsed: 4, title: "Entrenched", teach: "Lapsed Blocks have been here a while. They spread faster and they can take your empty Blocks." },
+    { id: 14, radius: 3, startMomentum: 40, rival: true, rivalMult: 1.25, preLapsed: 6, title: "Tight Margins", teach: "There's no spare Momentum here. Every signup has to earn its keep." },
+    { id: 15, radius: 3, startMomentum: 35, rival: true, rivalMult: 1.25, preLapsed: 8, title: "Full Neighborhood", teach: "Everything the game has taught you, at once." }
+  ];
+  var LEVELS = LEVEL_CFG.map(makeLevel);
+
+  // ============================================================
+  // Game state
+  // ============================================================
+  var levelIndex = num(Arcade.load("levelIndex", 0));
+  var maxLevel = num(Arcade.load("maxLevel", 0));
+  var state = null;
+  var elMap = {};
+  var selected = null; // {q,r} of selected own unit
+  var signTarget = null; // {q,r} of empty owned block awaiting a sign choice
+  var branchMode = false;
+  var undoStack = [];
+  var SIZE = 30;
+
+  function num(v) { var n = Number(v); return isFinite(n) ? n : 0; }
+
+  function blockAt(q, r) { return state.blocks[key(q, r)]; }
+
+  function loadLevel(i) {
+    var lvl = LEVELS[i];
+    var blocksMap = {};
+    lvl.blocks.forEach(function (b) {
+      blocksMap[key(b.q, b.r)] = {
+        q: b.q, r: b.r, owner: b.owner,
+        unit: b.unit ? { tier: b.unit.tier, movedThisTurn: false } : null,
+        isGym: b.isGym, isBranch: b.isBranch, injury: false,
+        state: b.state, sedentaryTurns: 0, momentum: b.momentum || 0
+      };
+    });
+    state = {
+      levelId: lvl.id,
+      radius: lvl.radius,
+      rival: lvl.rival,
+      turn: 1,
+      gameOver: null,
+      blocks: blocksMap
+    };
+    selected = null; signTarget = null; branchMode = false;
+    undoStack = [];
+  }
+
+  function snapshot() {
+    return JSON.parse(JSON.stringify(state));
+  }
+  function pushUndo() {
+    undoStack.push(snapshot());
+    if (undoStack.length > 30) undoStack.shift();
+  }
+  function undo() {
+    if (!undoStack.length || state.gameOver) return;
+    state = undoStack.pop();
+    selected = null; signTarget = null; branchMode = false;
+    render();
+    setStatus("Undone.");
+  }
+
+  // ============================================================
+  // Circuits
+  // ============================================================
+  function computeCircuits(owner) {
+    var seen = {};
+    var circuits = [];
+    Object.keys(state.blocks).forEach(function (k) {
+      var b = state.blocks[k];
+      if (b.owner !== owner || seen[k]) return;
+      var group = [];
+      var stack = [b];
+      seen[k] = true;
+      while (stack.length) {
+        var cur = stack.pop();
+        group.push(cur);
+        neighborsOf(cur.q, cur.r).forEach(function (n) {
+          var nb = state.blocks[key(n.q, n.r)];
+          if (nb && nb.owner === owner && !seen[key(n.q, n.r)]) {
+            seen[key(n.q, n.r)] = true;
+            stack.push(nb);
+          }
+        });
+      }
+      circuits.push({ blocks: group, gyms: group.filter(function (x) { return x.isGym; }) });
+    });
+    return circuits;
+  }
+
+  function componentCount(owner, excludeKey) {
+    var seen = {};
+    var count = 0;
+    Object.keys(state.blocks).forEach(function (k) {
+      var b = state.blocks[k];
+      if (b.owner !== owner || seen[k] || k === excludeKey) return;
+      count++;
+      var stack = [b];
+      seen[k] = true;
+      while (stack.length) {
+        var cur = stack.pop();
+        neighborsOf(cur.q, cur.r).forEach(function (n) {
+          var nk = key(n.q, n.r);
+          var nb = state.blocks[nk];
+          if (nb && nb.owner === owner && nk !== excludeKey && !seen[nk]) {
+            seen[nk] = true;
+            stack.push(nb);
+          }
+        });
+      }
+    });
+    return count;
+  }
+
+  function circuitOf(q, r) {
+    var b = blockAt(q, r);
+    if (!b || !b.owner) return null;
+    var circuits = computeCircuits(b.owner);
+    return circuits.filter(function (c) { return c.blocks.indexOf(b) !== -1; })[0] || null;
+  }
+
+  // ============================================================
+  // Defense / strength
+  // ============================================================
+  function defenseOf(b) {
+    var best = 0;
+    if (b.unit) best = Math.max(best, STRENGTH[b.unit.tier]);
+    if (b.owner) {
+      neighborsOf(b.q, b.r).forEach(function (n) {
+        var nb = state.blocks[key(n.q, n.r)];
+        if (nb && nb.owner === b.owner && nb.unit) best = Math.max(best, STRENGTH[nb.unit.tier]);
+      });
+    }
+    if (b.isBranch) best = Math.max(best, 2);
+    neighborsOf(b.q, b.r).forEach(function (n) {
+      var nb = state.blocks[key(n.q, n.r)];
+      if (nb && nb.isBranch) best = Math.max(best, 2);
+    });
+    if (b.isGym) best = Math.max(best, 1);
+    if (!b.owner) best = Math.max(best, b.state === "lapsed" ? 1 : 0);
+    return best;
+  }
+
+  // ============================================================
+  // Actions
+  // ============================================================
+  function setStatus(text) {
+    document.getElementById("status").textContent = text;
+  }
+
+  function deselectAll() {
+    selected = null; signTarget = null; branchMode = false;
+    document.getElementById("branchbtn").classList.remove("active");
+    hidePanel();
+  }
+
+  function tryMoveOrCapture(from, to) {
+    var a = blockAt(from.q, from.r);
+    var b = blockAt(to.q, to.r);
+    if (!a || !b || !a.unit) return false;
+    var isOwnCircuit = b.owner === a.owner;
+    if (isOwnCircuit && !b.unit) {
+      // free move within the same Circuit
+      var sameCircuit = circuitOf(from.q, from.r);
+      if (!sameCircuit || sameCircuit.blocks.indexOf(b) === -1) return false;
+      pushUndo();
+      b.unit = a.unit; a.unit = null;
+      render();
+      setStatus("Moved.");
+      return true;
+    }
+    if (!isOwnCircuit) {
+      var mustBeAdjacent = hexDist(from, to) === 1;
+      if (!mustBeAdjacent) return false;
+      if (STRENGTH[a.unit.tier] <= defenseOf(b)) return false;
+      pushUndo();
+      b.owner = a.owner;
+      b.state = null;
+      if (b.isBranch && STRENGTH[a.unit.tier] <= 2) { /* unreachable: defense already checked */ }
+      b.isBranch = false;
+      b.unit = a.unit; a.unit = null;
+      b.unit.movedThisTurn = true;
+      render();
+      setStatus("Recruited a Block.");
+      checkWinLose();
+      return true;
+    }
+    return false;
+  }
+
+  function tryMerge(from, to) {
+    var a = blockAt(from.q, from.r);
+    var b = blockAt(to.q, to.r);
+    if (!a || !b || !a.unit || !b.unit) return false;
+    if (a.owner !== b.owner || a.unit.tier !== b.unit.tier) return false;
+    if (a.unit.tier === "lifer") return false;
+    var sameCircuit = circuitOf(from.q, from.r);
+    if (!sameCircuit || sameCircuit.blocks.indexOf(b) === -1) return false;
+    pushUndo();
+    var nextTier = TIERS[TIERS.indexOf(a.unit.tier) + 1];
+    b.unit.tier = nextTier;
+    a.unit = null;
+    render();
+    setStatus("Merged into a " + TIER_LABEL[nextTier] + ".");
+    return true;
+  }
+
+  function openSignPanel(b) {
+    signTarget = { q: b.q, r: b.r };
+    selected = null;
+    var circuit = circuitOf(b.q, b.r);
+    var gym = circuit && circuit.gyms[0];
+    var momentum = gym ? gym.momentum : 0;
+    var panel = document.getElementById("panel");
+    panel.innerHTML = "";
+    var title = document.createElement("div");
+    title.textContent = gym ? ("Sign a member — Circuit has " + momentum + " Momentum") : "No Gym in this Circuit — can't sign";
+    panel.appendChild(title);
+    var row = document.createElement("div");
+    row.className = "row";
+    TIERS.forEach(function (t) {
+      var btn = document.createElement("button");
+      btn.className = "btn";
+      btn.textContent = TIER_LABEL[t] + " (" + COST[t] + ")";
+      btn.disabled = !gym || momentum < COST[t];
+      btn.addEventListener("click", function () { signMember(b, t, gym); });
+      row.appendChild(btn);
+    });
+    panel.appendChild(row);
+    var cancel = document.createElement("button");
+    cancel.className = "btn";
+    cancel.textContent = "Cancel";
+    cancel.addEventListener("click", function () { deselectAll(); render(); });
+    panel.appendChild(cancel);
+    panel.classList.add("show");
+  }
+
+  function hidePanel() {
+    document.getElementById("panel").classList.remove("show");
+  }
+
+  function signMember(b, tier, gym) {
+    if (!gym || gym.momentum < COST[tier]) return;
+    pushUndo();
+    gym.momentum -= COST[tier];
+    b.unit = { tier: tier, movedThisTurn: false };
+    deselectAll();
+    render();
+    setStatus("Signed a " + TIER_LABEL[tier] + ".");
+  }
+
+  function buyBranch(b) {
+    var circuit = circuitOf(b.q, b.r);
+    var gym = circuit && circuit.gyms[0];
+    if (!gym || gym.momentum < BRANCH_COST || b.unit) return;
+    pushUndo();
+    gym.momentum -= BRANCH_COST;
+    b.isBranch = true;
+    deselectAll();
+    render();
+    setStatus("Branch opened.");
+  }
+
+  // ============================================================
+  // Turn resolution
+  // ============================================================
+  function resolveEconomy(owner) {
+    var circuits = computeCircuits(owner);
+    circuits.forEach(function (c) {
+      if (c.gyms.length > 1) {
+        var total = c.gyms.reduce(function (s, g) { return s + g.momentum; }, 0);
+        c.gyms[0].momentum = total;
+        for (var i = 1; i < c.gyms.length; i++) c.gyms[i].momentum = 0;
+      }
+      var gym = c.gyms[0];
+      if (!gym) return;
+      var income = c.blocks.length;
+      if (owner === "rival" && state.rival) income = Math.round(income * state.rival.mult);
+      var load = c.blocks.reduce(function (s, b) { return s + (b.unit ? LOAD[b.unit.tier] : 0); }, 0);
+      var drag = c.blocks.some(function (b) {
+        return neighborsOf(b.q, b.r).some(function (n) {
+          var nb = state.blocks[key(n.q, n.r)];
+          return nb && !nb.owner && nb.state === "lapsed";
+        });
+      }) ? DRAG_PENALTY : 0;
+      gym.momentum += income - load - drag;
+      if (gym.momentum < 0) {
+        c.blocks.forEach(function (b) {
+          if (b.unit) { b.injury = true; b.unit = null; }
+        });
+        gym.momentum = 0;
+      }
+    });
+  }
+
+  function sweepInjuries() {
+    Object.keys(state.blocks).forEach(function (k) {
+      var b = state.blocks[k];
+      if (b.injury) {
+        b.injury = false;
+        b.owner = null;
+        b.isGym = false;
+        b.isBranch = false;
+        b.state = "sedentary";
+        b.sedentaryTurns = 0;
+      }
+    });
+  }
+
+  function spreadSedentaryAndLapsed() {
+    var blocksList = Object.keys(state.blocks).map(function (k) { return state.blocks[k]; });
+
+    blocksList.filter(function (b) { return !b.owner && b.state === "lapsed"; }).forEach(function (b) {
+      if (Math.random() >= LAPSED_SPREAD) return;
+      var targets = neighborsOf(b.q, b.r).map(function (n) { return state.blocks[key(n.q, n.r)]; }).filter(function (nb) {
+        if (!nb) return false;
+        if (!nb.owner) return nb.state !== "lapsed";
+        if (nb.unit) return false;
+        var hasBranchNeighbor = neighborsOf(nb.q, nb.r).some(function (n2) {
+          var b2 = state.blocks[key(n2.q, n2.r)];
+          return b2 && b2.isBranch;
+        });
+        return !hasBranchNeighbor;
+      });
+      if (!targets.length) return;
+      var t = targets[Math.floor(Math.random() * targets.length)];
+      t.owner = null; t.isGym = false; t.isBranch = false; t.state = "lapsed"; t.sedentaryTurns = 0;
+    });
+
+    blocksList.filter(function (b) { return !b.owner && b.state === "sedentary"; }).forEach(function (b) {
+      b.sedentaryTurns++;
+      if (b.sedentaryTurns >= LAPSE_TURNS) b.state = "lapsed";
+    });
+
+    blocksList.filter(function (b) { return !b.owner && b.state === "sedentary"; }).forEach(function (b) {
+      if (Math.random() >= SEDENTARY_SPREAD) return;
+      var targets = neighborsOf(b.q, b.r).map(function (n) { return state.blocks[key(n.q, n.r)]; }).filter(function (nb) {
+        return nb && !nb.owner && nb.state !== "sedentary" && nb.state !== "lapsed";
+      });
+      if (!targets.length) return;
+      var t = targets[Math.floor(Math.random() * targets.length)];
+      t.state = "sedentary"; t.sedentaryTurns = 0;
+    });
+  }
+
+  function checkWinLose() {
+    var blocksList = Object.keys(state.blocks).map(function (k) { return state.blocks[k]; });
+    var anyRival = blocksList.some(function (b) { return b.owner === "rival"; });
+    var anyNeutral = blocksList.some(function (b) { return !b.owner; });
+    if (!anyRival && !anyNeutral) {
+      state.gameOver = "win";
+      return;
+    }
+    var playerUnits = blocksList.some(function (b) { return b.owner === "player" && b.unit; });
+    var playerGyms = blocksList.filter(function (b) { return b.owner === "player" && b.isGym; });
+    var canSign = playerGyms.some(function (g) { return g.momentum >= COST.trial; });
+    var anyPlayerBlocks = blocksList.some(function (b) { return b.owner === "player"; });
+    if (!anyPlayerBlocks || (!playerUnits && !canSign)) {
+      state.gameOver = "lose";
+    }
+  }
+
+  // ============================================================
+  // Rival AI
+  // ============================================================
+  function rivalAct() {
+    if (!state.rival || state.gameOver) return;
+    var circuits = computeCircuits("rival");
+    var foldRisk = {};
+    circuits.forEach(function (c) {
+      var gym = c.gyms[0];
+      if (!gym) return;
+      var income = Math.round(c.blocks.length * state.rival.mult);
+      var load = c.blocks.reduce(function (s, b) { return s + (b.unit ? LOAD[b.unit.tier] : 0); }, 0);
+      var risky = (gym.momentum + income - load) < 0;
+      c.blocks.forEach(function (b) { foldRisk[key(b.q, b.r)] = risky; });
+    });
+
+    function rivalUnits() {
+      return Object.keys(state.blocks).map(function (k) { return state.blocks[k]; })
+        .filter(function (b) { return b.owner === "rival" && b.unit && !b.unit.movedThisTurn; });
+    }
+
+    function captureCandidates(allowRisky) {
+      var out = [];
+      rivalUnits().forEach(function (b) {
+        if (!allowRisky && foldRisk[key(b.q, b.r)]) return;
+        neighborsOf(b.q, b.r).forEach(function (n) {
+          var target = state.blocks[key(n.q, n.r)];
+          if (!target || target.owner === "rival") return;
+          if (STRENGTH[b.unit.tier] > defenseOf(target)) out.push({ from: b, to: target });
+        });
+      });
+      return out;
+    }
+
+    // Rule 2: split the player's Circuit
+    var splitCandidate = captureCandidates(false).filter(function (c) { return c.to.owner === "player"; })
+      .filter(function (c) { return componentCount("player", key(c.to.q, c.to.r)) > componentCount("player", null); })[0];
+    if (splitCandidate) return doRivalCapture(splitCandidate, "The rival split your Circuit.");
+
+    // Rule 3: take the best-connected capturable Block
+    var candidates = captureCandidates(false);
+    if (candidates.length) {
+      candidates.sort(function (a, b2) {
+        return neighborsOf(b2.to.q, b2.to.r).filter(function (n) { return state.blocks[key(n.q, n.r)]; }).length
+          - neighborsOf(a.to.q, a.to.r).filter(function (n) { return state.blocks[key(n.q, n.r)]; }).length;
+      });
+      return doRivalCapture(candidates[0], "The rival took a Block.");
+    }
+
+    // Rule 4: merge two adjacent same-tier idle members
+    var units = rivalUnits();
+    for (var i = 0; i < units.length; i++) {
+      var u = units[i];
+      if (u.unit.tier === "lifer") continue;
+      var partner = neighborsOf(u.q, u.r).map(function (n) { return state.blocks[key(n.q, n.r)]; })
+        .filter(function (nb) { return nb && nb.owner === "rival" && nb.unit && !nb.unit.movedThisTurn && nb.unit.tier === u.unit.tier; })[0];
+      if (partner) {
+        var nextTier = TIERS[TIERS.indexOf(u.unit.tier) + 1];
+        partner.unit.tier = nextTier;
+        u.unit = null;
+        render();
+        setStatus("The rival merged into a " + TIER_LABEL[nextTier] + ".");
+        return;
+      }
+    }
+
+    // Rule 5: buy a Branch on the border if flush
+    var richCircuit = circuits.filter(function (c) { return c.gyms[0] && c.gyms[0].momentum > 40; })[0];
+    if (richCircuit) {
+      var gym = richCircuit.gyms[0];
+      var borderSpot = richCircuit.blocks.filter(function (b) {
+        return !b.unit && !b.isBranch && neighborsOf(b.q, b.r).some(function (n) {
+          var nb = state.blocks[key(n.q, n.r)];
+          return nb && nb.owner !== "rival";
+        });
+      })[0];
+      if (borderSpot) {
+        gym.momentum -= BRANCH_COST;
+        borderSpot.isBranch = true;
+        render();
+        setStatus("The rival opened a Branch.");
+        return;
+      }
+    }
+
+    // Rule 6: clear the nearest Sedentary
+    var sedentaryCandidates = captureCandidates(false).filter(function (c) { return !c.to.owner && c.to.state === "sedentary"; });
+    if (sedentaryCandidates.length) return doRivalCapture(sedentaryCandidates[0], "The rival cleared a Sedentary Block.");
+  }
+
+  function doRivalCapture(cand, msg) {
+    var a = cand.from, b = cand.to;
+    b.owner = "rival";
+    b.state = null;
+    b.isBranch = false;
+    b.unit = a.unit; a.unit = null;
+    b.unit.movedThisTurn = true;
+    render();
+    setStatus(msg);
+  }
+
+  // ============================================================
+  // End turn
+  // ============================================================
+  function endTurn() {
+    if (state.gameOver) return;
+    pushUndo();
+    deselectAll();
+    sweepInjuries();
+    Object.keys(state.blocks).forEach(function (k) {
+      var b = state.blocks[k];
+      if (b.owner === "rival" && b.unit) b.unit.movedThisTurn = false;
+    });
+    resolveEconomy("player");
+    resolveEconomy("rival");
+    checkWinLose();
+    if (!state.gameOver) rivalAct();
+    checkWinLose();
+    if (!state.gameOver) spreadSedentaryAndLapsed();
+    checkWinLose();
+    Object.keys(state.blocks).forEach(function (k) {
+      var b = state.blocks[k];
+      if (b.owner === "player" && b.unit) b.unit.movedThisTurn = false;
+    });
+    state.turn++;
+    render();
+    if (state.gameOver) showOverlay();
+  }
+
+  // ============================================================
+  // Rendering
+  // ============================================================
+  function hexCenter(q, r, size) {
+    return { x: size * Math.sqrt(3) * (q + r / 2), y: size * 1.5 * r };
+  }
+
+  function buildBoard() {
+    var boardEl = document.getElementById("board");
+    while (boardEl.firstChild) boardEl.removeChild(boardEl.firstChild);
+    elMap = {};
+    Object.keys(state.blocks).forEach(function (k) {
+      var b = state.blocks[k];
+      var el = document.createElement("div");
+      el.className = "hex";
+      el.addEventListener("pointerdown", function () { onTapBlock(b); });
+      boardEl.appendChild(el);
+      elMap[k] = el;
+    });
+    layout();
+  }
+
+  function fitSize() {
+    var maxBoardWidth = Math.min(window.innerWidth - 20, 440);
+    var cols = 2 * state.radius + 1;
+    SIZE = Math.max(20, Math.floor(maxBoardWidth / (cols * Math.sqrt(3))));
+  }
+
   function layout() {
-    var hexW = Math.sqrt(3) * SIZE;
-    var hexH = 2 * SIZE;
+    var boardEl = document.getElementById("board");
+    var hexW = Math.sqrt(3) * SIZE, hexH = 2 * SIZE;
     var minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-    var centers = blocks.map(function (b) {
+    var placed = Object.keys(state.blocks).map(function (k) {
+      var b = state.blocks[k];
       var c = hexCenter(b.q, b.r, SIZE);
       var left = c.x - hexW / 2, top = c.y - hexH / 2;
       minX = Math.min(minX, left); minY = Math.min(minY, top);
       maxX = Math.max(maxX, left + hexW); maxY = Math.max(maxY, top + hexH);
-      return { block: b, left: left, top: top };
+      return { k: k, left: left, top: top };
     });
-
     boardEl.style.setProperty("--hex-w", hexW + "px");
     boardEl.style.setProperty("--hex-h", hexH + "px");
     boardEl.style.width = (maxX - minX) + "px";
     boardEl.style.height = (maxY - minY) + "px";
-
-    centers.forEach(function (c) {
-      c.block.el.style.transform =
-        "translate3d(" + (c.left - minX) + "px," + (c.top - minY) + "px,0)";
+    placed.forEach(function (p) {
+      elMap[p.k].style.transform = "translate3d(" + (p.left - minX) + "px," + (p.top - minY) + "px,0)";
     });
   }
 
-  function fitSize() {
-    // Board spans roughly (2*RADIUS+1) hexes wide at sqrt(3)*size per hex.
-    var maxBoardWidth = Math.min(window.innerWidth - 24, 420);
-    var cols = 2 * RADIUS + 1;
-    var size = Math.floor(maxBoardWidth / (cols * Math.sqrt(3)));
-    SIZE = Math.max(24, size); // floor keeps tap targets close to the 44px rule
+  function highlightsFor() {
+    var moves = {}, captures = {}, merges = {};
+    if (selected) {
+      var a = blockAt(selected.q, selected.r);
+      if (a && a.unit) {
+        var circuit = circuitOf(selected.q, selected.r);
+        if (circuit) {
+          circuit.blocks.forEach(function (b) {
+            if (!b.unit && !(b.q === a.q && b.r === a.r)) moves[key(b.q, b.r)] = true;
+            if (b.unit && b.unit.tier === a.unit.tier && a.unit.tier !== "lifer" && !(b.q === a.q && b.r === a.r)) merges[key(b.q, b.r)] = true;
+          });
+        }
+        neighborsOf(a.q, a.r).forEach(function (n) {
+          var t = state.blocks[key(n.q, n.r)];
+          if (t && t.owner !== a.owner && STRENGTH[a.unit.tier] > defenseOf(t)) captures[key(n.q, n.r)] = true;
+        });
+      }
+    }
+    return { moves: moves, captures: captures, merges: merges };
   }
 
   function render() {
-    while (boardEl.firstChild) boardEl.removeChild(boardEl.firstChild);
-    blocks.forEach(function (b) {
-      var el = document.createElement("div");
-      el.className = "hex owner-" + b.owner;
-      el.textContent = b.label || "";
-      el.addEventListener("pointerdown", function () { selectBlock(b); });
-      boardEl.appendChild(el);
-      b.el = el;
+    if (!state) return;
+    document.getElementById("levellabel").textContent = "Level " + state.levelId + " / " + LEVELS.length;
+    var lvl = LEVELS[levelIndex];
+    document.getElementById("teach").textContent = lvl.title + " — " + lvl.teach;
+    document.getElementById("turncounter").textContent = "Turn " + state.turn;
+    document.getElementById("prevlevel").disabled = levelIndex === 0;
+    document.getElementById("nextlevel").disabled = levelIndex >= maxLevel && levelIndex >= LEVELS.length - 1 ? levelIndex >= LEVELS.length - 1 : levelIndex >= maxLevel;
+
+    var hl = highlightsFor();
+    Object.keys(state.blocks).forEach(function (k) {
+      var b = state.blocks[k];
+      var el = elMap[k];
+      if (!el) return;
+      var cls = "hex";
+      if (b.owner === "player") cls += " owner-player";
+      else if (b.owner === "rival") cls += " owner-rival";
+      else if (b.state === "lapsed") cls += " owner-lapsed";
+      if (selected && selected.q === b.q && selected.r === b.r) cls += " selected";
+      if (hl.moves[k]) cls += " hl-move";
+      if (hl.captures[k]) cls += " hl-capture";
+      if (hl.merges[k]) cls += " hl-merge";
+      if (signTarget && signTarget.q === b.q && signTarget.r === b.r) cls += " hl-sign";
+      el.className = cls;
+
+      var main = b.unit ? String(STRENGTH[b.unit.tier]) : "";
+      var sub = "";
+      if (b.isGym) sub += "🏋️" + (b.owner ? b.momentum : "");
+      if (b.isBranch) sub += "🏗️";
+      el.innerHTML = '<span class="main">' + main + '</span>'
+        + (sub ? '<span class="sub">' + sub + '</span>' : "");
     });
-    fitSize();
-    layout();
+
+    document.getElementById("branchbtn").classList.toggle("active", branchMode);
+    var canBranch = state.blocks && Object.keys(state.blocks).some(function (k) {
+      var b = state.blocks[k];
+      if (b.owner !== "player" || b.unit || b.isBranch) return false;
+      var c = circuitOf(b.q, b.r);
+      return c && c.gyms[0] && c.gyms[0].momentum >= BRANCH_COST;
+    });
+    document.getElementById("branchbtn").disabled = !canBranch;
+    document.getElementById("undobtn").disabled = undoStack.length === 0;
   }
 
-  function selectBlock(b) {
-    if (selected && selected.el) selected.el.classList.remove("selected");
-    selected = b;
-    b.el.classList.add("selected");
-    setStatus("Block (" + b.q + ", " + b.r + ") · " + b.owner);
+  function onTapBlock(b) {
+    if (state.gameOver) return;
+    hidePanel();
+
+    if (branchMode) {
+      if (b.owner === "player" && !b.unit && !b.isBranch) buyBranch(b);
+      return;
+    }
+
+    if (selected) {
+      var from = selected;
+      if (from.q === b.q && from.r === b.r) { deselectAll(); render(); return; }
+      var a = blockAt(from.q, from.r);
+      if (a && a.unit && a.owner === b.owner && b.unit) {
+        if (tryMerge(from, b)) { deselectAll(); return; }
+      }
+      if (tryMoveOrCapture(from, b)) { deselectAll(); return; }
+      deselectAll();
+    }
+
+    if (b.owner === "player" && b.unit && !b.unit.movedThisTurn) {
+      selected = { q: b.q, r: b.r };
+      render();
+      return;
+    }
+
+    if (b.owner === "player" && !b.unit && !b.isBranch) {
+      openSignPanel(b);
+      render();
+      return;
+    }
   }
+
+  function showOverlay() {
+    var overlay = document.getElementById("overlay");
+    var headline = document.getElementById("overlay-headline");
+    var sub = document.getElementById("overlay-sub");
+    var btn = document.getElementById("overlay-btn");
+    if (state.gameOver === "win") {
+      headline.textContent = "🎉 Neighborhood signed!";
+      sub.textContent = "Level " + state.levelId + " cleared in " + state.turn + " turns.";
+      if (levelIndex + 1 > maxLevel) { maxLevel = levelIndex + 1; Arcade.save("maxLevel", maxLevel); }
+      btn.textContent = levelIndex < LEVELS.length - 1 ? "Next level" : "Replay";
+      btn.onclick = function () {
+        overlay.classList.remove("show");
+        if (levelIndex < LEVELS.length - 1) levelIndex++;
+        Arcade.save("levelIndex", levelIndex);
+        loadLevel(levelIndex);
+        buildBoard(); render();
+      };
+    } else {
+      headline.textContent = "Circuit collapsed";
+      sub.textContent = "No members, no Momentum. Try again.";
+      btn.textContent = "Retry level";
+      btn.onclick = function () {
+        overlay.classList.remove("show");
+        loadLevel(levelIndex);
+        buildBoard(); render();
+      };
+    }
+    overlay.classList.add("show");
+  }
+
+  // ============================================================
+  // Controls
+  // ============================================================
+  document.getElementById("endturnbtn").addEventListener("click", endTurn);
+  document.getElementById("undobtn").addEventListener("click", undo);
+  document.getElementById("branchbtn").addEventListener("click", function () {
+    if (state.gameOver) return;
+    branchMode = !branchMode;
+    selected = null; signTarget = null;
+    hidePanel();
+    render();
+  });
+  document.getElementById("prevlevel").addEventListener("click", function () {
+    if (levelIndex === 0) return;
+    levelIndex--;
+    Arcade.save("levelIndex", levelIndex);
+    loadLevel(levelIndex);
+    fitSize(); buildBoard(); render();
+  });
+  document.getElementById("nextlevel").addEventListener("click", function () {
+    if (levelIndex >= maxLevel || levelIndex >= LEVELS.length - 1) return;
+    levelIndex++;
+    Arcade.save("levelIndex", levelIndex);
+    loadLevel(levelIndex);
+    fitSize(); buildBoard(); render();
+  });
 
   var resizeTimer = null;
   window.addEventListener("resize", function () {
@@ -210,7 +961,14 @@
     resizeTimer = setTimeout(function () { fitSize(); layout(); }, 120);
   });
 
+  // ============================================================
+  // Boot
+  // ============================================================
   function start() {
+    if (levelIndex > maxLevel) levelIndex = maxLevel;
+    loadLevel(levelIndex);
+    fitSize();
+    buildBoard();
     render();
   }
 
