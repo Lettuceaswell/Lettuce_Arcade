@@ -2,50 +2,64 @@
 
 - **Slug:** `games/daily-letters/`
 - **Emoji:** 🔤
-- **Status:** designed — ready to build (word list sourcing is the one
-  blocking dependency, see Build checklist)
+- **Status:** designed — ready to build (no blocking dependencies)
 
 ## One-line pitch
-A shared daily tile rack — everyone in the family gets the same letters and
-races to weave all of them into one connected crossword before midnight.
+A shared daily tile rack — everyone in the family gets the same letters,
+weaves as many as they can into one crossword, and commits their board for
+a screenshot the group chat can judge.
 
 ---
 
-## Design principle: one board, many solutions
+## Design principle: one board, many solutions, no referee
 
 Everyone opens the same rack. Nobody can out-luck anyone else — the only
-thing that varies is how well you can arrange what you were given. That's
-the whole appeal of Q-Less and the whole reason to keep this digital version
-honest: no rerolls, no shuffle-for-a-better-draw, no do-over. You get today's
-19 letters and you either find the arrangement or you don't.
+thing that varies is how well you arrange what you were given. No rerolls,
+no shuffle-for-a-better-draw, no do-over. You get today's 19 letters and
+you either find the arrangement or you don't.
+
+**The game does not check words.** This is an honor system, exactly like
+the physical Q-Less it's modelled on. Three reasons:
+
+1. **A dictionary is the wrong judge for a family.** Any bundled word list
+   is either too permissive (obscure two-letter Scrabble words nobody
+   knows) or too strict (a perfectly normal word that didn't make the
+   cut). The family already knows what counts.
+2. **Transparency beats validation.** Instead of the game saying "valid",
+   the game shows *everything* — the lettered board and every run it
+   contains — and the people in the chat do the judging. Cheating is
+   possible and immediately visible, which is the same social contract as
+   the physical game.
+3. **It costs nothing.** No word list means no licensing question, no
+   150KB data file over cell data, and a game that fits in a few KB.
 
 Two consequences that drive the decisions below:
 
-1. **The puzzle must be checkable without a human ref.** Physical Q-Less
-   relies on players catching each other's mistakes. A solo phone session
-   has no one to catch a fake word, so the game needs its own dictionary.
-2. **A full solve is a real, rare, shareable achievement — not the expected
-   outcome.** The tile draw isn't guaranteed to contain a valid 19-letter
-   anagram-of-sorts every day (nothing guarantees one exists, same as a
-   Scrabble bag). Some days the best possible arrangement leaves 1–3 tiles
-   stranded, and that's fine — "fewest left over" is the score precisely
-   because zero isn't always reachable.
+- **A full solve is a real, rare, shareable achievement — not the
+  expected outcome.** The tile draw isn't guaranteed to contain a valid
+  19-letter arrangement every day. Some days the best honest board leaves
+  1–3 tiles stranded, and that's fine — "fewest left over" is the score
+  precisely because zero isn't always reachable.
+- **Commit is the moment.** Because nothing is validated live, the game
+  has no natural "you won" trigger. The player supplies it by pressing
+  Commit, and that press is where the ceremony and the share card live.
 
 ---
 
-## Rules
+## Rules (honor system)
+
+These are the rules the family agrees to, shown once on a "How to play"
+sheet. The game enforces only the geometry (adjacency and connectivity);
+the words are on you.
 
 - Words are 3+ letters, read left-to-right or top-to-bottom only (no
   diagonals, no backwards).
-- No proper nouns, no abbreviations — enforced by the bundled word list
-  itself (see Word list), not by an honor system.
-- Every placed tile must belong to a connected crossword: every tile is
+- No proper nouns, no abbreviations.
+- Every placed tile must belong to one connected crossword: every tile is
   orthogonally adjacent to at least one other placed tile, and the whole
-  placed set is one connected group (no separate islands of tiles).
-- A tile sitting alone with no neighbor doesn't count as a word and blocks
-  the solve.
-- Goal: place every tile from the rack onto the grid, with every row-run and
-  column-run of 2+ tiles reading as a valid word.
+  placed set is a single group. The game *does* count islands and shows
+  it, because that's pure geometry and needs no dictionary.
+- Goal: place every tile from the rack. Fewest left over wins.
 
 ## Letters
 
@@ -59,102 +73,193 @@ Two consequences that drive the decisions below:
   `Arcade.seededRandom()` so every device produces an identical rack:
   1. Draw 6 vowels from a frequency-weighted vowel pool (E and A weighted
      heaviest, matching real English letter frequency).
-  2. Draw 13 consonants from a frequency-weighted consonant pool, Q excluded.
-     Rare letters (J, X, Z) stay in the pool at low weight rather than being
-     banned outright — a stray Z is a fun constraint, a hand with three of
-     them isn't, and the low weight keeps that from happening in practice.
+  2. Draw 13 consonants from a frequency-weighted consonant pool, Q
+     excluded. Rare letters (J, X, Z) stay in the pool at low weight rather
+     than being banned outright — a stray Z is a fun constraint, a hand
+     with three of them isn't, and the low weight keeps that from
+     happening in practice.
   3. Shuffle the combined 19-tile rack (same seeded RNG) so tile order in
      the rack isn't alphabetical or vowels-first.
 - `Arcade.dailySeed()` keys off the device's local calendar date, so the
   puzzle resets at local midnight per device — already true of every other
-  daily-seed game in the arcade, not a new behavior to design around.
-
-## Word list
-
-The one piece this design leans on that isn't already in `shared/`: a
-bundled, local word list. No dependency, no CDN, no network call — just a
-static data file shipped in the game's own folder, same as any other asset.
-
-- A single newline-separated string of lowercase words (not a JS array of
-  20,000 string literals — the parse/memory overhead of one big string split
-  once at load is smaller), 3+ letters, common-word corpus with proper nouns
-  and abbreviations already excluded by the source list.
-- Loaded into a `Set` at boot for O(1) lookup per placed run.
-- Every row-run and column-run of length 2+ is re-checked after each tile
-  placement: not-yet-a-word (still shorter than 3, or not in the set) reads
-  as **in progress**, never as an error — you're mid-build, not wrong. A
-  completed run that isn't in the word list is the only state flagged red.
-- Budget: aim for ≤150KB for the word list file, which keeps the whole game
-  comfortably inside the 500KB-per-game ceiling in `CLAUDE.md` alongside
-  markup, CSS, and JS.
+  daily-seed game in the arcade.
 
 ## Grid & placement
 
 - Fixed **9×9 board**, cells sized to fill portrait width on a small phone
-  (~38px each, ~342px board width) — no panning, no zooming, the whole board
-  is visible at once above the rack.
-- **Tap-to-place, not drag.** Tap a tile in the rack to select it (it lifts
-  visually), then tap an empty grid cell to place it there. Tap a placed
-  tile to pick it back up — it returns to the rack — then place it elsewhere.
-  Two taps stand in for a drag, per the no-precise-dragging rule in
-  `CLAUDE.md`.
+  (~38px each, ~342px board width) — no panning, no zooming, the whole
+  board is visible at once above the rack.
+- **Tap-to-place, not drag.** Tap a tile in the rack to select it (it
+  lifts visually), then tap an empty grid cell to place it there. Tap a
+  placed tile to pick it back up — it returns to the rack — then place it
+  elsewhere. Two taps stand in for a drag, per the no-precise-dragging
+  rule in `CLAUDE.md`.
 - Placement direction (across vs. down) isn't chosen explicitly — it falls
-  out of what's already adjacent on the grid, exactly like a real crossword
-  or Bananagrams board. Placing a tile next to an existing tile just extends
-  whatever run touches it.
-- Unused-tile count updates live in the rack header as tiles come on and off
-  the board.
+  out of what's already adjacent, exactly like a real crossword or
+  Bananagrams board.
+- **Anything goes anywhere.** The game never refuses a placement. A tile
+  floating alone is allowed; it just shows up in the island count.
+- Live readouts in the header, updating on every tap:
+  - **Tiles left** (the score — see Scoring).
+  - **Islands** — number of disconnected groups. Shown only when > 1, as a
+    quiet amber pill, never a modal. "1 group" is the target and is
+    implied by the pill's absence.
+- **Runs list** under the board: every row-run and column-run of 2+
+  letters, extracted mechanically and listed as plain text ("TAB · NEST ·
+  TONE · AS"). No validity colouring — it's a mirror, not a judge. This is
+  the transparency layer: whatever's on the board is spelled out for the
+  screenshot.
+
+## Commit & ceremony
+
+Commit is the game's one real decision and its only payoff moment.
+
+- A **Commit** button sits below the rack. It's always enabled (you can
+  commit a 12-left board if that's your honest best), and its label
+  carries the score it would lock in: **"Commit · 2 left"**. When the
+  rack empties it changes to **"Commit · Clean rack"** and pulses.
+- Tapping Commit opens a one-line confirm sheet — "Lock in 2 left for
+  today?" — because commit is **final for the day**. This is deliberate:
+  the choice between locking in a 1-left board now or grinding for 0 is
+  where the tension lives (see Scoring). No uncommit.
+- On confirm, the **ceremony** plays, and it's built as a reveal even
+  though the player already knows the score:
+  1. The rack and buttons slide away; the board recentres.
+  2. Placed tiles flip face-down then face-up one at a time in placement
+     order (~40ms each, ~0.8s total for a full board). This is the
+     drumroll — a short, uncertain-feeling interval between the press and
+     the payoff, same trick as the third reel in Lettuce Slots.
+  3. The runs list types itself out under the board.
+  4. The score stamps in last, big: **"2 left"** or **"CLEAN RACK"**, with
+     a short `Arcade.audioCtx` chime scaled to the result (a single note
+     for a commit, a rising triad for a clean rack) and a confetti burst
+     on a clean rack only.
+  5. The screen settles into the **share card** (see Sharing) and stays
+     there. Reopening the game later that day lands straight on the card.
+- Boards not committed by local midnight simply expire with no result
+  (see Persistence). The nudge for this is soft: after the first tile is
+  placed, the header date gains a "commits at midnight" subtitle.
 
 ## Scoring
 
-- Primary score: **tiles left unused** at any moment — lower is better,
-  visible at all times, not just at a "submit" step.
-- A **full solve** (0 unused, every run a valid word, one connected group)
-  triggers a small celebration state and locks in as that day's result. You
-  can still keep fiddling after — rearranging is free until midnight — but
-  the share card remembers your best (fewest-unused) arrangement of the day,
-  not just your last one.
-- Ties are expected and fine — several people hitting 0 the same day is the
-  point, not a bug to resolve with a tiebreaker.
+**Primary: tiles left.** Lower is better. 0 is a **Clean rack**. This is
+the honest Q-Less score and the only number the family ranks by. It's
+shown at all times in the header, not just at commit.
+
+**Secondary, on the card only (never summed into the score):**
+
+- **Words** — count of runs of 3+ letters. Fewer words for the same tiles
+  placed is the elegant board (a clean rack in 4 words beats one in 7),
+  the same way Wordle's "in 3" beats "in 5". Runs of exactly 2 are listed
+  in the runs list for scrutiny but don't count as words.
+- **Longest word** — the single most bragged-about stat in physical
+  Q-Less, and free to compute.
+- **Groups** — should read "1". Anything else is a visible asterisk on
+  the board.
+
+**Streaks, across days:**
+
+- **Commit streak** — consecutive local days with a committed board, any
+  score. Missing a day resets it.
+- **Clean streak** — consecutive committed days at 0 left.
+
+Both live on the card as a small line ("🔥 6-day streak · 2 clean") and
+in the header on the next day's fresh board, so yesterday's result is
+the first thing you see.
+
+### Where the tension lives
+
+Tiles-left on its own is flat: deterministic, no variable reward, and the
+player knows the number before Commit. The dopamine in this game isn't in
+the payout — it's in three places the design puts pressure on:
+
+1. **The last two tiles.** At 2–3 left, most of the board is fixed and
+   every move is a live gamble on whether one more crossing exists. This
+   is the maximum-uncertainty interval, the same spot the third reel
+   occupies in Lettuce Slots. The header counter and the Commit label
+   both tick down in real time so the player *feels* each drop.
+2. **Lock in or keep going.** Commit being final turns "1 left" into a
+   decision: bank it, or risk an evening of shuffling for a clean rack
+   you might not find. Loss aversion on the streak (a missed commit
+   resets it) pushes people to bank; the clean-rack chime and confetti
+   pull them to push on.
+3. **The reveal delay.** Even a known score gets a ~1s drumroll before
+   it stamps in. Slot machines pay out coins one at a time for the same
+   reason.
+
+What it deliberately doesn't do: hand out points for placing tiles,
+escalating multipliers, or per-word scoring. Those would make a nonsense
+board with 19 placed score higher than an honest board with 2 left, and
+the honor system only works if the score can't be gamed *within* the
+rules.
 
 ## Timing
 
-- One puzzle per day, resets at local midnight (see Letters — inherits
+- One puzzle per day, resets at local midnight (inherits
   `Arcade.dailySeed()` behavior).
-- No timer, no session limit. The board stays interactive all day; closing
-  and reopening the tab restores exactly where you left off via
-  `Arcade.save`.
+- No timer, no session limit. The board stays interactive all day until
+  committed; closing and reopening the tab restores exactly where you left
+  off via `Arcade.save`.
 
 ## Sharing
 
-No accounts, no backend, so sharing is a copyable text block sized for a
-group chat — same spirit as a Wordle-style share square, adapted to a grid:
+The screenshot *is* the celebration, so the game's job is to make sure
+what's on screen after Commit is worth screenshotting and easy to send.
+
+**The share card** (the post-commit screen):
 
 ```
-Daily Letters — Sep 3
-15/19 placed · 4 words · 2 crossings
+   ┌──────────────────────────────┐
+   │  🔤 Daily Letters · Sep 3    │
+   │  Lev                         │
+   │                              │
+   │   · · T A B · · · ·          │
+   │   · · O · A · · · ·          │
+   │   · · N E S T · · ·          │   <- lettered board, cropped
+   │   · · E · · · · · ·          │      to bounding box + 1 cell
+   │                              │
+   │   TAB · TONE · NEST · AS     │   <- every run, for the judges
+   │                              │
+   │        ✨ CLEAN RACK ✨       │
+   │   19/19 · 4 words · longest 4│
+   │   🔥 6-day streak · 2 clean  │
+   └──────────────────────────────┘
 
-⬜⬜🟩🟩🟩⬜⬜⬜⬜
-⬜⬜🟩⬜🟩⬜⬜⬜⬜
-🟩🟩🟩🟩🟩⬜⬜⬜⬜
-⬜⬜⬜⬜🟩⬜⬜⬜⬜
+        [ Share ]     [ Copy text ]
 ```
 
-- The grid is cropped to the bounding box of placed tiles (not the full 9×9)
-  so it reads as a compact shape in a text thread.
-- 🟩 = an occupied cell, ⬜ = empty — letters themselves are never included,
-  so the shape is legible but the words stay a surprise for anyone who
-  hasn't solved it yet.
-- A **Copy** button uses the browser's built-in Clipboard API
-  (`navigator.clipboard.writeText`) — no library needed. Falls back to a
-  selected, tappable `<textarea>` if the Clipboard API is unavailable.
-- Screenshotting instead of copying always works too and needs nothing
-  built for it.
+- **Letters are shown, not hidden.** Transparency is the point — the
+  family judges the words. This is a spoiler for anyone who hasn't played
+  yet, and that's accepted: the group-chat convention is "don't open the
+  thread until you've committed."
+- The player's **name** comes from a one-time prompt at first boot,
+  stored via `Arcade.save`, editable from the How to play sheet. Without
+  it, screenshots from two phones are indistinguishable.
+- **Share** button: renders the card to a `<canvas>` (plain text tiles on
+  coloured rects — no fonts, no images) and hands it to
+  `navigator.share({ files: [png] })`. On iOS Safari this opens the
+  native sheet straight into Messages, and "Save Image" is right there.
+  Vanilla API, no library. If `navigator.canShare` says no, the button
+  hides and the card itself is laid out to fit one portrait viewport
+  cleanly for a native screenshot.
+- **Copy text** button: a monospace text block for chats that strip
+  images, via `navigator.clipboard.writeText` with a `<textarea>`
+  fallback. Letters included, cropped to bounding box:
 
-## Screen
+  ```
+  Daily Letters — Sep 3 — Lev
+  CLEAN RACK · 4 words · longest 4
+
+  · · T A B
+  · · O · A
+  · · N E S T
+  · · E · ·
+  ```
+
+## Screen (during play)
 
 ```
-      🔤  Sep 3  ·  15/19 left to place
+      🔤  Sep 3  ·  2 left  ·  🔥 6
 
    ┌─────────────────────────────┐
    │ · · T A B · · · ·           │
@@ -167,22 +272,21 @@ Daily Letters — Sep 3
    │ · · · · · · · · ·           │
    │ · · · · · · · · ·           │
    └─────────────────────────────┘
+      TAB · TONE · NEST · AS          <- runs list, live
 
-   ┌───┬───┬───┬───┬───┬───┬───┐
-   │ R │ E │ I │ K │ D │ L │ W │      <- rack, tap to select
-   └───┴───┴───┴───┴───┴───┴───┘
+   ┌───┬───┐
+   │ K │ W │                          <- rack, tap to select
+   └───┴───┘
 
-   [ Shuffle rack view ]   [ Share ]
+   [ Shuffle rack ]   [ Commit · 2 left ]
 ```
 
-- Board on top (fixed, whole thing visible), rack pinned below it, two
-  buttons at the bottom.
-- "Shuffle rack view" reorders the *unplaced* tiles cosmetically only — it
-  never changes which 19 letters you got, it just helps when the leftover
-  tiles cluster into an awkward run of similar letters.
-- A run that completes as an invalid word gets a red underline and a small
-  shake; a run in progress (too short or not yet a word) is neutral, never
-  red — see Word list.
+- Board on top (fixed, whole thing visible), runs list, rack pinned
+  below, two buttons at the bottom.
+- "Shuffle rack" reorders the *unplaced* tiles cosmetically only — it
+  never changes which 19 letters you got.
+- No red states anywhere during play. The only non-neutral signal is the
+  amber "2 groups" pill when the board is disconnected.
 
 ## Controls
 
@@ -192,87 +296,100 @@ Daily Letters — Sep 3
 
 ## Session shape
 
-- Turn-based and endlessly pausable — no timer pressure, matching the house
-  default in `CLAUDE.md`.
-- A typical sitting is a few minutes; the puzzle supports many short visits
-  across the day since state persists and nothing punishes leaving mid-build.
+- Turn-based and endlessly pausable — no timer pressure, matching the
+  house default in `CLAUDE.md`.
+- A typical sitting is a few minutes; the puzzle supports many short
+  visits across the day since state persists and nothing punishes leaving
+  mid-build. Commit ends the day's play.
 
 ## Persistence
 
-Via `Arcade.save` / `Arcade.load`, namespaced per game automatically, one
-`state` key per day:
+Via `Arcade.save` / `Arcade.load`, namespaced per game automatically.
 
-- `date` — the `Arcade.dailySeed()` value this state belongs to, so a stale
-  save from yesterday is detected and discarded on load rather than shown.
-- `rack` — today's 19 letters, in seeded order (regenerated from the seed if
-  ever missing — never trusted blindly from storage).
+`state` — today's board, one object:
+
+- `date` — the `Arcade.dailySeed()` value this state belongs to, so a
+  stale save from yesterday is detected and discarded on load rather than
+  shown.
+- `rack` — today's 19 letters, in seeded order (regenerated from the seed
+  if ever missing — never trusted blindly from storage).
 - `placed` — `{ letter, row, col }[]` for tiles currently on the board.
-- `bestUnused` — fewest-unused count reached today, for the share card.
-- `solved` — whether a full solve has been hit today (for the celebration
-  state, shown once per day even if you keep rearranging after).
+- `committed` — `false`, or the committed result `{ left, words, longest,
+  groups }` so the share card can be rebuilt without recomputing.
+
+`profile` — persists across days:
+
+- `name` — the player's display name for the card.
+- `streak` — `{ lastCommitDate, days, clean }`. On load, if
+  `lastCommitDate` is neither today nor yesterday, `days` and `clean`
+  reset to 0 before anything is shown.
+- `seenHowToPlay` — whether the rules sheet has been dismissed once.
 
 ## Accessibility
 
-- Every board/rack tile shows its letter as text, never as a color-only or
-  icon-only cue.
-- Word-state (in progress / valid / invalid) is stated via an
-  `aria-live="polite"` status line in addition to color and shake, since
-  color alone fails the colorblind case and shake alone fails anyone using
-  a screen reader.
+- Every board/rack tile shows its letter as text, never as a colour-only
+  or icon-only cue.
+- Tiles-left, groups count, and the runs list are all plain text and live
+  in an `aria-live="polite"` region so the state is announced as it
+  changes.
 - Tap targets ≥44px on both board cells and rack tiles.
-- No hover states, no precision dragging, no timed input anywhere.
+- No hover states, no precision dragging, no timed input anywhere. The
+  ceremony's flip animation respects `prefers-reduced-motion` (tiles
+  appear instantly, chime and score still play).
 
 ## Assets
 
-- `wordlist.txt`-derived data file, bundled locally, budgeted ≤150KB (see
-  Word list).
-- No images, no fonts, no icon requests — tiles are plain text in styled
-  divs, consistent with the rest of the arcade.
+- None. No word list, no images, no fonts, no icon requests — tiles are
+  plain text in styled divs, and the share image is drawn on a canvas at
+  share time. Whole game should land well under 30KB.
 
 ## Build checklist
 
-- [ ] Source and license-check a common-English word list (3+ letters, no
-      proper nouns/abbreviations) small enough to fit the ≤150KB budget —
-      this is the one real dependency the design leans on and needs to be
-      resolved before the board logic can be tested end-to-end.
-- [ ] `games/daily-letters/index.html` + word list data file. Self-contained
-      folder, no other cross-game imports.
-- [ ] Imports only `shared/arcade.css` and `shared/arcade.js`.
-- [ ] `Arcade.boot()` before any gameplay; `Arcade.backButton()`.
-- [ ] Tile draw: seeded, weighted, no Q, 6 vowels / 13 consonants out of 19.
-- [ ] Tap-to-place / tap-to-lift interaction, no drag.
-- [ ] Live run validation (in progress / valid / invalid) against the
-      bundled word list.
-- [ ] Connectivity check (single connected group) gates the full-solve state.
-- [ ] Share-card text generation, cropped to bounding box, Clipboard API
-      with `<textarea>` fallback.
+- [ ] `games/daily-letters/index.html`, self-contained, imports only
+      `shared/arcade.css` and `shared/arcade.js`.
+- [ ] `Arcade.boot()` before any gameplay or audio; `Arcade.backButton()`.
+- [ ] First-boot name prompt + How to play sheet (rules, honor system).
+- [ ] Tile draw: seeded, weighted, no Q, 6 vowels / 13 consonants of 19.
+- [ ] Tap-to-place / tap-to-lift, any cell, no refusals.
+- [ ] Live header: tiles left, groups pill (when > 1), streak.
+- [ ] Runs extraction (rows + columns, 2+ letters) → live runs list.
+- [ ] Commit button with live label, confirm sheet, final-for-day lock.
+- [ ] Ceremony: flip-in, runs type-out, score stamp, chime, confetti on
+      clean rack, `prefers-reduced-motion` path.
+- [ ] Share card layout that fits one portrait viewport.
+- [ ] Canvas render → `navigator.share` with file; hide button when
+      unsupported.
+- [ ] Copy-text share with `<textarea>` fallback.
+- [ ] Streak bookkeeping (commit + clean), reset on a missed day.
 - [ ] `games.json` entry (`slug`, `title`, `blurb`, `emoji`).
 - [ ] Bump `Arcade.VERSION`.
-- [ ] Page weight check: whole game, word list included, under 500KB.
 
 ## Tuning knobs
 
-1. **Tile count (19) and vowel target (6/19).** The two numbers that decide
-   whether most days feel solvable or most days strand several tiles.
-2. **Board size (9×9).** Bigger gives more room to spread words out but
-   pushes cell size down or the board off-screen on an older phone; smaller
-   forces denser, harder-to-place words.
-3. **Word list size/coverage.** Too permissive (a huge list) makes obscure
-   words trivially available and full solves too easy; too strict frustrates
-   people typing perfectly normal words that didn't make the cut.
-4. **Rare-letter weighting (J/X/Z).** Currently low but nonzero — raise it
-   for more "fun constraint" days, lower it toward zero if it's landing as
+1. **Tile count (19) and vowel target (6/19).** The two numbers that
+   decide whether most days feel solvable or most days strand tiles.
+2. **Board size (9×9).** Bigger gives more room but pushes cell size down
+   or the board off-screen on an older phone.
+3. **Commit finality.** Shipped as final-for-day because that's where the
+   tension comes from. If the family finds it punishing (kids
+   mis-tapping, someone committing at 3 left and then spotting the fix),
+   the fallback is "re-commit allowed, best of day kept" — softer, but it
+   dissolves the lock-in decision.
+4. **Rare-letter weighting (J/X/Z).** Currently low but nonzero — raise
+   for more "fun constraint" days, lower toward zero if it lands as
    "unfair" more than "fun."
+5. **Ceremony length.** ~1s drumroll is the guess. Too short and it's a
+   flash; too long and it's a loading bar.
 
 ## Open questions
 
-- **Which word list corpus to bundle**, and under what license — the one
-  item blocking a real build (see Build checklist).
-- **Archive of past days.** Nothing in the brief mentions replaying
-  yesterday's rack — worth deciding before build whether `state` only ever
-  holds *today*, or whether a small history of past racks/results is worth
-  the extra persistence.
-- **What "share" looks like for a non-solve.** The mock above assumes any
-  partial arrangement is shareable; worth confirming that's desired versus
-  only allowing a share once some minimum (e.g. all tiles placed, solved or
-  not) is reached.
+- **Archive of past days.** `state` only ever holds today. Worth deciding
+  whether a small history of past cards (date, left, words) is worth the
+  persistence — it'd make the streak line feel earned rather than just
+  a number.
+- **Two-letter runs.** They're listed for transparency but excluded from
+  the word count. If the family decides two-letter words are fine, that's
+  a one-line change.
+- **Shared spoilers.** The card shows letters by design. If the "don't
+  open the thread until you've committed" convention doesn't hold, a
+  "hide letters" toggle on the card is cheap to add.
