@@ -1,5 +1,10 @@
 # OPEN GYM — Game Design Document
 
+- **Slug:** `games/open-gym/`
+- **Emoji:** 🏋️
+- **Status:** prototype — full engine built (15 levels, Rival AI), held off
+  the arcade index (`games.json`) until playtests 1–3 pass.
+
 *(Working title. Alternates: Block by Block, The Circuit, Foot Traffic.)*
 
 **Genre:** Single-player turn-based territory strategy
