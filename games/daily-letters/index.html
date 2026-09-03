@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <title>Daily Letters — Lettuce Arcade</title>
 <meta name="theme-color" content="#083734">
 <link rel="stylesheet" href="/shared/arcade.css">
@@ -27,8 +27,8 @@
     min-height: 44px;
     padding-left: 136px; /* room for the fixed back button */
   }
-  .top .date { color: var(--fg-dim); font-size: 0.95rem; white-space: nowrap; }
-  .top .sub { display: block; font-size: 0.7rem; opacity: 0.7; line-height: 1; }
+  .top .date { color: var(--fg-dim); font-size: 0.95rem; white-space: nowrap; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+  .top .sub { display: block; font-size: 0.7rem; opacity: 0.7; line-height: 1; overflow: hidden; text-overflow: ellipsis; }
   .top .streak { font-size: 0.9rem; white-space: nowrap; }
   .top .leftRead { margin-left: auto; font-weight: 700; white-space: nowrap; }
   .top .leftRead b { font-size: 1.4rem; }
@@ -72,6 +72,19 @@
   .board.placing .cell:not(.filled) { background: rgba(74, 222, 197, 0.2); }
   .cell.filled:active { transform: scale(0.94); }
 
+  /* ---- board tools (shift + clear) ---- */
+  .tools { display: flex; gap: 6px; justify-content: center; align-items: center; }
+  .tools .tool {
+    width: 44px; height: 44px; border-radius: 10px; padding: 0;
+    background: rgba(255, 255, 255, 0.12); color: var(--fg);
+    border: none; font-size: 1.2rem; font-weight: 700;
+    touch-action: manipulation;
+  }
+  .tools .tool:active { background: rgba(255, 255, 255, 0.22); }
+  .tools .tool:disabled { opacity: 0.3; }
+  .tools .spacer { width: 12px; }
+  .tools .tool.clear { width: auto; padding: 0 14px; font-size: 0.95rem; }
+
   /* ---- runs list ---- */
   .runs {
     min-height: 1.5em;
@@ -112,6 +125,12 @@
   .btn.ghost { background: rgba(255, 255, 255, 0.12); flex: 0 0 auto; }
   .btn.ghost:active { background: rgba(255, 255, 255, 0.2); }
   .hint { text-align: center; color: var(--fg-dim); font-size: 0.85rem; min-height: 1.3em; }
+  .link {
+    background: none; border: none; color: var(--fg-dim);
+    text-decoration: underline; font-size: 0.95rem;
+    min-height: 44px; align-self: center; padding: 0 12px;
+  }
+  .links { display: flex; justify-content: center; gap: 8px; flex-wrap: wrap; }
 
   @keyframes pulse {
     0%, 100% { box-shadow: 0 0 0 0 rgba(74, 222, 197, 0.7); }
@@ -174,11 +193,6 @@
   .card-score.clean { color: var(--accent); }
   .card-stats, .card-streak { font-size: 0.95rem; color: var(--fg-dim); }
   .card-streak { font-size: 0.9rem; }
-  .link {
-    background: none; border: none; color: var(--fg-dim);
-    text-decoration: underline; font-size: 0.95rem;
-    min-height: 44px; align-self: center; padding: 0 12px;
-  }
 
   @keyframes flipIn { 0% { transform: rotateY(90deg); opacity: 0; } 100% { transform: none; opacity: 1; } }
   .ccell.filled.anim { animation: flipIn 0.28s ease-out both; }
@@ -218,13 +232,23 @@
   </header>
   <div class="pill" id="groupsPill" hidden></div>
   <div class="board" id="board" role="grid" aria-label="Board"></div>
+  <div class="tools">
+    <button class="tool" id="shiftL" aria-label="Shift board left">◀</button>
+    <button class="tool" id="shiftU" aria-label="Shift board up">▲</button>
+    <button class="tool" id="shiftD" aria-label="Shift board down">▼</button>
+    <button class="tool" id="shiftR" aria-label="Shift board right">▶</button>
+    <span class="spacer"></span>
+    <button class="tool clear" id="clearBtn">Clear</button>
+  </div>
   <div class="runs" id="runs" aria-live="polite"></div>
   <div class="rack" id="rack" aria-label="Rack"></div>
   <div class="actions">
     <button class="btn ghost" id="shuffleBtn">Shuffle</button>
+    <button class="btn ghost" id="newBtn" hidden>New</button>
     <button class="btn" id="commitBtn">Commit · 19 left</button>
   </div>
   <div class="hint" id="hint" aria-live="polite"></div>
+  <div class="links"><button class="link" id="modeLinkPlay"></button></div>
 </main>
 
 <main id="cardView" hidden>
@@ -244,7 +268,11 @@
     <button class="btn ghost" id="copyBtn">Copy text</button>
   </div>
   <div class="hint" id="cardHint"></div>
-  <button class="link" id="reopenBtn">Reopen board</button>
+  <div class="links">
+    <button class="link" id="reopenBtn">Reopen board</button>
+    <button class="link" id="newLinkCard" hidden>New puzzle</button>
+    <button class="link" id="modeLinkCard"></button>
+  </div>
 </main>
 
 <div class="sheet" id="howto" hidden>
@@ -255,8 +283,9 @@
       <li>Words read left-to-right or top-to-bottom, 3+ letters.</li>
       <li>No names, no abbreviations. Everything should connect.</li>
       <li>The game doesn't check words. <b>Your family does.</b> Every run on your board is listed on your card.</li>
-      <li>Tap a rack tile, then tap a square. Tap a placed tile to pick it up.</li>
-      <li><b>Commit</b> locks your board and makes your card. You get one reopen per day.</li>
+      <li>Tap a rack tile, then tap a square. Tap a placed tile to pick it up. The arrows slide the whole board.</li>
+      <li><b>Commit</b> makes your card. You can reopen and re-commit as often as you like.</li>
+      <li>Done with today's? <b>Free play</b> deals fresh racks all day long.</li>
     </ul>
     <label for="nameInput">Your name (goes on your card)</label>
     <input id="nameInput" type="text" maxlength="16" autocomplete="off" autocapitalize="words" placeholder="Player">
@@ -266,11 +295,11 @@
 
 <div class="sheet" id="confirm" hidden>
   <div class="panel">
-    <h2 id="confirmTitle">Lock in?</h2>
+    <h2 id="confirmTitle"></h2>
     <p id="confirmText"></p>
     <div class="row">
-      <button class="btn ghost" id="confirmNo">Keep playing</button>
-      <button class="btn" id="confirmYes">Lock in</button>
+      <button class="btn ghost" id="confirmNo">Cancel</button>
+      <button class="btn" id="confirmYes">OK</button>
     </div>
   </div>
 </div>
@@ -329,8 +358,8 @@
     return keys[keys.length - 1];
   }
 
-  function drawRack(date) {
-    var rng = Arcade.seededRandom("daily-letters:" + date);
+  function drawRack(seedString) {
+    var rng = Arcade.seededRandom(seedString);
     var counts = {}, out = [], i;
     function draw(table) {
       var L, guard = 0;
@@ -347,51 +376,79 @@
     return out;
   }
 
-  // ---- state -------------------------------------------------------------
+  function freshSeed() {
+    return "free:" + Date.now().toString(36) + ":" + Math.floor(Math.random() * 1e9).toString(36);
+  }
+
+  // ---- profile -----------------------------------------------------------
 
   var today = Arcade.dailySeed();
-  var rack = drawRack(today); // never trusted from storage — always regenerated
 
   var profile = Arcade.load("profile", null);
   if (!profile || typeof profile !== "object") profile = {};
   if (typeof profile.name !== "string") profile.name = "";
   if (!profile.streak) profile.streak = { lastCommitDate: "", days: 0, clean: 0 };
   profile.seenHowToPlay = !!profile.seenHowToPlay;
+  profile.mode = profile.mode === "free" ? "free" : "daily";
+  profile.freeCount = profile.freeCount | 0;
+  function persistProfile() { Arcade.save("profile", profile); }
 
-  var state = Arcade.load("state", null);
-  if (!state || state.date !== today) {
-    state = { date: today, rack: rack, placed: [], order: null, seq: null, committed: false, reopened: false, streakBase: null };
-  }
-  state.rack = rack;
+  // ---- mode + board state ------------------------------------------------
+  // Two independent boards live in storage: "state" is today's daily
+  // (discarded when the date changes) and "free" is the current free-play
+  // puzzle (kept until the player deals a new one).
 
-  // board model
-  var grid = [];   // grid[r][c] = tile index or -1
-  var pos = [];    // pos[i] = {r, c} or null
-  var order = [];  // rack display order (all tile indices)
-  var seq = [];    // seq[i] = placement counter, for the ceremony order
+  var mode = profile.mode;
+  var state = null;   // the active board's persisted object
+  var rack = [];      // the active board's 19 letters
+  var grid = [];      // grid[r][c] = tile index or -1
+  var pos = [];       // pos[i] = {r, c} or null
+  var order = [];     // rack display order (all tile indices)
+  var seq = [];       // seq[i] = placement counter, for the ceremony order
   var seqCounter = 0;
   var selected = -1;
-  var r, c, i;
 
-  for (r = 0; r < SIZE; r++) { grid.push([]); for (c = 0; c < SIZE; c++) grid[r].push(-1); }
-  for (i = 0; i < TILES; i++) { pos.push(null); seq.push(0); }
+  function storageKey() { return mode === "free" ? "free" : "state"; }
+  function isDaily() { return mode === "daily"; }
 
-  (state.placed || []).forEach(function (p) {
-    if (!p || typeof p.i !== "number" || p.i < 0 || p.i >= TILES) return;
-    if (rack[p.i] !== p.letter) return;
-    if (p.row < 0 || p.row >= SIZE || p.col < 0 || p.col >= SIZE) return;
-    if (grid[p.row][p.col] !== -1 || pos[p.i]) return;
-    grid[p.row][p.col] = p.i;
-    pos[p.i] = { r: p.row, c: p.col };
-  });
-  if (Array.isArray(state.seq) && state.seq.length === TILES) {
-    seq = state.seq.slice();
-    seqCounter = Math.max.apply(null, seq.concat([0]));
+  function newState(seed) {
+    return { date: today, seed: seed, placed: [], order: null, seq: null, committed: false, streakBase: null };
   }
-  if (Array.isArray(state.order) && state.order.length === TILES) {
-    order = state.order.slice();
-  } else {
-    for (i = 0; i < TILES; i++) order.push(i);
+
+  function loadBoard() {
+    var s = Arcade.load(storageKey(), null);
+    if (isDaily()) {
+      if (!s || s.date !== today) s = newState("daily-letters:" + today);
+      s.seed = "daily-letters:" + today;
+    } else {
+      if (!s || typeof s.seed !== "string") s = newFreeState();
+    }
+    state = s;
+    rack = drawRack(state.seed);
+    state.rack = rack;
+
+    var r, c, i;
+    grid = []; pos = []; seq = []; order = []; seqCounter = 0; selected = -1;
+    for (r = 0; r < SIZE; r++) { grid.push([]); for (c = 0; c < SIZE; c++) grid[r].push(-1); }
+    for (i = 0; i < TILES; i++) { pos.push(null); seq.push(0); }
+
+    (state.placed || []).forEach(function (p) {
+      if (!p || typeof p.i !== "number" || p.i < 0 || p.i >= TILES) return;
+      if (rack[p.i] !== p.letter) return;
+      if (p.row < 0 || p.row >= SIZE || p.col < 0 || p.col >= SIZE) return;
+      if (grid[p.row][p.col] !== -1 || pos[p.i]) return;
+      grid[p.row][p.col] = p.i;
+      pos[p.i] = { r: p.row, c: p.col };
+    });
+    if (Array.isArray(state.seq) && state.seq.length === TILES) {
+      seq = state.seq.slice();
+      seqCounter = Math.max.apply(null, seq.concat([0]));
+    }
+    if (Array.isArray(state.order) && state.order.length === TILES) {
+      order = state.order.slice();
+    } else {
+      for (i = 0; i < TILES; i++) order.push(i);
+    }
   }
 
   function persist() {
@@ -401,9 +458,32 @@
     }
     state.order = order.slice();
     state.seq = seq.slice();
-    Arcade.save("state", state);
+    Arcade.save(storageKey(), state);
   }
-  function persistProfile() { Arcade.save("profile", profile); }
+
+  function switchMode(next) {
+    if (next === mode) return;
+    persist();
+    mode = next;
+    profile.mode = mode;
+    persistProfile();
+    loadBoard();
+    showActiveView(false);
+  }
+
+  function newFreeState() {
+    profile.freeCount++;
+    persistProfile();
+    return newState(freshSeed());
+  }
+
+  function dealFreePuzzle() {
+    state = newFreeState();
+    Arcade.save("free", state);
+    loadBoard();
+    showActiveView(false);
+    flashHint("Fresh rack dealt");
+  }
 
   // ---- analysis ----------------------------------------------------------
 
@@ -431,7 +511,6 @@
     }
     for (t = 0; t < TILES; t++) if (pos[t]) placed++;
 
-    // connected groups
     var seen = {}, groups = 0, stack, key, cur, d, DIRS = [[1, 0], [-1, 0], [0, 1], [0, -1]];
     for (rr = 0; rr < SIZE; rr++) for (cc = 0; cc < SIZE; cc++) {
       if (grid[rr][cc] < 0 || seen[rr + "," + cc]) continue;
@@ -454,7 +533,7 @@
     return { runs: runs, placed: placed, left: TILES - placed, words: words, longest: longest, groups: groups };
   }
 
-  function bbox() {
+  function rawBox() {
     var minR = SIZE, minC = SIZE, maxR = -1, maxC = -1, t;
     for (t = 0; t < TILES; t++) {
       if (!pos[t]) continue;
@@ -463,14 +542,20 @@
       if (pos[t].c < minC) minC = pos[t].c;
       if (pos[t].c > maxC) maxC = pos[t].c;
     }
-    if (maxR < 0) return { r0: 0, c0: 0, r1: SIZE - 1, c1: SIZE - 1 };
+    if (maxR < 0) return null;
+    return { r0: minR, c0: minC, r1: maxR, c1: maxC };
+  }
+
+  function bbox() {
+    var b = rawBox();
+    if (!b) return { r0: 0, c0: 0, r1: SIZE - 1, c1: SIZE - 1 };
     return {
-      r0: Math.max(0, minR - 1), c0: Math.max(0, minC - 1),
-      r1: Math.min(SIZE - 1, maxR + 1), c1: Math.min(SIZE - 1, maxC + 1)
+      r0: Math.max(0, b.r0 - 1), c0: Math.max(0, b.c0 - 1),
+      r1: Math.min(SIZE - 1, b.r1 + 1), c1: Math.min(SIZE - 1, b.c1 + 1)
     };
   }
 
-  // ---- streaks -----------------------------------------------------------
+  // ---- streaks (daily only) ----------------------------------------------
 
   function streakBase() {
     if (state.streakBase) return state.streakBase;
@@ -525,21 +610,19 @@
   var playView = $("play"), cardView = $("cardView");
   var boardEl = $("board"), rackEl = $("rack"), runsEl = $("runs");
   var leftNum = $("leftNum"), groupsPill = $("groupsPill"), hintEl = $("hint");
-  var commitBtn = $("commitBtn"), shuffleBtn = $("shuffleBtn");
+  var commitBtn = $("commitBtn"), shuffleBtn = $("shuffleBtn"), newBtn = $("newBtn");
   var streakPill = $("streakPill"), streakNum = $("streakNum");
   var howto = $("howto"), confirmSheet = $("confirm");
+  var shiftBtns = { L: $("shiftL"), U: $("shiftU"), D: $("shiftD"), R: $("shiftR") };
   var cells = [];
+  var r0, c0;
 
-  $("dateLabel").textContent = prettyDate(today);
-  $("dateSub").textContent = "";
-
-  // build board cells once
-  for (r = 0; r < SIZE; r++) {
-    for (c = 0; c < SIZE; c++) {
+  for (r0 = 0; r0 < SIZE; r0++) {
+    for (c0 = 0; c0 < SIZE; c0++) {
       var cell = document.createElement("button");
       cell.className = "cell";
       cell.setAttribute("role", "gridcell");
-      cell.dataset.r = r; cell.dataset.c = c;
+      cell.dataset.r = r0; cell.dataset.c = c0;
       cell.addEventListener("click", onCell);
       boardEl.appendChild(cell);
       cells.push(cell);
@@ -560,6 +643,25 @@
       return '<span class="' + cls + '">' + w + "</span>";
     }).join(' <span class="sep">·</span> ');
   }
+
+  function modeLabel() { return isDaily() ? prettyDate(today) : "Free play"; }
+
+  // ---- generic confirm sheet ---------------------------------------------
+
+  var confirmCb = null;
+  function askConfirm(title, text, yesLabel, cb) {
+    $("confirmTitle").textContent = title;
+    $("confirmText").textContent = text;
+    $("confirmYes").textContent = yesLabel;
+    confirmCb = cb;
+    confirmSheet.hidden = false;
+  }
+  $("confirmNo").addEventListener("click", function () { confirmSheet.hidden = true; confirmCb = null; });
+  $("confirmYes").addEventListener("click", function () {
+    confirmSheet.hidden = true;
+    var cb = confirmCb; confirmCb = null;
+    if (cb) cb();
+  });
 
   // ---- render ------------------------------------------------------------
 
@@ -605,11 +707,25 @@
     commitBtn.textContent = a.left === 0 ? "Commit · Clean rack" : "Commit · " + a.left + " left";
     commitBtn.classList.toggle("pulse", a.left === 0);
 
-    var s = currentStreak();
-    streakPill.hidden = !(s.days > 0);
-    streakNum.textContent = s.days;
+    var box = rawBox();
+    shiftBtns.L.disabled = !box || box.c0 === 0;
+    shiftBtns.R.disabled = !box || box.c1 === SIZE - 1;
+    shiftBtns.U.disabled = !box || box.r0 === 0;
+    shiftBtns.D.disabled = !box || box.r1 === SIZE - 1;
+    $("clearBtn").disabled = !box;
 
-    $("dateSub").textContent = a.placed > 0 ? "commits by midnight" : "";
+    $("dateLabel").textContent = modeLabel();
+    if (isDaily()) {
+      var s = currentStreak();
+      streakPill.hidden = !(s.days > 0);
+      streakNum.textContent = s.days;
+      $("dateSub").textContent = a.placed > 0 ? "today only" : "";
+    } else {
+      streakPill.hidden = true;
+      $("dateSub").textContent = "puzzle #" + Math.max(1, profile.freeCount);
+    }
+    newBtn.hidden = isDaily();
+    $("modeLinkPlay").textContent = isDaily() ? "Switch to free play" : "Back to today's daily";
   }
 
   // ---- interaction -------------------------------------------------------
@@ -648,20 +764,58 @@
     render(); persist();
   });
 
+  // Slide every placed tile one cell. Disabled in render() when any tile
+  // already sits on that edge, so nothing can ever fall off the board.
+  function shiftBoard(dr, dc) {
+    var box = rawBox();
+    if (!box) return;
+    if (box.r0 + dr < 0 || box.r1 + dr >= SIZE || box.c0 + dc < 0 || box.c1 + dc >= SIZE) return;
+    var next = [], rr, cc, t;
+    for (rr = 0; rr < SIZE; rr++) { next.push([]); for (cc = 0; cc < SIZE; cc++) next[rr].push(-1); }
+    for (t = 0; t < TILES; t++) {
+      if (!pos[t]) continue;
+      pos[t] = { r: pos[t].r + dr, c: pos[t].c + dc };
+      next[pos[t].r][pos[t].c] = t;
+    }
+    grid = next;
+    tick();
+    render(); persist();
+  }
+  shiftBtns.L.addEventListener("click", function () { shiftBoard(0, -1); });
+  shiftBtns.R.addEventListener("click", function () { shiftBoard(0, 1); });
+  shiftBtns.U.addEventListener("click", function () { shiftBoard(-1, 0); });
+  shiftBtns.D.addEventListener("click", function () { shiftBoard(1, 0); });
+
+  $("clearBtn").addEventListener("click", function () {
+    var a = analyze();
+    if (!a.placed) return;
+    askConfirm("Clear the board?", "All " + a.placed + " placed tiles go back to the rack.", "Clear", function () {
+      var rr, cc, t;
+      for (rr = 0; rr < SIZE; rr++) for (cc = 0; cc < SIZE; cc++) grid[rr][cc] = -1;
+      for (t = 0; t < TILES; t++) { pos[t] = null; seq[t] = 0; }
+      seqCounter = 0; selected = -1;
+      lift();
+      render(); persist();
+    });
+  });
+
   commitBtn.addEventListener("click", function () {
     var a = analyze();
     var what = a.left === 0 ? "a clean rack" : a.left + " left";
-    $("confirmTitle").textContent = "Lock in " + what + "?";
-    $("confirmText").textContent = state.reopened
-      ? "This one's final — no more reopens today."
-      : "Your board locks and your card is made. You can reopen once today if you spot a fix.";
-    confirmSheet.hidden = false;
+    askConfirm("Lock in " + what + "?", "Your board locks and your card is made. You can reopen and re-commit any time.", "Lock in", commit);
   });
-  $("confirmNo").addEventListener("click", function () { confirmSheet.hidden = true; });
-  $("confirmYes").addEventListener("click", function () {
-    confirmSheet.hidden = true;
-    commit();
+
+  newBtn.addEventListener("click", function () {
+    var a = analyze();
+    if (!a.placed) { dealFreePuzzle(); return; }
+    askConfirm("New puzzle?", "This board is discarded and a fresh 19 letters are dealt.", "Deal", dealFreePuzzle);
   });
+  $("newLinkCard").addEventListener("click", function () {
+    askConfirm("New puzzle?", "A fresh 19 letters are dealt. This card stays shared if you already sent it.", "Deal", dealFreePuzzle);
+  });
+
+  $("modeLinkPlay").addEventListener("click", function () { switchMode(isDaily() ? "free" : "daily"); });
+  $("modeLinkCard").addEventListener("click", function () { switchMode(isDaily() ? "free" : "daily"); });
 
   // ---- how to play / name ------------------------------------------------
 
@@ -683,13 +837,15 @@
 
   function commit() {
     var a = analyze();
-    var base = streakBase();
-    profile.streak = {
-      lastCommitDate: today,
-      days: base.days + 1,
-      clean: a.left === 0 ? base.clean + 1 : 0
-    };
-    persistProfile();
+    if (isDaily()) {
+      var base = streakBase();
+      profile.streak = {
+        lastCommitDate: today,
+        days: base.days + 1,
+        clean: a.left === 0 ? base.clean + 1 : 0
+      };
+      persistProfile();
+    }
     state.committed = { left: a.left, placed: a.placed, words: a.words, longest: a.longest, groups: a.groups, at: Date.now() };
     persist();
     showCard(true);
@@ -697,17 +853,27 @@
 
   function displayName() { return profile.name || "Player"; }
 
+  function statsLine(a) {
+    return a.placed + "/" + TILES + " placed · " + a.words + (a.words === 1 ? " word" : " words") +
+      (a.longest ? " · longest " + a.longest : "") + (a.groups > 1 ? " · " + a.groups + " groups" : "");
+  }
+  function streakLine() {
+    if (!isDaily()) return "";
+    var s = currentStreak();
+    return s.days > 0 ? "🔥 " + s.days + "-day streak" + (s.clean > 0 ? " · " + s.clean + " clean" : "") : "";
+  }
+
   function buildCard(animate) {
     var a = analyze();
     var box = bbox();
-    var n = box.c1 - box.c0 + 1, m = box.r1 - box.r0 + 1;
+    var n = box.c1 - box.c0 + 1;
     var cs = Math.min(42, Math.floor((Math.min(window.innerWidth, 420) - 60 - (n - 1) * 2) / n));
     var cBoard = $("cBoard");
     cBoard.innerHTML = "";
     cBoard.style.gridTemplateColumns = "repeat(" + n + ", " + cs + "px)";
     cBoard.style.setProperty("--cs", cs + "px");
 
-    $("cDate").textContent = prettyDate(today);
+    $("cDate").textContent = modeLabel();
     $("cName").textContent = displayName();
 
     var flipOrder = [], rr, cc;
@@ -721,7 +887,8 @@
     }
     flipOrder.sort(function (x, y) { return x.seq - y.seq; });
     var step = 40, flipsEnd = flipOrder.length * step + 280;
-    if (animate && !reducedMotion) {
+    var doAnim = animate && !reducedMotion;
+    if (doAnim) {
       flipOrder.forEach(function (f, k) {
         f.el.classList.add("anim");
         f.el.style.animationDelay = (k * step) + "ms";
@@ -731,45 +898,39 @@
     var cRuns = $("cRuns");
     cRuns.innerHTML = runsHTML(a.runs) || '<span class="two">no runs</span>';
     var runsEnd = flipsEnd;
-    if (animate && !reducedMotion) {
+    if (doAnim) {
       var spans = cRuns.querySelectorAll("span");
       var k2 = 0;
       Array.prototype.forEach.call(spans, function (sp) {
-        if (sp.className === "sep") return;
         sp.classList.add("anim-fade");
+        if (sp.className.indexOf("sep") !== -1) { sp.style.animationDelay = flipsEnd + "ms"; return; }
         sp.style.animationDelay = (flipsEnd + k2 * 70) + "ms";
         k2++;
-      });
-      Array.prototype.forEach.call(spans, function (sp) {
-        if (sp.className !== "sep") return;
-        sp.classList.add("anim-fade");
-        sp.style.animationDelay = (flipsEnd) + "ms";
       });
       runsEnd = flipsEnd + k2 * 70 + 150;
     }
 
-    var cScore = $("cScore");
+    var cScore = $("cScore"), cStats = $("cStats"), cStreak = $("cStreak");
     cScore.textContent = a.left === 0 ? "✨ CLEAN RACK ✨" : a.left + " left";
     cScore.className = "card-score" + (a.left === 0 ? " clean" : "");
-    var cStats = $("cStats");
-    cStats.textContent = a.placed + "/" + TILES + " placed · " + a.words + (a.words === 1 ? " word" : " words") +
-      (a.longest ? " · longest " + a.longest : "") + (a.groups > 1 ? " · " + a.groups + " groups" : "");
-    var s = currentStreak();
-    $("cStreak").textContent = s.days > 0
-      ? "🔥 " + s.days + "-day streak" + (s.clean > 0 ? " · " + s.clean + " clean" : "")
-      : "";
+    cStats.className = "card-stats";
+    cStreak.className = "card-streak";
+    cStats.textContent = statsLine(a);
+    cStreak.textContent = streakLine();
+    cStreak.hidden = !cStreak.textContent;
 
-    if (animate && !reducedMotion) {
+    if (doAnim) {
       cScore.classList.add("anim-stamp"); cScore.style.animationDelay = runsEnd + "ms";
       cStats.classList.add("anim-fade"); cStats.style.animationDelay = (runsEnd + 250) + "ms";
-      $("cStreak").classList.add("anim-fade"); $("cStreak").style.animationDelay = (runsEnd + 350) + "ms";
+      cStreak.classList.add("anim-fade"); cStreak.style.animationDelay = (runsEnd + 350) + "ms";
     } else {
-      cScore.style.animationDelay = ""; cStats.style.animationDelay = ""; $("cStreak").style.animationDelay = "";
+      cScore.style.animationDelay = ""; cStats.style.animationDelay = ""; cStreak.style.animationDelay = "";
     }
 
-    $("reopenBtn").hidden = !!state.reopened;
+    $("newLinkCard").hidden = isDaily();
+    $("modeLinkCard").textContent = isDaily() ? "Play a free puzzle" : "Back to today's daily";
     $("cardHint").textContent = "";
-    return { analysis: a, scoreAt: animate && !reducedMotion ? runsEnd : 0 };
+    return { analysis: a, scoreAt: doAnim ? runsEnd : 0 };
   }
 
   function showCard(animate) {
@@ -783,6 +944,18 @@
       chime(clean);
       if (clean && !reducedMotion) confetti();
     }, built.scoreAt);
+  }
+
+  function showPlay() {
+    cardView.hidden = true;
+    playView.hidden = false;
+    selected = -1;
+    render();
+  }
+
+  function showActiveView(animate) {
+    if (state.committed) showCard(animate);
+    else showPlay();
   }
 
   function confetti() {
@@ -800,22 +973,17 @@
   }
 
   $("reopenBtn").addEventListener("click", function () {
-    if (state.reopened) return;
-    state.reopened = true;
     state.committed = false;
     persist();
-    cardView.hidden = true;
-    playView.hidden = false;
-    selected = -1;
-    render();
-    flashHint("Board reopened — the next commit is final");
+    showPlay();
+    flashHint("Board reopened — commit again whenever you're ready");
   });
 
   // ---- sharing -----------------------------------------------------------
 
   function shareText() {
     var a = analyze(), box = bbox(), lines = [], rr, cc, row;
-    lines.push("Daily Letters — " + prettyDate(today) + " — " + displayName());
+    lines.push("Daily Letters — " + modeLabel() + " — " + displayName());
     lines.push((a.left === 0 ? "CLEAN RACK" : a.left + " left") + " · " + a.words + (a.words === 1 ? " word" : " words") + (a.longest ? " · longest " + a.longest : ""));
     lines.push("");
     for (rr = box.r0; rr <= box.r1; rr++) {
@@ -858,23 +1026,23 @@
 
     var runsText = a.runs.length ? a.runs.join(" · ") : "no runs";
     var runLines = wrapText(runsText, W - pad * 2, 17);
+    var streak = streakLine();
 
     var y = 0;
-    var H = pad + 26 + 12 + boardH + 14 + runLines.length * 22 + 16 + 48 + 26 + (currentStreak().days > 0 ? 24 : 0) + pad + 18;
+    var H = pad + 26 + 12 + boardH + 14 + runLines.length * 22 + 16 + 48 + 26 + (streak ? 24 : 0) + pad + 18;
     var cv = document.createElement("canvas");
     cv.width = W * S; cv.height = H * S;
     var g = cv.getContext("2d");
     g.scale(S, S);
     g.fillStyle = "#052926";
-    roundRect(g, 0, 0, W, H, 0);
-    g.fill();
+    g.fillRect(0, 0, W, H);
 
     var font = "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif";
     y = pad + 18;
     g.fillStyle = "#a5f3ef";
     g.font = "600 15px " + font;
     g.textAlign = "left"; g.textBaseline = "alphabetic";
-    g.fillText("🔤 Daily Letters · " + prettyDate(today), pad, y);
+    g.fillText("🔤 Daily Letters · " + modeLabel(), pad, y);
     g.textAlign = "right";
     g.fillStyle = "#d2f9f7";
     g.font = "700 15px " + font;
@@ -912,12 +1080,11 @@
     y += 26;
     g.fillStyle = "#a5f3ef";
     g.font = "500 15px " + font;
-    g.fillText(a.placed + "/" + TILES + " placed · " + a.words + (a.words === 1 ? " word" : " words") + (a.longest ? " · longest " + a.longest : "") + (a.groups > 1 ? " · " + a.groups + " groups" : ""), W / 2, y);
-    var s = currentStreak();
-    if (s.days > 0) {
+    g.fillText(statsLine(a), W / 2, y);
+    if (streak) {
       y += 24;
       g.font = "500 14px " + font;
-      g.fillText("🔥 " + s.days + "-day streak" + (s.clean > 0 ? " · " + s.clean + " clean" : ""), W / 2, y);
+      g.fillText(streak, W / 2, y);
     }
     g.fillStyle = "rgba(210,249,247,0.35)";
     g.font = "500 11px " + font;
@@ -960,8 +1127,8 @@
     try { cv = renderCanvas(); } catch (e) { $("cardHint").textContent = "Couldn't build the image — screenshot the card instead"; return; }
     cv.toBlob(function (blob) {
       if (!blob) { $("cardHint").textContent = "Couldn't build the image — screenshot the card instead"; return; }
-      var file = new File([blob], "daily-letters-" + today + ".png", { type: "image/png" });
-      var data = { files: [file], title: "Daily Letters " + prettyDate(today) };
+      var file = new File([blob], "daily-letters-" + (isDaily() ? today : "free") + ".png", { type: "image/png" });
+      var data = { files: [file], title: "Daily Letters " + modeLabel() };
       if (navigator.canShare && navigator.canShare(data)) {
         navigator.share(data).catch(function () { /* user cancelled */ });
       } else {
@@ -979,12 +1146,8 @@
   // ---- start -------------------------------------------------------------
 
   function start() {
-    if (state.committed) {
-      showCard(false);
-    } else {
-      playView.hidden = false;
-      render();
-    }
+    loadBoard();
+    showActiveView(false);
     if (!profile.seenHowToPlay) openHowto();
   }
 

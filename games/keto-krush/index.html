@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <title>Keto Krush — Lettuce Arcade</title>
 <meta name="theme-color" content="#083734">
 <link rel="stylesheet" href="/shared/arcade.css">
@@ -682,12 +682,17 @@
   }
 
   // ---- hints -----------------------------------------------------------
-  // One scan answers two questions: which swap to hint (preferring a
-  // meat/cheese "protein" combo), and whether the board offers any protein
-  // move at all. They're the same question, so they share a pass — the second
-  // answer drives the freeze valve in endOfMove().
+  // One scan evaluates every legal swap and ranks the results: a protein
+  // (meat/cheese) combo beats a carb one, and within each class a bigger
+  // combo beats a smaller one. It answers two questions — which move to hint,
+  // and whether the board offers any protein move at all (that second answer
+  // drives the freeze valve in endOfMove()).
+  //
+  // Each candidate carries the tile objects that end up matched, captured
+  // while the probe swap is in place. Those are the tiles the hint lights up:
+  // the combo itself, not the tile being swapped out of its way.
   function scanMoves() {
-    var carbPair = null;
+    var bestProtein = null, bestCarb = null;
     for (var row = 0; row < N; row++) {
       for (var col = 0; col < N; col++) {
         var dirs = [];
@@ -697,17 +702,23 @@
           var target = dirs[d];
           swapCells(row, col, target.row, target.col);
           var matches = findMatches();
-          var isProtein = matches.some(function (p) { return PROTEIN_ICONS[grid[p.row][p.col].icon]; });
+          var tiles = matches.map(function (p) { return grid[p.row][p.col]; });
           swapCells(row, col, target.row, target.col);
-          if (matches.length) {
-            var pair = { a: { row: row, col: col }, b: target };
-            if (isProtein) return { protein: pair, carb: carbPair };
-            if (!carbPair) carbPair = pair;
+          if (!matches.length) continue;
+          var cand = {
+            a: { row: row, col: col }, b: target,
+            tiles: tiles, size: matches.length,
+            protein: tiles.some(function (t) { return PROTEIN_ICONS[t.icon]; })
+          };
+          if (cand.protein) {
+            if (!bestProtein || cand.size > bestProtein.size) bestProtein = cand;
+          } else if (!bestCarb || cand.size > bestCarb.size) {
+            bestCarb = cand;
           }
         }
       }
     }
-    return { protein: null, carb: carbPair };
+    return { protein: bestProtein, carb: bestCarb };
   }
 
   function findHint() {
@@ -728,14 +739,11 @@
 
   function showHint() {
     if (busy || runOver) return;
-    var pair = findHint();
-    if (!pair) return;
+    var move = findHint();
+    if (!move) return;
     clearHint();
-    var ta = grid[pair.a.row][pair.a.col];
-    var tb = grid[pair.b.row][pair.b.col];
-    ta.el.classList.add("hint");
-    tb.el.classList.add("hint");
-    hintTiles = [ta, tb];
+    move.tiles.forEach(function (t) { t.el.classList.add("hint"); });
+    hintTiles = move.tiles;
   }
 
   function scheduleHint() {

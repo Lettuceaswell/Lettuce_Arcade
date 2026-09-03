@@ -2,8 +2,8 @@
 
 - **Slug:** `games/daily-letters/`
 - **Emoji:** 🔤
-- **Status:** shipped (v18) — honor system, Commit ceremony, one Reopen,
-  canvas share card
+- **Status:** shipped (v19) — honor system, Commit ceremony, unlimited
+  reopens, free-play mode, board shift/clear, canvas share card
 
 ## One-line pitch
 A shared daily tile rack — everyone in the family gets the same letters,
@@ -108,6 +108,13 @@ the words are on you.
   - **Islands** — number of disconnected groups. Shown only when > 1, as a
     quiet amber pill, never a modal. "1 group" is the target and is
     implied by the pill's absence.
+- **Board tools** row directly under the board: four arrows that slide
+  every placed tile one cell (◀ ▲ ▼ ▶), and **Clear**. Each arrow greys
+  out when a tile already sits on that edge, so nothing can fall off.
+  Clear asks first ("All 11 placed tiles go back to the rack"). Both
+  exist because the alternative — lifting tiles one at a time to make
+  room, then putting them all back — was the single most tedious thing
+  in playtest.
 - **Runs list** under the board: every row-run and column-run of 2+
   letters, extracted mechanically and listed as plain text ("TAB · NEST ·
   TONE · AS"). No validity colouring — it's a mirror, not a judge. This is
@@ -122,17 +129,15 @@ Commit is the game's one real decision and its only payoff moment.
   commit a 12-left board if that's your honest best), and its label
   carries the score it would lock in: **"Commit · 2 left"**. When the
   rack empties it changes to **"Commit · Clean rack"** and pulses.
-- Tapping Commit opens a one-line confirm sheet — "Lock in 2 left for
-  today? You can reopen once." — because commit **locks the board**. The
-  choice between locking in a 1-left board now or grinding for 0 is where
-  the tension lives (see Scoring).
-- **One Reopen per day** is the safety hatch. The share card carries a
-  small "Reopen board" link. Tapping it returns to play with the board
-  exactly as committed; the second Commit's confirm sheet reads "Lock in
-  1 left? This one's final." and the link is gone after that. One
-  mulligan covers the mis-tap and the spotted-it-a-minute-later case
-  without dissolving the lock-in decision — the second press is the real
-  one.
+- Tapping Commit opens a one-line confirm sheet — "Lock in 2 left?" —
+  so a mis-tap never makes a card by accident.
+- **Reopens are unlimited.** The share card carries a "Reopen board"
+  link; tapping it returns to play with the board exactly as committed,
+  and Commit works again as many times as you like. Playtest verdict:
+  capping reopens (even at one) felt like the game telling someone they
+  were done with the daily before they were. The lock-in tension now
+  lives in the social layer — the card you already sent to the chat is
+  the one the family saw — not in a mechanical cap.
 - Streaks count from the *first* commit of the day, so reopening never
   risks a streak. The card always reflects the latest commit.
 - On confirm, the **ceremony** plays, and it's built as a reveal even
@@ -209,11 +214,31 @@ rules.
 
 ## Timing
 
-- One puzzle per day, resets at local midnight (inherits
+- One daily puzzle per day, resets at local midnight (inherits
   `Arcade.dailySeed()` behavior).
-- No timer, no session limit. The board stays interactive all day until
-  committed; closing and reopening the tab restores exactly where you left
-  off via `Arcade.save`.
+- No timer, no session limit. The board stays interactive all day;
+  closing and reopening the tab restores exactly where you left off via
+  `Arcade.save`.
+
+## Free play
+
+The daily is the shared event, but "I've got my best solve and it's
+2pm" shouldn't mean the game is over for the day.
+
+- A **Free play** mode deals a fresh 19-letter rack from a random seed
+  (same draw rules as the daily: 6 vowels, no Q, weighted consonants).
+  Reached via a text link at the bottom of the play view and the card
+  ("Switch to free play" / "Play a free puzzle"); the same link goes back
+  to the daily.
+- Free play has its own board in storage, independent of the daily, so
+  switching back and forth never loses either. A **New** button in the
+  actions row (and a "New puzzle" link on the card) deals the next rack,
+  with a confirm if tiles are on the board.
+- Everything else is identical: commit, ceremony, share card, reopen.
+  The card and the text share are headed "Free play" instead of the
+  date, and there is **no streak** — streaks belong to the daily only,
+  so free play can't be used to farm them. The header shows a running
+  "puzzle #n" instead.
 
 ## Sharing
 
@@ -330,8 +355,11 @@ Via `Arcade.save` / `Arcade.load`, namespaced per game automatically.
 - `placed` — `{ letter, row, col }[]` for tiles currently on the board.
 - `committed` — `false`, or the committed result `{ left, words, longest,
   groups }` so the share card can be rebuilt without recomputing.
-- `reopened` — `true` once the day's single Reopen has been used, so the
-  second commit is final and the link doesn't come back.
+- `seed` — the RNG seed the rack was drawn from (`daily-letters:<date>`
+  for the daily; a random string for free play).
+
+`free` — the current free-play board, same shape as `state`, kept until
+the player deals a new one.
 
 `profile` — persists across days:
 
@@ -340,6 +368,8 @@ Via `Arcade.save` / `Arcade.load`, namespaced per game automatically.
   `lastCommitDate` is neither today nor yesterday, `days` and `clean`
   reset to 0 before anything is shown.
 - `seenHowToPlay` — whether the rules sheet has been dismissed once.
+- `mode` — `"daily"` or `"free"`, whichever was open last.
+- `freeCount` — how many free-play racks have been dealt, for the header.
 
 ## Accessibility
 
@@ -387,11 +417,9 @@ Via `Arcade.save` / `Arcade.load`, namespaced per game automatically.
    decide whether most days feel solvable or most days strand tiles.
 2. **Board size (8×8).** Nine columns would give room for 9-letter words
    but drops cells under 44px on a 375px phone. Ten is right out.
-3. **Reopen allowance (1).** Shipped as one reopen per day: enough to
-   cover a mis-tap or a spotted-it-a-minute-later fix, few enough that
-   the second commit still carries weight. If even that feels punishing
-   in playtest, the softer fallback is unlimited reopens with "best of
-   day kept" — but that dissolves the lock-in decision entirely.
+3. **Reopen allowance (unlimited).** Shipped first as one-per-day, then
+   lifted after playtest — see Commit & ceremony. If the family ever
+   wants the lock-in tension back, a cap is a one-line change.
 4. **Rare-letter weighting (J/X/Z).** Currently low but nonzero — raise
    for more "fun constraint" days, lower toward zero if it lands as
    "unfair" more than "fun."

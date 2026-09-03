@@ -66,8 +66,12 @@
   }
 
   .tile-icon {
-    width: 56px;
-    height: 56px;
+    /* Sprite PNGs carry transparent padding, so they need a bigger box than
+       the emoji to read at the same visual size. Negative margin keeps the
+       row height and text alignment identical to the emoji tiles. */
+    width: 108px;
+    height: 108px;
+    margin: -26px;
     flex-shrink: 0;
     object-fit: contain;
   }

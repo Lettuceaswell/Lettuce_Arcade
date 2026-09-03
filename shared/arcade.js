@@ -5,7 +5,7 @@
 
   var Arcade = {};
 
-  Arcade.VERSION = 18;
+  Arcade.VERSION = 19;
 
   // ---- namespacing --------------------------------------------------
 
@@ -83,6 +83,14 @@
     });
     overlay.appendChild(label);
     document.body.appendChild(overlay);
+
+    // Game pages (never the index — it doesn't call boot) also swallow iOS's
+    // proprietary pinch gesture events, which is the only way to stop pinch
+    // zoom in older Safari that ignores touch-action. Scrolling is untouched.
+    function swallow(e) { e.preventDefault(); }
+    ["gesturestart", "gesturechange", "gestureend"].forEach(function (name) {
+      document.addEventListener(name, swallow, { passive: false });
+    });
 
     function begin() {
       overlay.removeEventListener("pointerdown", begin);

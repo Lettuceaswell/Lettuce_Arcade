@@ -1,4 +1,4 @@
-# Keto Krush — Needed Changes
+# Daily Letters — Needed Changes
 
 > Note to Claude: these are playtest notes from the developer, not a locked
 > spec. Skip or push back on anything that falls outside the plausibility of
