@@ -37,7 +37,7 @@
     background: transparent;
     cursor: pointer;
   }
-  .lettuce img { display: block; width: 48px; height: 48px; }
+  .lettuce img { display: block; width: 48px; height: 48px; pointer-events: none; }
   @keyframes wiggle {
     0%, 100% { transform: rotate(0); }
     20% { transform: rotate(-14deg) scale(1.08); }
@@ -46,7 +46,6 @@
     80% { transform: rotate(6deg); }
   }
   .lettuce.wiggle img { animation: wiggle 600ms ease-in-out; }
-  @media (prefers-reduced-motion: reduce) { .lettuce.wiggle img { animation: none; } }
 
   .header-icon {
     display: block;

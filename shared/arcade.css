@@ -47,6 +47,23 @@ button, a, [role="button"], .btn {
   user-select: none;
 }
 
+/* Tap-and-hold on iOS pops a callout (link preview, "Save Image", text
+   selection). None of that belongs in an arcade, so the whole page is
+   non-selectable and callout-free; inputs opt back in. */
+body {
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+img {
+  -webkit-touch-callout: none;
+  -webkit-user-drag: none;
+}
+input, textarea, [contenteditable] {
+  -webkit-user-select: text;
+  user-select: text;
+}
+
 .btn {
   display: inline-flex;
   align-items: center;

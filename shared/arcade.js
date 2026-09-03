@@ -5,7 +5,7 @@
 
   var Arcade = {};
 
-  Arcade.VERSION = 20;
+  Arcade.VERSION = 21;
 
   // ---- namespacing --------------------------------------------------
 
@@ -92,24 +92,45 @@
       document.addEventListener(name, swallow, { passive: false });
     });
 
+    // iOS suspends the context whenever the phone locks, the app switches, a
+    // call comes in, or (on older Safari) when the unlocking gesture was a
+    // pointerdown rather than a touchend/click. A one-shot resume at boot is
+    // not enough, so every later tap re-arms it. Playing a one-sample silent
+    // buffer inside the gesture is the classic full-unlock for old iOS.
+    function armAudio() {
+      var ctx = Arcade.audioCtx;
+      if (!ctx) return;
+      try {
+        if (ctx.state !== "running") ctx.resume();
+        var buf = ctx.createBuffer(1, 1, 22050);
+        var src = ctx.createBufferSource();
+        src.buffer = buf;
+        src.connect(ctx.destination);
+        src.start(0);
+      } catch (e) { /* best effort */ }
+    }
+
     function begin() {
       overlay.removeEventListener("pointerdown", begin);
       try {
         var AC = window.AudioContext || window.webkitAudioContext;
-        if (AC) {
-          if (!Arcade.audioCtx) Arcade.audioCtx = new AC();
-          if (Arcade.audioCtx.state === "suspended") {
-            Arcade.audioCtx.resume();
-          }
-        }
+        if (AC && !Arcade.audioCtx) Arcade.audioCtx = new AC();
       } catch (e) {
         /* audio unavailable; game must tolerate a null audioCtx */
       }
+      armAudio();
+      ["touchend", "pointerup", "click"].forEach(function (name) {
+        document.addEventListener(name, function () {
+          var ctx = Arcade.audioCtx;
+          if (ctx && ctx.state !== "running") armAudio();
+        }, { passive: true });
+      });
       overlay.remove();
       startFn();
     }
 
     overlay.addEventListener("pointerdown", begin, { once: true });
+    overlay.addEventListener("touchend", armAudio, { once: true, passive: true });
   };
 
   // ---- storage --------------------------------------------------
