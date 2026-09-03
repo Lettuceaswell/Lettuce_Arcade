@@ -1,4 +1,4 @@
-# Hansen Arcade — house rules
+# Lettuce Arcade — house rules
 
 A family arcade of tiny web games. Static site, zero build step, deployed to
 Cloudflare Pages as-is.

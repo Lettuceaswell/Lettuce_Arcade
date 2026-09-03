@@ -1,21 +1,21 @@
 {
-  "name": "Hansen Arcade",
-  "short_name": "Hansen Arcade",
+  "name": "Lettuce Arcade",
+  "short_name": "Lettuce Arcade",
   "display": "standalone",
   "orientation": "portrait",
   "start_url": "/",
   "scope": "/",
-  "background_color": "#1e1b2e",
-  "theme_color": "#1e1b2e",
+  "background_color": "#18aca4",
+  "theme_color": "#4adec5",
   "icons": [
     {
-      "src": "/icon-192.png",
-      "sizes": "192x192",
+      "src": "/icon-180.png",
+      "sizes": "180x180",
       "type": "image/png"
     },
     {
-      "src": "/icon-512.png",
-      "sizes": "512x512",
+      "src": "/icon-180.png",
+      "sizes": "180x180",
       "type": "image/png"
     }
   ]

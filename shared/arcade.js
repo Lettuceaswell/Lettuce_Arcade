@@ -1,11 +1,11 @@
-/* Hansen Arcade — shared runtime. Keep this file dependency-free. */
+/* Lettuce Arcade — shared runtime. Keep this file dependency-free. */
 
 (function () {
   "use strict";
 
   var Arcade = {};
 
-  Arcade.VERSION = 1;
+  Arcade.VERSION = 2;
 
   // ---- namespacing --------------------------------------------------
 
