@@ -2,7 +2,7 @@
 
 - **Slug:** `games/lettuce-slots/`
 - **Emoji:** 🥬
-- **Status:** **v2 shipped (v21)** — a 75-spin run with a bowl you can
+- **Status:** **v2 shipped (v22)** — a 75-spin run with a bowl you can
   lose. v1 (the free-spin toy) is gone; its post-mortem is kept below.
 
 ## One-line pitch
@@ -392,7 +392,7 @@ Nothing reads them; nothing needs to delete them.
       strategy:** timid 91, streak-5 160, steady 172, sharp 190, gambler
       159, reckless 40 — every mean within 5% of the table above, snails
       12.2–13.0 per run.
-- [x] `Arcade.VERSION` → 21. Blurb in `games.json` updated. No new files.
+- [x] `Arcade.VERSION` → 22. Blurb in `games.json` updated. No new files.
 - [x] Page weight: ~25KB, no images. (The 20KB guess undercounted emoji
       and the three cards; the house budget is 500KB.)
 
