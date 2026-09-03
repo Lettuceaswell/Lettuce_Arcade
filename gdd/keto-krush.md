@@ -2,7 +2,7 @@
 
 - **Slug:** `games/keto-krush/`
 - **Emoji:** 🍖
-- **Status:** shipped (v22) — ketosis economy, the move budget, and the end
+- **Status:** shipped (v23) — ketosis economy, the move budget, and the end
   card are built and tuned
 
 ## One-line pitch
@@ -232,7 +232,7 @@ This is the first knob to distrust; move it by 1 and re-measure.
 
 ---
 
-## The end card (v22)
+## The end card (v23)
 
 Playtest note: the run ended on two lines of text under the board. No
 ceremony, nothing to screenshot, and a player who never understood the meter

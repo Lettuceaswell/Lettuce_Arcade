@@ -5,7 +5,7 @@
 
   var Arcade = {};
 
-  Arcade.VERSION = 22;
+  Arcade.VERSION = 23;
 
   // ---- namespacing --------------------------------------------------
 
