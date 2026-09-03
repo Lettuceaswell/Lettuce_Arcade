@@ -74,12 +74,24 @@
     box-shadow: 0 0 0 3px #ff5fd6 inset, 0 0 10px 2px rgba(255, 95, 214, 0.7);
   }
 
+  /* Protein tiles get their own ground so a scan for meat or cheese is a
+     colour read, not an emoji hunt. Warm complements to the teal carbs. */
+  .tile.meat { background: #b8433a; }
+  .tile.cheese { background: #b07d1a; }
+
+  /* The hint pulses on a pseudo-element so it never clobbers the tile's own
+     box-shadow — a powered-up tile keeps its special ring while it flashes. */
   @keyframes hintPulse {
     0%, 100% { box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.15) inset; }
     50% { box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.85) inset; }
   }
 
-  .tile.hint {
+  .tile.hint::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    pointer-events: none;
     animation: hintPulse 900ms ease-in-out infinite;
   }
 
@@ -303,7 +315,6 @@
   var ketosisState = "normal"; // a TIERS name, or "frenzy"
   var frenzyMoves = 0;         // >0 while Fat-Adapted
   var frenzyJustStarted = false; // so the triggering move doesn't burn a turn
-  var meterFrozen = false;     // set per move when the board offers no protein
   var movesLeft = MOVE_BUDGET;
   var movesTaken = 0;
   // A tier refund is armed while you're below its threshold and spent when you
@@ -438,8 +449,6 @@
     if (state === "frenzy") {
       ketosisLabelEl.textContent = "⚡ Fat-adapted — 4x · " + frenzyMoves
         + (frenzyMoves === 1 ? " move" : " moves");
-    } else if (meterFrozen) {
-      ketosisLabelEl.textContent = "🧊 No protein — carbs are free this move";
     } else {
       ketosisLabelEl.textContent = TIER_LABELS[state] || ("Ketosis " + ketosis + "%");
     }
@@ -496,7 +505,6 @@
     armKeto = KETOSIS_START < 70;
     armDeep = KETOSIS_START < 85;
     pendingRefund = 0;
-    meterFrozen = !hasProteinMove(); // needs a generated board — call after it
     document.body.classList.remove("ketosis", "deep", "carbcrash", "frenzy");
     movesEl.classList.remove("gain");
     renderMoves();
@@ -535,7 +543,7 @@
 
   function newTile(row, col, icon) {
     var el = document.createElement("div");
-    el.className = "tile";
+    el.className = "tile" + (icon === "🍖" ? " meat" : icon === "🧀" ? " cheese" : "");
     el.textContent = icon;
     boardEl.appendChild(el);
     var t = { id: nextId++, row: row, col: col, icon: icon, el: el, type: "normal" };
@@ -684,9 +692,7 @@
   // ---- hints -----------------------------------------------------------
   // One scan evaluates every legal swap and ranks the results: a protein
   // (meat/cheese) combo beats a carb one, and within each class a bigger
-  // combo beats a smaller one. It answers two questions — which move to hint,
-  // and whether the board offers any protein move at all (that second answer
-  // drives the freeze valve in endOfMove()).
+  // combo beats a smaller one.
   //
   // Each candidate carries the tile objects that end up matched, captured
   // while the probe swap is in place. Those are the tiles the hint lights up:
@@ -724,10 +730,6 @@
   function findHint() {
     var scan = scanMoves();
     return scan.protein || scan.carb;
-  }
-
-  function hasProteinMove() {
-    return scanMoves().protein !== null;
   }
 
   function clearHint() {
@@ -836,12 +838,7 @@
         if (frenzyMoves === 0) ketosis = FRENZY_LAND; // you earned base ketosis
       }
     } else if (ketosis > KETOSIS_DRAIN_FLOOR) {
-      // Drain is not suppressed by meterFrozen. Upkeep is ambient — your
-      // metabolism runs whatever the board is offering. The freeze exists to
-      // stop you being punished for *eating carbs you had no alternative to*,
-      // which is the carb loss, not the drain. Waiving both let the meter
-      // coast through protein-poor stretches and turned the frenzy into the
-      // default state rather than a payoff.
+      // Upkeep is ambient — your metabolism runs whatever the board offers.
       ketosis = Math.max(KETOSIS_DRAIN_FLOOR, ketosis - tierFor(ketosis).drain);
     }
     // Re-arms the tier refunds as the meter falls. Drain and frenzy expiry only
@@ -850,8 +847,6 @@
     movesLeft--;
     movesTaken++;
     renderMoves();
-    // Re-evaluated on the settled board, so it governs the *next* move.
-    meterFrozen = !hasProteinMove();
     syncKetosisState(true);
     pendingRefund = 0; // never let an unannounced refund leak into the next move
     renderKetosis();
@@ -921,11 +916,14 @@
       var rush = (gained > 0 && proteinCount === 0) ? SUGAR_RUSH : 1;
       score += Math.round(gained * POINTS_PER_TILE * comboStep * currentMultiplier() * rush);
 
-      // Then pay the metabolic price. Gains always land; losses don't, while
-      // Fat-Adapted (you burn carbs) or while the meter is frozen (the board
-      // offered you no protein, so the carbs weren't a choice).
+      // Then pay the metabolic price. Gains always land; losses don't while
+      // Fat-Adapted (you burn carbs). There is deliberately no waiver for a
+      // board with no protein move: a protein-starved board is the result of
+      // the protein you already spent, and waiving carbs there let runs coast
+      // far past the budget's intent (playtest: "almost always enough keto
+      // options to stay afloat").
       if (frenzyMoves === 0) {
-        var loss = meterFrozen ? 0 : carbCount * KETOSIS_CARB_LOSS;
+        var loss = carbCount * KETOSIS_CARB_LOSS;
         ketosis = Math.max(0, Math.min(100, ketosis + proteinCount * KETOSIS_PROTEIN_GAIN - loss));
         if (ketosis >= 100) {
           frenzyMoves = FRENZY_MOVES;

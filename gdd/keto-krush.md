@@ -165,54 +165,19 @@ matters: the incentive is real, not decorative. Ignoring the meter entirely
 puts you in carb crash 30% of the time. Deep ketosis sitting at 6–12% across
 strategies confirms it reads as a transition rather than a parking spot.
 
-### Fairness valve: the frozen board
+### Fairness valve: retired
 
-**If no protein-producing swap exists anywhere on the board, carbs cost no
-meter that move.** You can't be punished for eating what the board forced on
-you.
+The first two economies waived the carb loss whenever the board offered no
+protein-producing swap — "you can't be punished for eating what the board
+forced on you." Playtest verdict after the move budget landed: runs were
+still too long, because there was almost always a keto option to stay
+afloat, and when there wasn't, carbs were free. The waiver was covering
+for exactly the situation the player creates by spending their protein.
 
-**The drain still applies while frozen.** The first draft waived both, and
-playtesting showed why that's wrong: a player who takes every protein match
-strips protein off the board, so the freeze fires on nearly half of all moves
-(measured: 47%), the meter coasts through every protein-poor stretch, and the
-frenzy stops being a payoff and becomes the default state. Upkeep is ambient
-— your metabolism runs whatever the board is offering. The unfairness worth
-guarding against is being punished for *a choice you didn't have*, which is
-the carb loss, not the drain.
-
-This is nearly free to implement: `findHint()` already scans every adjacent
-swap and already flags whether the resulting match is protein
-(`PROTEIN_ICONS`). It just needs to return that flag instead of discarding
-it, which is why `scanMoves()` now serves both the hint and the valve.
-
----
-
----
-
-## The move budget: what actually ends a run
-
-Everything above tunes the *inside* of a run. It was tuned against a run with
-no outside — and that was the hole.
-
-A refilling 6×6 board effectively never locks. Simulated to genuine board
-lock, 200 runs per strategy:
-
-| Strategy | Median run | p90 | Max | Frenzies/run | First frenzy |
-|---|---|---|---|---|---|
-| Always protein | **1,033 moves** | 3,246 | 5,643 | **72.9** | move 15 |
-| Biggest match | 414 | 1,454 | 3,342 | 6.6 | move 78 |
-| Random | 364 | 1,007 | 2,555 | 3.8 | move 143 |
-
-At roughly 1.5s of animation per move plus thinking time, a median skilled run
-was **40–50 minutes** and the 90th percentile was over two hours. The earlier
-claim here that "a run is a few minutes, ending on board lock" was wrong by two
-orders of magnitude.
-
-This is the real answer to "I'm playing so many keto combos first try." Nothing
-in the tier economy was mistuned — measured occupancy matched its targets
-almost exactly. The problem was that **nothing was scarce.** With a thousand
-moves available, climbing costs nothing, so the frenzy isn't a payoff you climb
-toward 73 separate times. It's the weather.
+So it's gone: **carbs always cost the meter.** A protein-starved board is
+the consequence of the protein you already took, and paying for it is the
+point. The drain was never waived and still isn't. If runs now end too
+*fast* instead, the next lever is `MOVE_BUDGET` / `REFUND`, not the waiver.
 
 ### The rule
 
@@ -329,8 +294,7 @@ No daily seed — this is a score-attack game, not a daily.
       floored at 40.
 - [x] Fat-Adapted: 5-move counter, 4×, carb-loss suppressed, meter frozen,
       lands at 70 on expiry.
-- [x] Frozen-board valve: `scanMoves()` returns the protein flag the old
-      `findHint()` was discarding; suppresses carb loss (not drain).
+- [x] ~~Frozen-board valve~~ — retired; carbs always cost the meter.
 - [x] Two new sounds — frenzy start (rising arpeggio) and frenzy end (soft
       fall). Reuse the existing `tone()` helper; no assets.
 - [x] Reset the stored personal best once, via an `econ` marker — scores from

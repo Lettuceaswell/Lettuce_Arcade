@@ -14,13 +14,39 @@
   body {
     display: flex;
     justify-content: center;
+    /* flex-start, not the default stretch: stretched, main was pinned to the
+       viewport height and its content overflowed past its own bottom padding,
+       which is why the last tile's edge hid under Safari's toolbar. */
+    align-items: flex-start;
   }
 
   main {
     width: 100%;
     max-width: 500px;
-    padding: 24px 16px calc(24px + var(--safe-bottom));
+    padding: 24px 16px calc(32px + var(--safe-bottom));
   }
+
+  .lettuce {
+    display: block;
+    width: 56px;
+    height: 56px;
+    margin: 20px auto 0;
+    padding: 4px;
+    border: none;
+    border-radius: 50%;
+    background: transparent;
+    cursor: pointer;
+  }
+  .lettuce img { display: block; width: 48px; height: 48px; }
+  @keyframes wiggle {
+    0%, 100% { transform: rotate(0); }
+    20% { transform: rotate(-14deg) scale(1.08); }
+    40% { transform: rotate(12deg) scale(1.08); }
+    60% { transform: rotate(-8deg); }
+    80% { transform: rotate(6deg); }
+  }
+  .lettuce.wiggle img { animation: wiggle 600ms ease-in-out; }
+  @media (prefers-reduced-motion: reduce) { .lettuce.wiggle img { animation: none; } }
 
   .header-icon {
     display: block;
@@ -99,11 +125,21 @@
   <img class="header-icon" src="/icon-180.png" alt="" width="180" height="180">
   <h1>Lettuce Arcade</h1>
   <ul class="tile-list" id="tile-list" aria-live="polite"></ul>
+  <button class="lettuce" id="lettuce" aria-label="Lettuce"><img src="/lettuce-192.png" alt="" width="48" height="48"></button>
 </main>
 <script src="/shared/arcade.js"></script>
 <script>
   (function () {
     var list = document.getElementById("tile-list");
+
+    // The lettuce at the bottom does one thing: wiggles when tapped.
+    var lettuce = document.getElementById("lettuce");
+    lettuce.addEventListener("click", function () {
+      lettuce.classList.remove("wiggle");
+      void lettuce.offsetWidth; // restart the animation on rapid taps
+      lettuce.classList.add("wiggle");
+    });
+    lettuce.addEventListener("animationend", function () { lettuce.classList.remove("wiggle"); });
 
     fetch("/games.json")
       .then(function (res) {
