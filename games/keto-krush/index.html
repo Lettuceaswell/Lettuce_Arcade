@@ -133,6 +133,39 @@
     font-weight: 800;
   }
 
+  #runover .detail {
+    font-size: 0.85rem;
+    color: var(--fg-dim);
+  }
+
+  #movebar {
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: var(--fg-dim);
+  }
+
+  #moves {
+    display: inline-block;
+    min-width: 2ch;
+    font-size: 1.15rem;
+    font-weight: 800;
+    color: var(--fg);
+  }
+
+  #moves.low { color: #ff6b6b; }
+
+  @keyframes moveGain {
+    0% { transform: scale(1); color: var(--fg); }
+    35% { transform: scale(1.5); color: #4ade80; }
+    100% { transform: scale(1); color: var(--fg); }
+  }
+
+  #moves.gain { animation: moveGain 600ms ease-out; }
+
+  @media (prefers-reduced-motion: reduce) {
+    #moves.gain { animation: none; }
+  }
+
   #mute {
     position: fixed;
     top: calc(8px + var(--safe-top));
@@ -150,6 +183,7 @@
 
 <div id="status" aria-live="polite"></div>
 <div id="scoreline"></div>
+<div id="movebar">Moves left: <span id="moves">25</span></div>
 <div id="ketosis"><div id="ketosis-fill"></div></div>
 <div id="ketosis-label"></div>
 
@@ -157,6 +191,7 @@
 
 <div id="runover">
   <div class="headline" id="runover-headline"></div>
+  <div class="detail" id="runover-detail"></div>
   <button id="restart" class="btn">Play again</button>
 </div>
 
@@ -199,9 +234,28 @@
   var FRENZY_LAND = 70;     // meter drops back to base ketosis on expiry
   var POINTS_PER_TILE = 10; // the tiers are unreadable at a base of 1
 
+  // ---- the move budget -----------------------------------------------------
+  // A refilling 6x6 board practically never locks: simulated to board lock,
+  // a perfect-protein run lasts a median of 1,033 moves (p90 3,246) and fires
+  // 73 frenzies. Nothing is scarce, so climbing costs nothing and the frenzy
+  // stops being a payoff — it's just the weather. The budget is the scarcity.
+  //
+  // Refunds come only from the meter, which makes the thing the player fully
+  // controls the thing that decides how long they play. They're tuned so a
+  // climb never quite pays for itself — the margin is thin and the cliff is
+  // real: raising the deep refund to 3 tips skilled play straight back into
+  // runaway (median 676 moves, max 5,001, only 14% of runs ending on the
+  // budget at all). At 2 the budget ends 90% of them.
+  //
+  // Simulated medians: ~31 moves casual, ~134 perfect-protein, ~170 for a
+  // player taking the *biggest* protein match rather than merely a protein
+  // one — matching well beats matching greedily, which is the right lesson.
+  var MOVE_BUDGET = 25;
+  var REFUND = { keto: 2, deep: 2, frenzy: 5 };
+
   // Bumping this resets the personal best: scores earned under an older
   // economy aren't comparable to scores earned under this one.
-  var ECON = 2;
+  var ECON = 3;
 
   var boardEl = document.getElementById("board");
   var statusEl = document.getElementById("status");
@@ -212,6 +266,8 @@
   var muteBtn = document.getElementById("mute");
   var runoverEl = document.getElementById("runover");
   var runoverHeadlineEl = document.getElementById("runover-headline");
+  var runoverDetailEl = document.getElementById("runover-detail");
+  var movesEl = document.getElementById("moves");
   var restartBtn = document.getElementById("restart");
 
   function num(v) {
@@ -248,6 +304,14 @@
   var frenzyMoves = 0;         // >0 while Fat-Adapted
   var frenzyJustStarted = false; // so the triggering move doesn't burn a turn
   var meterFrozen = false;     // set per move when the board offers no protein
+  var movesLeft = MOVE_BUDGET;
+  var movesTaken = 0;
+  // A tier refund is armed while you're below its threshold and spent when you
+  // cross it, so one climb pays once. Without the arming, the frenzy landing at
+  // exactly 70 would re-pay the ketosis refund on the way down.
+  var armKeto = false;
+  var armDeep = false;
+  var pendingRefund = 0; // moves just granted, waiting to be announced
 
   // ---- audio -------------------------------------------------------------
   function tone(freq, dur, delay, vol) {
@@ -311,6 +375,31 @@
     scorelineEl.textContent = "Score: " + score.toLocaleString() + "   Best: " + highScore.toLocaleString();
   }
 
+  function renderMoves() {
+    movesEl.textContent = movesLeft;
+    movesEl.classList.toggle("low", movesLeft <= 5);
+  }
+
+  // Pays a tier refund at most once per climb. Called after the meter reacts
+  // to a clear — so the moves you buy come from the tier you just reached,
+  // not the one you were holding.
+  function payRefunds() {
+    if (ketosis < 70) armKeto = true;
+    if (ketosis < 85) armDeep = true;
+    if (ketosis >= 70 && armKeto) { grantMoves(REFUND.keto); armKeto = false; }
+    if (ketosis >= 85 && armDeep) { grantMoves(REFUND.deep); armDeep = false; }
+  }
+
+  function grantMoves(n) {
+    if (!n) return;
+    movesLeft += n;
+    pendingRefund = n; // consumed by the next tier announcement
+    renderMoves();
+    movesEl.classList.remove("gain");
+    void movesEl.offsetWidth; // restart the flash if refunds land back to back
+    movesEl.classList.add("gain");
+  }
+
   // ---- ketosis tiers -------------------------------------------------------
   function tierFor(value) {
     var t = TIERS[0];
@@ -369,18 +458,24 @@
     document.body.classList.toggle("carbcrash", next === "crash");
     document.body.classList.toggle("frenzy", next === "frenzy");
     if (!announce) return true;
+    // Only a tier *reached* pays moves. Sliding back down into ketosis from
+    // deep crosses the same boundary and must not claim a refund it didn't get.
+    var bonus = pendingRefund > 0 ? " · +" + pendingRefund + " moves" : "";
+    pendingRefund = 0;
     if (next === "frenzy") {
       frenzyInSound();
-      setStatus("⚡ Fat-adapted! 4x — carbs can't touch you");
+      // The 4x is already under the bar for the whole frenzy; the carb
+      // immunity is stated nowhere else, so it keeps the banner slot.
+      setStatus("⚡ Fat-adapted!" + bonus.replace(" · ", " ") + " · carbs can't touch you");
     } else if (prev === "frenzy") {
       frenzyOutSound();
       setStatus("Back down to ketosis");
     } else if (next === "deep") {
       ketosisInSound();
-      setStatus("🔥 Deep ketosis — 3x");
+      setStatus("🔥 Deep ketosis — 3x" + bonus);
     } else if (next === "keto") {
       ketosisInSound();
-      setStatus("🥑 Ketosis — 2x");
+      setStatus("🥑 Ketosis — 2x" + bonus);
     } else if (next === "crash") {
       ketosisOutSound();
       setStatus("🍩 Carb crash — 0.5x");
@@ -396,8 +491,15 @@
     ketosisState = "normal";
     frenzyMoves = 0;
     frenzyJustStarted = false;
+    movesLeft = MOVE_BUDGET;
+    movesTaken = 0;
+    armKeto = KETOSIS_START < 70;
+    armDeep = KETOSIS_START < 85;
+    pendingRefund = 0;
     meterFrozen = !hasProteinMove(); // needs a generated board — call after it
     document.body.classList.remove("ketosis", "deep", "carbcrash", "frenzy");
+    movesEl.classList.remove("gain");
+    renderMoves();
     renderKetosis();
   }
 
@@ -705,7 +807,11 @@
     renderScoreline();
     runoverHeadlineEl.textContent = beat
       ? "New best! " + score.toLocaleString() + " points 🎉"
-      : "Run over — " + score.toLocaleString() + " points";
+      : (movesLeft <= 0 ? "Out of moves — " : "Board locked — ") + score.toLocaleString() + " points";
+    // The stretch is the brag: it's the part of the run the meter bought.
+    var earned = movesTaken - MOVE_BUDGET;
+    runoverDetailEl.textContent = movesTaken + " moves"
+      + (earned > 0 ? " — you earned " + earned + " of them" : "");
     runoverEl.classList.add("show");
   }
 
@@ -730,9 +836,16 @@
       // default state rather than a payoff.
       ketosis = Math.max(KETOSIS_DRAIN_FLOOR, ketosis - tierFor(ketosis).drain);
     }
+    // Re-arms the tier refunds as the meter falls. Drain and frenzy expiry only
+    // ever lower it, so nothing can be paid out here — this is arming only.
+    payRefunds();
+    movesLeft--;
+    movesTaken++;
+    renderMoves();
     // Re-evaluated on the settled board, so it governs the *next* move.
     meterFrozen = !hasProteinMove();
     syncKetosisState(true);
+    pendingRefund = 0; // never let an unannounced refund leak into the next move
     renderKetosis();
   }
 
@@ -810,6 +923,11 @@
           frenzyMoves = FRENZY_MOVES;
           frenzyJustStarted = true; // the triggering move shouldn't burn a turn
           frenzies++;
+          grantMoves(REFUND.frenzy);
+          armKeto = false; // the climb is paid out; re-arm on the way back down
+          armDeep = false;
+        } else {
+          payRefunds();
         }
       }
 
@@ -863,7 +981,7 @@
             Arcade.save("cleared", cleared);
             Arcade.save("frenzies", frenzies);
             renderStats();
-            if (!hasAnyMove()) {
+            if (movesLeft <= 0 || !hasAnyMove()) {
               busy = false;
               endRun();
             } else {

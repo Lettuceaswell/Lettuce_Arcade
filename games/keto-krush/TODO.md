@@ -6,3 +6,5 @@
 > no build step, portrait/one-thumb play, <500KB per game, etc). When a
 > change below is implemented, remove it from this file entirely. Anything
 > left undone is waiting on the developer to rescope it.
+
+(no changes noted yet)

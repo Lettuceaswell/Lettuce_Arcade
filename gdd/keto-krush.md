@@ -2,7 +2,8 @@
 
 - **Slug:** `games/keto-krush/`
 - **Emoji:** 🍖
-- **Status:** shipped (v14) — ketosis economy below is built and tuned
+- **Status:** shipped (v17) — ketosis economy and the move budget are built
+  and tuned
 
 ## One-line pitch
 A match-3 where the board is a plate: fat and protein compound into a
@@ -186,12 +187,93 @@ it, which is why `scanMoves()` now serves both the hint and the valve.
 
 ---
 
+---
+
+## The move budget: what actually ends a run
+
+Everything above tunes the *inside* of a run. It was tuned against a run with
+no outside — and that was the hole.
+
+A refilling 6×6 board effectively never locks. Simulated to genuine board
+lock, 200 runs per strategy:
+
+| Strategy | Median run | p90 | Max | Frenzies/run | First frenzy |
+|---|---|---|---|---|---|
+| Always protein | **1,033 moves** | 3,246 | 5,643 | **72.9** | move 15 |
+| Biggest match | 414 | 1,454 | 3,342 | 6.6 | move 78 |
+| Random | 364 | 1,007 | 2,555 | 3.8 | move 143 |
+
+At roughly 1.5s of animation per move plus thinking time, a median skilled run
+was **40–50 minutes** and the 90th percentile was over two hours. The earlier
+claim here that "a run is a few minutes, ending on board lock" was wrong by two
+orders of magnitude.
+
+This is the real answer to "I'm playing so many keto combos first try." Nothing
+in the tier economy was mistuned — measured occupancy matched its targets
+almost exactly. The problem was that **nothing was scarce.** With a thousand
+moves available, climbing costs nothing, so the frenzy isn't a payoff you climb
+toward 73 separate times. It's the weather.
+
+### The rule
+
+**A run is 25 moves. Reaching a new metabolic tier buys more.**
+
+| Reached | Refund |
+|---|---|
+| 🥑 Ketosis (70) | +2 moves |
+| 🔥 Deep ketosis (85) | +2 moves |
+| ⚡ Fat-adapted (100) | +5 moves |
+
+A refund is armed while you're *below* a threshold and spent when you cross it,
+so one climb pays once — the frenzy landing at exactly 70 doesn't re-pay the
+ketosis refund on the way down, and sliding back down from deep into ketosis
+doesn't pay at all. The run ends at zero moves, or on board lock if that
+somehow comes first.
+
+This is deliberately the only source of moves. Cascades don't grant any — the
+GDD's whole complaint about `comboStep` is that it's the multiplier you *don't*
+control, and run length shouldn't hang on it either. The meter is the stat the
+player fully controls, so the meter is what decides how long they play.
+
+### Why it fixes the climb
+
+The 15-move climb to the first frenzy used to be free. Against a 25-move budget
+it's most of the run — which turns the sugar rush from a mild curiosity into
+the decision it was designed to be. Carbs now cost you *time*, not just
+multiplier.
+
+### Measured
+
+250 runs per strategy against the shipped rules:
+
+| Strategy | Median | p90 | Max | Avg score | Frenzies | Ended on budget |
+|---|---|---|---|---|---|---|
+| Perfect protein | 134 | 220 | 368 | 37,255 | 7.3 | 90% |
+| Biggest protein match | 170 | 276 | 527 | 58,340 | 10.8 | 74% |
+| Casual | 31 | 62 | 121 | 5,685 | 0.4 | 94% |
+| Random | 29 | 61 | 115 | 5,398 | 0.3 | 93%|
+
+A casual round is ~31 moves, about two minutes — quick and instantly
+replayable. Skilled play stretches that 4–5×, and the budget is what ends the
+run for ~90% of everyone. Note that "biggest protein match" beats "always
+protein": taking the *largest* protein match outperforms merely taking a
+protein one, so the skill ceiling rewards reading the board rather than
+pattern-matching on 🍖.
+
+**The refund margin is thin and the cliff is real.** At +3 for deep ketosis
+instead of +2, a climb more than pays for itself and skilled play runs away
+again — median 676 moves, max 5,001, and only 14% of runs ending on the budget.
+This is the first knob to distrust; move it by 1 and re-measure.
+
+---
+
 ## Rules
 
 Standard match-3 on a 6×6 grid, 5 icons (🍖 🧀 protein / 🍕 🥐 🍪 carb).
 Swap adjacent tiles to line up 3+; 4+ in a run leaves a special tile (row /
-column / cross) that detonates when swept into a later clear. The run ends
-when no legal move remains — no timer.
+column / cross) that detonates when swept into a later clear. A run is a
+budget of 25 moves, extended only by climbing the meter (above); it ends at
+zero moves, or on board lock. No timer.
 
 The metabolic layer above is the scoring economy sitting on top of that loop.
 
@@ -203,10 +285,11 @@ The metabolic layer above is the scoring economy sitting on top of that loop.
 - No hover, no drag, no multi-touch. One thumb.
 
 ## Session shape
-- Turn-based and fully pausable — the board never acts on its own. Drain is
-  charged per *move*, not per second, so putting the phone down mid-climb
-  costs nothing.
-- A run is a few minutes, ending on board lock.
+- Turn-based and fully pausable — the board never acts on its own. Drain and
+  the move budget are both charged per *move*, never per second, so putting
+  the phone down mid-climb costs nothing.
+- A casual run is ~31 moves, about two minutes. A strong run stretches to
+  ~170, and the measured worst case is ~530 — long, but bounded.
 
 ## Scoring / persistence
 
@@ -218,8 +301,14 @@ Saved via `Arcade.save`/`Arcade.load` (namespaced automatically):
 - `cleared` — lifetime tiles cleared (already shipped).
 - `frenzies` — lifetime Fat-Adapted triggers. Cheap to add and it's the right
   brag: it counts completed chains, not luck.
+- `econ` — economy marker, now 3. Scores from the unbounded-run economy aren't
+  comparable to scores from a 25-move budget, so the personal best resets once.
+  Lifetime `cleared` and `frenzies` carry over — they count events, not points.
 
-No daily seed — this is an endless-run game, not a daily.
+The run-over card reports moves taken and how many of them were earned
+("48 moves — you earned 23 of them"), because the stretch is the real brag.
+
+No daily seed — this is a score-attack game, not a daily.
 
 ## Accessibility notes
 - Every tier is named in text in `#ketosis-label` and announced through the
@@ -249,8 +338,30 @@ No daily seed — this is an endless-run game, not a daily.
 - [x] Bump `Arcade.VERSION` to 14.
 - [x] No new files, no new deps, no `games.json` change.
 
+### Move budget (v17)
+
+- [x] `MOVE_BUDGET` of 25, decremented once per resolved move in `endOfMove()`
+      alongside the drain — never per cascade step, for the same reason.
+- [x] `REFUND` table; `payRefunds()` arms below a threshold and pays on the way
+      up, so one climb pays once.
+- [x] Frenzy pays `REFUND.frenzy` and clears both arms; they re-arm on the way
+      back down.
+- [x] `#movebar` counter above the meter, red at ≤5 left, green scale-flash on
+      a refund (suppressed under `prefers-reduced-motion`).
+- [x] Refund announced in the existing tier banner, driven by `pendingRefund`
+      so a *downward* crossing never claims a refund it didn't get.
+- [x] Run ends on `movesLeft <= 0` or board lock; the card distinguishes them.
+- [x] Bump `ECON` to 3 and `Arcade.VERSION` to 17.
+- [x] No new files, no new deps, no `games.json` change.
+
 ## Tuning knobs
 
+0. **Refund table (+2 / +2 / +5) and starting budget (25).** The knob that
+   decides whether the game is bounded at all, and the most fragile one here.
+   +3 on deep instead of +2 takes skilled play from a 134-move median to 676
+   with a 5,001 max. Change one value by one and re-measure before believing
+   it. Starting budget is the safe half of this pair: it moves the casual round
+   length roughly 1:1 and barely touches the ceiling.
 1. **Drain rates (1/3/5).** The dial that decides how much of a chain is
    upkeep versus progress, and the one that actually moved during tuning.
    Shipped at 1/2/3, which left a perfect-play bot in frenzy 33% of the time
@@ -285,6 +396,16 @@ No daily seed — this is an endless-run game, not a daily.
 - **Is a 29% frenzy share still too high for perfect play?** Realistic mixed
   play sits at 13%, which reads right, but the ceiling is high. The frenzy
   landing (knob 4) is the lever if it grates in practice.
+- **Does a casual 31-move run feel complete, or abrupt?** It's about two
+  minutes, and a player who never reaches ketosis earns only a couple of extra
+  moves — so the refund mechanic barely reaches them. Watch whether the
+  youngest players read "moves left" as pressure or as a wall. If it's a wall,
+  raise the starting budget rather than the refunds; the budget is the safe
+  knob and the refunds are the cliff.
+- **Should the budget be visible as a bar rather than a number?** A number is
+  precise and legible, but it doesn't convey "running out" at a glance the way
+  the meter does. Left as a number for now since the meter already owns the
+  bar vocabulary and two bars would compete.
 
 ### Resolved during build
 
