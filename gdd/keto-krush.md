@@ -2,8 +2,8 @@
 
 - **Slug:** `games/keto-krush/`
 - **Emoji:** 🍖
-- **Status:** shipped (v17) — ketosis economy and the move budget are built
-  and tuned
+- **Status:** shipped (v22) — ketosis economy, the move budget, and the end
+  card are built and tuned
 
 ## One-line pitch
 A match-3 where the board is a plate: fat and protein compound into a
@@ -229,6 +229,83 @@ pattern-matching on 🍖.
 instead of +2, a climb more than pays for itself and skilled play runs away
 again — median 676 moves, max 5,001, and only 14% of runs ending on the budget.
 This is the first knob to distrust; move it by 1 and re-measure.
+
+---
+
+## The end card (v22)
+
+Playtest note: the run ended on two lines of text under the board. No
+ceremony, nothing to screenshot, and a player who never understood the meter
+learned nothing from losing.
+
+**Principle: the card teaches with pictures and numbers, never sentences.**
+Nothing on it says "carbs crash you". A player who ignored the meter can see
+it happen.
+
+### What it shows
+
+- **The run arc.** One bar per resolved move, height = meter, colour = tier.
+  The whole run in one glance: the green climb, the purple frenzy plateau, the
+  red cliff where a carb run landed. A 🍩 marks the single worst carb move
+  (only if it cost at least a full carb 3-match, so a stray carb swept up in a
+  cascade doesn't get blamed). A five-dot legend under it uses only the tier
+  names the meter already shows.
+- **Score, then where it came from.** Big score that counts up, then a slim
+  stacked bar of points-per-tier in the tier colours. A casual run's bar is
+  all yellow; a good run's is mostly purple and blue.
+- **Moves** as "48 moves · 25 + 23 earned". The earned number is the brag.
+- **The plate.** Protein against carb tiles cleared, as a two-tone bar with
+  the percentages at each end.
+- **Highlights**: biggest single move, longest cascade, frenzies this run.
+  Each that beats a stored record gets a 🏆, so a low-scoring run can still
+  set one. That is the "feel better" mechanic, and it's the reason there are
+  three of them.
+- **A run title**, always affectionate: Butter Machine (4+ frenzies),
+  Metabolically Flexible (2+), Fat-Adapted (1), Cheat Day (crashed), So Close
+  (peaked at 95+), Slow Burner (reached deep), Keto Curious (reached keto),
+  Carb Loader (under 40% protein), Warming Up (everything else). A frenzy
+  outranks a crash: if you got there, that's the story of the run.
+- Branding and date in the header, personal best and lifetime totals in the
+  footer, so a screenshot identifies itself.
+
+### Ceremony
+
+The board dims behind a fixed overlay and the card rises. The arc draws left
+to right over about a second while the score counts up with a rising tick.
+The stat rows fade in with a short stagger, the title stamps in with a chord
+(the frenzy arpeggio on a new best), and the buttons arrive last. A tap
+anywhere skips to the end. Reduced motion goes straight there.
+
+**Look at the board** dismisses the overlay so you can inspect the lock or
+the last move; two buttons under the board bring the card back or restart.
+
+### Share
+
+Web Share API with clipboard as the fallback, matching Daily Letters. The
+text compresses the arc into a Wordle-style strip of at most 16 emoji, each
+the tier held for most of its slice of the run:
+
+```
+🍖 Keto Krush · 12,340
+⬜⬜🥑🥑🔥⚡⚡⚡🥑🍩⬜🥑🔥⚡⚡
+48 moves · ⚡×2 · Fat-Adapted
+```
+
+No image rendering: the card is designed to be screenshotted instead, which
+is what the family will do anyway.
+
+### Persistence
+
+Three new records via `Arcade.save`: `bestMove` (points, resets with `econ`
+like the high score), `bestCombo` and `bestFrenzies` (events, carry over).
+
+### Decisions
+
+- No generated sentence ("a pizza run knocked you out on move 14"). It's the
+  most direct explanation and it reads as a tutorial, which the playtest note
+  said to avoid.
+- No player name on the card. Daily Letters has one, but its profile is
+  namespaced per game and a shared arcade-wide name is a separate decision.
 
 ---
 

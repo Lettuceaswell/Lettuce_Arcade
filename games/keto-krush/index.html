@@ -130,25 +130,189 @@
 
   #stats { font-size: 0.85rem; color: var(--fg-dim); }
 
+  /* Shown under the board only after the end card is dismissed to look at
+     the final board: a way back to the card, and a way to play again. */
   #runover {
     display: none;
-    flex-direction: column;
-    align-items: center;
     gap: 10px;
     margin-top: 4px;
   }
 
   #runover.show { display: flex; }
 
-  #runover .headline {
-    font-size: 1.1rem;
-    font-weight: 800;
+  /* ---- end card ------------------------------------------------------------
+     A dimmed overlay with an opaque card, sized to fit a small phone screen
+     without scrolling so a screenshot catches the whole thing. */
+  #overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 9000;
+    display: none;
+    padding: calc(12px + var(--safe-top)) 12px calc(12px + var(--safe-bottom));
+    background: rgba(3, 26, 24, 0.86);
+    overflow-y: auto;
+    opacity: 0;
+    transition: opacity 250ms ease;
   }
 
-  #runover .detail {
+  #overlay.show { display: flex; }
+  #overlay.in { opacity: 1; }
+
+  .card {
+    width: 100%;
+    max-width: 360px;
+    margin: auto; /* centred when it fits, scrollable when it doesn't */
+    background: #052926;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 18px;
+    padding: 14px 16px 12px;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 9px;
+    text-align: center;
+    transform: translateY(24px);
+    transition: transform 320ms cubic-bezier(0.2, 0.9, 0.3, 1.1);
+  }
+
+  #overlay.in .card { transform: none; }
+
+  .card-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    font-size: 0.9rem;
+    color: var(--fg-dim);
+  }
+
+  .card-top .game { color: var(--fg); font-weight: 700; }
+
+  /* The run arc: one bar per move, height = meter, colour = tier. The clip
+     draws it left to right so the run replays itself in about a second. */
+  .arcwrap { position: relative; height: 48px; margin-top: 4px; }
+  .arcclip { height: 100%; clip-path: inset(0 100% 0 0); }
+  .arcclip.in { clip-path: inset(0 0 0 0); transition: clip-path 1100ms linear; }
+  .arc {
+    display: block;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.28);
+    border-radius: 8px;
+  }
+  .arc-mark {
+    position: absolute;
+    top: -9px;
+    font-size: 0.8rem;
+    line-height: 1;
+    transform: translateX(-50%);
+  }
+
+  .legend {
+    display: flex;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 2px 10px;
+    font-size: 0.68rem;
+    color: var(--fg-dim);
+    margin-top: -4px;
+  }
+  .legend i {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    margin-right: 3px;
+  }
+
+  .card-why { font-size: 0.85rem; color: var(--fg-dim); margin-bottom: -8px; }
+  .card-why.best { color: var(--accent); font-weight: 700; }
+  .card-score {
+    font-size: 2.3rem;
+    font-weight: 900;
+    letter-spacing: 0.02em;
+    line-height: 1.1;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Share of points earned at each tier, in the tier colours. */
+  .tierbar {
+    display: flex;
+    height: 8px;
+    border-radius: 4px;
+    overflow: hidden;
+    background: rgba(0, 0, 0, 0.28);
+  }
+  .tierbar span { display: block; height: 100%; }
+
+  .card-line { font-size: 0.95rem; color: var(--fg-dim); }
+  .card-line b { color: var(--fg); }
+
+  /* Protein against carbs cleared this run. */
+  .plate {
+    display: flex;
+    align-items: center;
+    gap: 8px;
     font-size: 0.85rem;
     color: var(--fg-dim);
   }
+  .plate b { color: var(--fg); }
+  .platebar {
+    flex: 1;
+    height: 10px;
+    border-radius: 5px;
+    overflow: hidden;
+    background: var(--bg-elevated);
+  }
+  .platebar span { display: block; height: 100%; background: #b8433a; }
+
+  .highlights { display: flex; flex-direction: column; gap: 3px; }
+  .hl {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    font-size: 0.9rem;
+    color: var(--fg-dim);
+    text-align: left;
+  }
+  .hl .lbl { flex: 1; }
+  .hl b { color: var(--fg); }
+  .hl .rec { min-width: 1.3em; text-align: right; }
+
+  .card-title {
+    font-size: 1.35rem;
+    font-weight: 900;
+    color: #ffd23f;
+    margin-top: 2px;
+  }
+
+  .card-foot { font-size: 0.72rem; color: var(--fg-dim); opacity: 0.75; }
+
+  .card-actions { display: flex; gap: 8px; margin-top: 2px; }
+  .card-actions .btn { flex: 1; padding-left: 8px; padding-right: 8px; }
+  .card-hint { font-size: 0.8rem; color: var(--fg-dim); }
+  .card-hint:empty { display: none; }
+
+  .link {
+    background: none;
+    border: 0;
+    color: var(--fg-dim);
+    text-decoration: underline;
+    font: inherit;
+    font-size: 0.9rem;
+    min-height: 44px;
+    cursor: pointer;
+  }
+
+  /* Staged reveal. Elements start hidden; the ceremony adds .in one by one.
+     .done short-circuits everything to its final state (skip, reduced motion,
+     or reopening the card). */
+  .reveal { opacity: 0; }
+  @keyframes fadeUp { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+  @keyframes stamp { 0% { transform: scale(2); opacity: 0; } 60% { transform: scale(0.95); opacity: 1; } 100% { transform: none; opacity: 1; } }
+  .reveal.in { animation: fadeUp 300ms ease-out both; }
+  .reveal.stamp.in { animation: stamp 450ms cubic-bezier(0.2, 0.9, 0.3, 1.2) both; }
+  .card.done .reveal { opacity: 1; animation: none; transform: none; }
+  .card.done .arcclip { clip-path: none; transition: none; }
 
   #movebar {
     font-size: 0.95rem;
@@ -176,6 +340,9 @@
 
   @media (prefers-reduced-motion: reduce) {
     #moves.gain { animation: none; }
+    .reveal.in, .reveal.stamp.in { animation: none; opacity: 1; }
+    .arcclip.in { transition: none; }
+    #overlay, .card { transition: none; }
   }
 
   #mute {
@@ -202,12 +369,45 @@
 <div class="board" id="board"></div>
 
 <div id="runover">
-  <div class="headline" id="runover-headline"></div>
-  <div class="detail" id="runover-detail"></div>
+  <button id="showcard" class="btn">Show card</button>
   <button id="restart" class="btn">Play again</button>
 </div>
 
 <div id="stats"></div>
+
+<div id="overlay" role="dialog" aria-label="Run over">
+  <div class="card" id="card">
+    <div class="card-top">
+      <span class="game">🍖 Keto Krush</span>
+      <span id="card-date"></span>
+    </div>
+    <div class="arcwrap">
+      <div class="arcclip" id="arcclip">
+        <svg class="arc" id="arc" preserveAspectRatio="none" viewBox="0 0 1 40" aria-hidden="true"></svg>
+      </div>
+      <div class="arc-mark" id="arc-mark" hidden>🍩</div>
+    </div>
+    <div class="legend" id="legend"></div>
+    <div class="card-why" id="card-why"></div>
+    <div class="card-score" id="card-score">0</div>
+    <div class="tierbar reveal" id="tierbar"></div>
+    <div class="card-line reveal" id="card-moves"></div>
+    <div class="plate reveal">
+      <span>🍖🧀 <b id="plate-protein"></b></span>
+      <div class="platebar"><span id="plate-fill"></span></div>
+      <span><b id="plate-carb"></b> 🍕🥐🍪</span>
+    </div>
+    <div class="highlights" id="highlights"></div>
+    <div class="card-title reveal stamp" id="card-title"></div>
+    <div class="card-foot reveal" id="card-foot"></div>
+    <div class="card-actions reveal">
+      <button id="share" class="btn">Share</button>
+      <button id="again" class="btn">Play again</button>
+    </div>
+    <div class="card-hint" id="card-hint"></div>
+    <button id="seeboard" class="link reveal">Look at the board</button>
+  </div>
+</div>
 
 <button id="mute" class="btn" aria-label="Mute sound">🔊</button>
 
@@ -277,10 +477,16 @@
   var statsEl = document.getElementById("stats");
   var muteBtn = document.getElementById("mute");
   var runoverEl = document.getElementById("runover");
-  var runoverHeadlineEl = document.getElementById("runover-headline");
-  var runoverDetailEl = document.getElementById("runover-detail");
   var movesEl = document.getElementById("moves");
-  var restartBtn = document.getElementById("restart");
+  var overlayEl = document.getElementById("overlay");
+  var cardEl = document.getElementById("card");
+  var arcEl = document.getElementById("arc");
+  var arcClipEl = document.getElementById("arcclip");
+  var arcMarkEl = document.getElementById("arc-mark");
+  var cardScoreEl = document.getElementById("card-score");
+  var cardHintEl = document.getElementById("card-hint");
+
+  function $(id) { return document.getElementById(id); }
 
   function num(v) {
     var n = Number(v);
@@ -292,13 +498,27 @@
   var highScore = num(Arcade.load("highScore", 0));
   var muted = Arcade.load("muted", false) === true;
 
+  // Per-run records the end card can award beyond the high score, so a low
+  // scoring run can still set one. Combo and frenzies count events and
+  // carry across economies; the biggest move is points and resets with them.
+  var records = {
+    move: num(Arcade.load("bestMove", 0)),
+    combo: num(Arcade.load("bestCombo", 0)),
+    frenzies: num(Arcade.load("bestFrenzies", 0))
+  };
+
   // Lifetime tile count carries over — it counts tiles, not points — but the
   // best score doesn't survive an economy change.
   if (num(Arcade.load("econ", 1)) !== ECON) {
     highScore = 0;
     Arcade.save("highScore", 0);
+    records.move = 0;
+    Arcade.save("bestMove", 0);
     Arcade.save("econ", ECON);
   }
+
+  var reducedMotion = window.matchMedia
+    && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   var CELL = 44;
   var grid = [];
   var nextId = 1;
@@ -323,6 +543,28 @@
   var armKeto = false;
   var armDeep = false;
   var pendingRefund = 0; // moves just granted, waiting to be announced
+
+  // ---- per-run record ------------------------------------------------------
+  // Everything the end card shows. Fed by the cascade and end-of-move paths,
+  // read once when the run ends. Nothing in here changes how the game plays.
+  var run = null;
+
+  function resetRun() {
+    run = {
+      history: [],       // { k: meter, s: tier } after each resolved move
+      byTier: { crash: 0, normal: 0, keto: 0, deep: 0, frenzy: 0 }, // points
+      protein: 0,        // tiles cleared
+      carb: 0,
+      movePts: 0,        // points so far in the move being resolved
+      bestMove: 0,
+      maxCombo: 0,
+      frenzies: 0,
+      peak: KETOSIS_START,
+      crashed: false,
+      carbLoss: 0,       // meter lost to carbs in the move being resolved
+      worstCarb: { move: -1, loss: 0 }
+    };
+  }
 
   // ---- audio -------------------------------------------------------------
   function tone(freq, dur, delay, vol) {
@@ -815,15 +1057,280 @@
       Arcade.save("highScore", highScore);
     }
     renderScoreline();
-    runoverHeadlineEl.textContent = beat
-      ? "New best! " + score.toLocaleString() + " points 🎉"
-      : (movesLeft <= 0 ? "Out of moves — " : "Board locked — ") + score.toLocaleString() + " points";
+    buildCard(beat, claimRecords());
+    showCard(true);
+  }
+
+  // ---- end card ------------------------------------------------------------
+  // The card teaches with pictures, never sentences: the arc shows the climb
+  // and the crash, the tier bar shows where the points came from, the plate
+  // shows what was eaten. A player who never read the meter can see it here.
+
+  function claimRecords() {
+    var out = { move: false, combo: false, frenzies: false };
+    if (run.bestMove > 0 && run.bestMove > records.move) {
+      records.move = run.bestMove;
+      Arcade.save("bestMove", records.move);
+      out.move = true;
+    }
+    if (run.maxCombo >= 2 && run.maxCombo > records.combo) {
+      records.combo = run.maxCombo;
+      Arcade.save("bestCombo", records.combo);
+      out.combo = true;
+    }
+    if (run.frenzies > 0 && run.frenzies > records.frenzies) {
+      records.frenzies = run.frenzies;
+      Arcade.save("bestFrenzies", records.frenzies);
+      out.frenzies = true;
+    }
+    return out;
+  }
+
+  // Always a compliment or a joke, never a scold. A frenzy outranks a crash:
+  // if you got there, that's the story of the run.
+  function runTitle() {
+    var total = run.protein + run.carb;
+    var share = total ? run.protein / total : 0;
+    if (run.frenzies >= 4) return "🧈 Butter Machine";
+    if (run.frenzies >= 2) return "⚡ Metabolically Flexible";
+    if (run.frenzies === 1) return "⚡ Fat-Adapted";
+    if (run.crashed) return "🍩 Cheat Day";
+    if (run.peak >= 95) return "🔥 So Close";
+    if (run.peak >= 85) return "🔥 Slow Burner";
+    if (run.peak >= 70) return "🥑 Keto Curious";
+    if (share < 0.4) return "🍩 Carb Loader";
+    return "🥓 Warming Up";
+  }
+
+  var STATE_EMOJI = { crash: "🍩", normal: "⬜", keto: "🥑", deep: "🔥", frenzy: "⚡" };
+  var LEGEND = [
+    ["crash", "crash"], ["normal", "normal"], ["keto", "keto"],
+    ["deep", "deep"], ["frenzy", "fat-adapted"]
+  ];
+
+  function buildArc() {
+    var h = run.history, n = h.length;
+    var H = 40;
+    while (arcEl.firstChild) arcEl.removeChild(arcEl.firstChild);
+    arcEl.setAttribute("viewBox", "0 0 " + Math.max(n, 1) + " " + H);
+    // Bars get a gap while there's room for one; a long run packs solid so
+    // the arc reads as a shape instead of a picket fence.
+    var w = n <= 60 ? 0.78 : 1;
+    for (var i = 0; i < n; i++) {
+      var bar = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+      var height = Math.max(1.5, h[i].k / 100 * H);
+      bar.setAttribute("x", i + (1 - w) / 2);
+      bar.setAttribute("y", H - height);
+      bar.setAttribute("width", w);
+      bar.setAttribute("height", height);
+      bar.setAttribute("fill", TIER_COLORS[h[i].s]);
+      arcEl.appendChild(bar);
+    }
+    var worst = run.worstCarb;
+    arcMarkEl.hidden = worst.move < 0;
+    if (worst.move >= 0) arcMarkEl.style.left = ((worst.move + 0.5) / n * 100) + "%";
+  }
+
+  function highlightRow(label, value, record) {
+    var row = document.createElement("div");
+    row.className = "hl reveal";
+    var lbl = document.createElement("span");
+    lbl.className = "lbl";
+    lbl.textContent = label;
+    var val = document.createElement("b");
+    val.textContent = value;
+    var rec = document.createElement("span");
+    rec.className = "rec";
+    rec.textContent = record ? "🏆" : "";
+    rec.setAttribute("aria-label", record ? "new record" : "");
+    row.appendChild(lbl); row.appendChild(val); row.appendChild(rec);
+    return row;
+  }
+
+  function frenzyGlyphs(n) {
+    if (!n) return "—";
+    var s = "";
+    for (var i = 0; i < Math.min(n, 5); i++) s += "⚡";
+    return n > 5 ? s + " ×" + n : s;
+  }
+
+  var cardBeat = false; // whether the card on screen is a new best
+
+  function buildCard(beat, recs) {
+    cardBeat = beat;
+    $("card-date").textContent = new Date().toLocaleDateString(undefined, { month: "short", day: "numeric" });
+    buildArc();
+
+    var legend = $("legend");
+    legend.innerHTML = "";
+    LEGEND.forEach(function (pair) {
+      var item = document.createElement("span");
+      var dot = document.createElement("i");
+      dot.style.background = TIER_COLORS[pair[0]];
+      item.appendChild(dot);
+      item.appendChild(document.createTextNode(pair[1]));
+      legend.appendChild(item);
+    });
+
+    var why = $("card-why");
+    why.textContent = beat ? "🎉 New best!" : (movesLeft <= 0 ? "Out of moves" : "Board locked");
+    why.className = "card-why" + (beat ? " best" : "");
+    cardScoreEl.textContent = "0";
+
+    var tierbar = $("tierbar");
+    tierbar.innerHTML = "";
+    ["crash", "normal", "keto", "deep", "frenzy"].forEach(function (tier) {
+      var pts = run.byTier[tier];
+      if (!pts) return;
+      var seg = document.createElement("span");
+      seg.style.flexGrow = pts;
+      seg.style.background = TIER_COLORS[tier];
+      tierbar.appendChild(seg);
+    });
+
     // The stretch is the brag: it's the part of the run the meter bought.
     var earned = movesTaken - MOVE_BUDGET;
-    runoverDetailEl.textContent = movesTaken + " moves"
-      + (earned > 0 ? " — you earned " + earned + " of them" : "");
-    runoverEl.classList.add("show");
+    $("card-moves").innerHTML = "<b>" + movesTaken + "</b>" + (movesTaken === 1 ? " move" : " moves")
+      + (earned > 0 ? " · " + MOVE_BUDGET + " + <b>" + earned + "</b> earned" : "");
+
+    var total = run.protein + run.carb;
+    var pct = total ? Math.round(run.protein / total * 100) : 0;
+    $("plate-protein").textContent = pct + "%";
+    $("plate-carb").textContent = (100 - pct) + "%";
+    $("plate-fill").style.width = pct + "%";
+
+    var hl = $("highlights");
+    hl.innerHTML = "";
+    hl.appendChild(highlightRow("Biggest move", run.bestMove.toLocaleString(), recs.move));
+    hl.appendChild(highlightRow("Longest cascade", "x" + Math.max(run.maxCombo, 1), recs.combo));
+    hl.appendChild(highlightRow("Fat-adapted", frenzyGlyphs(run.frenzies), recs.frenzies));
+
+    $("card-title").textContent = runTitle();
+    $("card-foot").textContent = "Best " + highScore.toLocaleString() + " · lifetime "
+      + cleared.toLocaleString() + " tiles · " + frenzies.toLocaleString() + " fat-adapted";
+    cardHintEl.textContent = "";
   }
+
+  // ---- ceremony ------------------------------------------------------------
+  // Card rises; the arc draws while the score counts up; the stats fade in
+  // one by one; the title stamps; the buttons arrive last. A tap anywhere
+  // skips to the end. Reduced motion goes straight there.
+  var ceremony = { timers: [], raf: null, active: false };
+
+  function at(ms, fn) { ceremony.timers.push(setTimeout(fn, ms)); }
+
+  function countUp(duration) {
+    var start = null, lastTick = 0;
+    function frame(now) {
+      if (start === null) start = now;
+      var p = Math.min(1, (now - start) / duration);
+      var eased = 1 - Math.pow(1 - p, 3);
+      cardScoreEl.textContent = Math.round(score * eased).toLocaleString();
+      if (score > 0 && now - lastTick > 70 && p < 1) {
+        lastTick = now;
+        tone(440 + 520 * eased, 0.04, 0, 0.045);
+      }
+      if (p < 1) ceremony.raf = requestAnimationFrame(frame);
+      else ceremony.raf = null;
+    }
+    ceremony.raf = requestAnimationFrame(frame);
+  }
+
+  function finishCeremony() {
+    ceremony.timers.forEach(clearTimeout);
+    ceremony.timers = [];
+    if (ceremony.raf) cancelAnimationFrame(ceremony.raf);
+    ceremony.raf = null;
+    ceremony.active = false;
+    cardScoreEl.textContent = score.toLocaleString();
+    cardEl.classList.add("done");
+  }
+
+  function showCard(animate) {
+    runoverEl.classList.remove("show");
+    overlayEl.classList.add("show");
+    void overlayEl.offsetWidth; // let display:flex land before the fade starts
+    overlayEl.classList.add("in");
+    overlayEl.scrollTop = 0;
+    if (!animate || reducedMotion) { finishCeremony(); return; }
+
+    cardEl.classList.remove("done");
+    arcClipEl.classList.remove("in");
+    var reveals = cardEl.querySelectorAll(".reveal");
+    Array.prototype.forEach.call(reveals, function (el) { el.classList.remove("in"); });
+    ceremony.active = true;
+
+    at(350, function () { arcClipEl.classList.add("in"); countUp(1100); });
+    var t = 1550;
+    Array.prototype.forEach.call(reveals, function (el) {
+      var stamp = el.classList.contains("stamp");
+      if (stamp) t += 200;
+      (function (el, stamp) {
+        at(t, function () {
+          el.classList.add("in");
+          if (stamp) { if (cardBeat) frenzyInSound(); else ketosisInSound(); }
+        });
+      })(el, stamp);
+      t += stamp ? 400 : 140;
+    });
+    at(t, finishCeremony);
+  }
+
+  function hideCard() {
+    overlayEl.classList.remove("in", "show");
+    cardEl.classList.add("done");
+  }
+
+  overlayEl.addEventListener("pointerdown", function () {
+    if (ceremony.active) finishCeremony();
+  });
+
+  // ---- share ---------------------------------------------------------------
+  // The arc compressed to a Wordle-style strip: at most 16 emoji, each the
+  // tier held for most of its slice of the run.
+  function arcEmoji() {
+    var h = run.history, n = h.length;
+    var buckets = Math.min(n, 16), out = "";
+    for (var b = 0; b < buckets; b++) {
+      var from = Math.floor(b * n / buckets), to = Math.floor((b + 1) * n / buckets);
+      var counts = {}, best = null;
+      for (var i = from; i < to; i++) {
+        var s = h[i].s;
+        counts[s] = (counts[s] || 0) + 1;
+        if (!best || counts[s] >= counts[best]) best = s;
+      }
+      out += STATE_EMOJI[best] || "⬜";
+    }
+    return out;
+  }
+
+  function shareText() {
+    return "🍖 Keto Krush · " + score.toLocaleString() + "\n"
+      + arcEmoji() + "\n"
+      + movesTaken + " moves"
+      + (run.frenzies ? " · ⚡×" + run.frenzies : "")
+      + " · " + runTitle();
+  }
+
+  $("share").addEventListener("click", function () {
+    var text = shareText();
+    function copied() { cardHintEl.textContent = "Copied — paste it in the chat"; }
+    function fallback() { cardHintEl.textContent = "Screenshot the card to share it"; }
+    if (navigator.share) {
+      navigator.share({ text: text }).catch(function () { /* user cancelled */ });
+    } else if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(copied, fallback);
+    } else {
+      fallback();
+    }
+  });
+
+  $("seeboard").addEventListener("click", function () {
+    hideCard();
+    runoverEl.classList.add("show");
+  });
+
+  $("showcard").addEventListener("click", function () { showCard(false); });
 
   // Charged once per resolved move — never per cascade step, since taxing a
   // cascade would punish the best outcome in the game. Holding a high tier
@@ -850,6 +1357,18 @@
     syncKetosisState(true);
     pendingRefund = 0; // never let an unannounced refund leak into the next move
     renderKetosis();
+
+    // One bar of the card's run arc per resolved move, plus the per-move
+    // bests. The worst carb move only counts if it cost at least a full carb
+    // 3-match, so a stray carb swept up in a cascade doesn't get the marker.
+    var state = currentStateName();
+    run.history.push({ k: state === "frenzy" ? 100 : ketosis, s: state });
+    if (run.movePts > run.bestMove) run.bestMove = run.movePts;
+    run.movePts = 0;
+    if (run.carbLoss >= 3 * KETOSIS_CARB_LOSS && run.carbLoss > run.worstCarb.loss) {
+      run.worstCarb = { move: run.history.length - 1, loss: run.carbLoss };
+    }
+    run.carbLoss = 0;
   }
 
   function resolveCascade(runs) {
@@ -914,7 +1433,16 @@
       // create. Sugar rush: an all-carb clear pays 50% more right now,
       // against the compounding tier you give up to take it.
       var rush = (gained > 0 && proteinCount === 0) ? SUGAR_RUSH : 1;
-      score += Math.round(gained * POINTS_PER_TILE * comboStep * currentMultiplier() * rush);
+      var pts = Math.round(gained * POINTS_PER_TILE * comboStep * currentMultiplier() * rush);
+      score += pts;
+      // Card bookkeeping. The tier is read here, before the meter reacts, for
+      // the same reason the multiplier is: it's the tier these points were
+      // earned at.
+      run.movePts += pts;
+      run.byTier[currentStateName()] += pts;
+      run.protein += proteinCount;
+      run.carb += carbCount;
+      if (comboStep > run.maxCombo) run.maxCombo = comboStep;
 
       // Then pay the metabolic price. Gains always land; losses don't while
       // Fat-Adapted (you burn carbs). There is deliberately no waiver for a
@@ -925,10 +1453,14 @@
       if (frenzyMoves === 0) {
         var loss = carbCount * KETOSIS_CARB_LOSS;
         ketosis = Math.max(0, Math.min(100, ketosis + proteinCount * KETOSIS_PROTEIN_GAIN - loss));
+        run.carbLoss += loss;
+        if (ketosis > run.peak) run.peak = ketosis;
+        if (tierFor(ketosis).name === "crash") run.crashed = true;
         if (ketosis >= 100) {
           frenzyMoves = FRENZY_MOVES;
           frenzyJustStarted = true; // the triggering move shouldn't burn a turn
           frenzies++;
+          run.frenzies++;
           grantMoves(REFUND.frenzy);
           armKeto = false; // the climb is paid out; re-arm on the way back down
           armDeep = false;
@@ -1065,7 +1597,9 @@
     }
   });
 
-  restartBtn.addEventListener("click", function () {
+  function restartRun() {
+    finishCeremony();
+    hideCard();
     runOver = false;
     runoverEl.classList.remove("show");
     score = 0;
@@ -1073,9 +1607,13 @@
     renderScoreline();
     generateBoard();
     resetKetosis();
+    resetRun();
     busy = false;
     scheduleHint();
-  });
+  }
+
+  $("restart").addEventListener("click", restartRun);
+  $("again").addEventListener("click", restartRun);
 
   // ---- boot ------------------------------------------------------------
   function start() {
@@ -1085,6 +1623,7 @@
     renderStats();
     renderScoreline();
     resetKetosis();
+    resetRun();
     busy = false;
     scheduleHint();
   }
