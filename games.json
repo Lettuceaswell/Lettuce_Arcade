@@ -17,5 +17,11 @@
     "blurb": "A pond that keeps going while you're away.",
     "emoji": "🐊",
     "icon": "totodile-2.png"
+  },
+  {
+    "slug": "keto-krush",
+    "title": "Keto Krush",
+    "blurb": "A match-3 about meat, cheese, bread, and knowing which is which.",
+    "emoji": "🍖"
   }
 ]

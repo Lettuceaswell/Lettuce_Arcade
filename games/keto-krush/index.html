@@ -1,0 +1,486 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Keto Krush — Lettuce Arcade</title>
+<meta name="theme-color" content="#0b4d49">
+<link rel="stylesheet" href="/shared/arcade.css">
+<style>
+  body {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    min-height: 100vh;
+    text-align: center;
+    padding:
+      calc(64px + var(--safe-top))
+      calc(12px + var(--safe-right))
+      calc(40px + var(--safe-bottom))
+      calc(12px + var(--safe-left));
+  }
+
+  h1 { font-size: 1.35rem; letter-spacing: 0.02em; }
+
+  #status {
+    height: 1.4rem;
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: var(--fg-dim);
+  }
+
+  .board {
+    position: relative;
+    touch-action: none;
+  }
+
+  .tile {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: var(--cell);
+    height: var(--cell);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: calc(var(--cell) * 0.58);
+    line-height: 1;
+    border-radius: calc(var(--cell) * 0.2);
+    background: var(--bg-elevated);
+    transition: transform 150ms ease, opacity 150ms ease;
+    will-change: transform;
+  }
+
+  .tile.selected {
+    box-shadow: 0 0 0 3px #ffe066 inset;
+  }
+
+  #stats { font-size: 0.95rem; color: var(--fg-dim); }
+
+  #mute {
+    position: fixed;
+    top: calc(8px + var(--safe-top));
+    right: calc(8px + var(--safe-right));
+    min-height: 44px;
+    min-width: 44px;
+    font-size: 1.2rem;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 9999;
+  }
+</style>
+</head>
+<body>
+<h1>🍖 Keto Krush</h1>
+
+<div id="status" aria-live="polite"></div>
+
+<div class="board" id="board"></div>
+
+<div id="stats"></div>
+
+<button id="mute" class="btn" aria-label="Mute sound">🔊</button>
+
+<script src="/shared/arcade.js"></script>
+<script>
+  Arcade.backButton();
+
+  // ---- config ----------------------------------------------------------
+  var N = 6; // 6x6 keeps every tile >=44px on the smallest supported phone
+  var ICONS = ["🍖", "🧀", "🍞", "🥐", "🍬", "🥨"];
+  var GAP = 4;
+  var SWAP_MS = 150;
+  var CLEAR_MS = 160;
+  var FALL_MS = 190;
+
+  var boardEl = document.getElementById("board");
+  var statusEl = document.getElementById("status");
+  var statsEl = document.getElementById("stats");
+  var muteBtn = document.getElementById("mute");
+
+  function num(v) {
+    var n = Number(v);
+    return isFinite(n) ? n : 0;
+  }
+
+  var cleared = num(Arcade.load("cleared", 0));
+  var muted = Arcade.load("muted", false) === true;
+  var CELL = 44;
+  var grid = [];
+  var nextId = 1;
+  var busy = true; // stays true until the board first settles
+  var selected = null;
+  var pointerStart = null;
+  var statusTimer = null;
+
+  // ---- audio -------------------------------------------------------------
+  function tone(freq, dur, delay, vol) {
+    var ctx = Arcade.audioCtx;
+    if (!ctx || muted) return;
+    try {
+      var t0 = ctx.currentTime + (delay || 0);
+      var osc = ctx.createOscillator();
+      var gain = ctx.createGain();
+      osc.type = "triangle";
+      osc.frequency.value = freq;
+      gain.gain.setValueAtTime(0.0001, t0);
+      gain.gain.exponentialRampToValueAtTime(vol || 0.16, t0 + 0.012);
+      gain.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(t0);
+      osc.stop(t0 + dur + 0.02);
+    } catch (e) {
+      /* audio unavailable; gameplay continues silently */
+    }
+  }
+
+  function matchSound() { tone(659, 0.12, 0, 0.15); }
+  function failSound() { tone(220, 0.1, 0, 0.1); }
+
+  function renderMute() {
+    muteBtn.textContent = muted ? "🔇" : "🔊";
+    muteBtn.setAttribute("aria-label", muted ? "Unmute sound" : "Mute sound");
+  }
+
+  muteBtn.addEventListener("click", function () {
+    muted = !muted;
+    Arcade.save("muted", muted);
+    renderMute();
+  });
+
+  // ---- status line --------------------------------------------------------
+  function setStatus(text) {
+    statusEl.textContent = text;
+    if (statusTimer) clearTimeout(statusTimer);
+    if (text) {
+      statusTimer = setTimeout(function () { statusEl.textContent = ""; }, 2200);
+    }
+  }
+
+  function renderStats() {
+    statsEl.textContent = cleared.toLocaleString() + " tiles cleared";
+  }
+
+  // ---- layout --------------------------------------------------------------
+  function computeLayout() {
+    var maxBoardWidth = Math.min(window.innerWidth - 24, 460);
+    var cell = Math.floor((maxBoardWidth - GAP * (N - 1)) / N);
+    if (cell < 44) cell = 44; // hard floor: minimum 44x44 tap target
+    CELL = cell;
+    var boardWidth = CELL * N + GAP * (N - 1);
+    boardEl.style.width = boardWidth + "px";
+    boardEl.style.height = boardWidth + "px";
+    boardEl.style.setProperty("--cell", CELL + "px");
+
+    for (var row = 0; row < N; row++) {
+      for (var col = 0; col < N; col++) {
+        var t = grid[row] && grid[row][col];
+        if (t) setTilePosition(t, false);
+      }
+    }
+  }
+
+  var resizeTimer = null;
+  window.addEventListener("resize", function () {
+    if (resizeTimer) clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(computeLayout, 120);
+  });
+
+  // ---- tile helpers ----------------------------------------------------
+  function randomIcon() {
+    return ICONS[Math.floor(Math.random() * ICONS.length)];
+  }
+
+  function newTile(row, col, icon) {
+    var el = document.createElement("div");
+    el.className = "tile";
+    el.textContent = icon;
+    boardEl.appendChild(el);
+    var t = { id: nextId++, row: row, col: col, icon: icon, el: el };
+    el.dataset.row = row;
+    el.dataset.col = col;
+    return t;
+  }
+
+  function setTilePosition(t, animate) {
+    if (!animate) t.el.style.transition = "none";
+    t.el.style.transform =
+      "translate3d(" + (t.col * (CELL + GAP)) + "px," + (t.row * (CELL + GAP)) + "px,0)";
+    if (!animate) {
+      void t.el.offsetWidth;
+      t.el.style.transition = "";
+    }
+  }
+
+  // ---- board generation --------------------------------------------------
+  function wouldMatch(row, col, icon) {
+    if (col >= 2) {
+      var a = grid[row][col - 1], b = grid[row][col - 2];
+      if (a && b && a.icon === icon && b.icon === icon) return true;
+    }
+    if (row >= 2) {
+      var c = grid[row - 1][col], d = grid[row - 2][col];
+      if (c && d && c.icon === icon && d.icon === icon) return true;
+    }
+    return false;
+  }
+
+  function generateBoard() {
+    do {
+      while (boardEl.firstChild) boardEl.removeChild(boardEl.firstChild);
+      grid = [];
+      for (var row = 0; row < N; row++) {
+        grid.push([]);
+        for (var col = 0; col < N; col++) {
+          var icon;
+          do { icon = randomIcon(); } while (wouldMatch(row, col, icon));
+          var t = newTile(row, col, icon);
+          setTilePosition(t, false);
+          grid[row].push(t);
+        }
+      }
+    } while (!hasAnyMove());
+  }
+
+  // ---- matching ------------------------------------------------------------
+  function findMatches() {
+    var flags = [];
+    for (var r = 0; r < N; r++) { flags.push([]); for (var c = 0; c < N; c++) flags[r].push(false); }
+
+    var row, col, runStart, runIcon;
+    for (row = 0; row < N; row++) {
+      runStart = 0; runIcon = grid[row][0].icon;
+      for (col = 1; col <= N; col++) {
+        var icon = col < N ? grid[row][col].icon : null;
+        if (col < N && icon === runIcon) continue;
+        if (col - runStart >= 3) for (var k = runStart; k < col; k++) flags[row][k] = true;
+        runStart = col; runIcon = icon;
+      }
+    }
+    for (col = 0; col < N; col++) {
+      runStart = 0; runIcon = grid[0][col].icon;
+      for (row = 1; row <= N; row++) {
+        var icon2 = row < N ? grid[row][col].icon : null;
+        if (row < N && icon2 === runIcon) continue;
+        if (row - runStart >= 3) for (var k2 = runStart; k2 < row; k2++) flags[k2][col] = true;
+        runStart = row; runIcon = icon2;
+      }
+    }
+
+    var out = [];
+    for (row = 0; row < N; row++) for (col = 0; col < N; col++) if (flags[row][col]) out.push({ row: row, col: col });
+    return out;
+  }
+
+  function swapEntries(a, b) {
+    var ta = grid[a.row][a.col], tb = grid[b.row][b.col];
+    grid[a.row][a.col] = tb; grid[b.row][b.col] = ta;
+    ta.row = b.row; ta.col = b.col;
+    tb.row = a.row; tb.col = a.col;
+    ta.el.dataset.row = ta.row; ta.el.dataset.col = ta.col;
+    tb.el.dataset.row = tb.row; tb.el.dataset.col = tb.col;
+    setTilePosition(ta, true);
+    setTilePosition(tb, true);
+  }
+
+  function hasAnyMove() {
+    for (var row = 0; row < N; row++) {
+      for (var col = 0; col < N; col++) {
+        if (col + 1 < N) {
+          swapCells(row, col, row, col + 1);
+          var m1 = findMatches().length > 0;
+          swapCells(row, col, row, col + 1);
+          if (m1) return true;
+        }
+        if (row + 1 < N) {
+          swapCells(row, col, row + 1, col);
+          var m2 = findMatches().length > 0;
+          swapCells(row, col, row + 1, col);
+          if (m2) return true;
+        }
+      }
+    }
+    return false;
+  }
+
+  // Silent grid-only swap used for move-availability probing (no DOM writes).
+  function swapCells(r1, c1, r2, c2) {
+    var tmp = grid[r1][c1];
+    grid[r1][c1] = grid[r2][c2];
+    grid[r2][c2] = tmp;
+  }
+
+  // ---- resolve / cascade --------------------------------------------------
+  function isAdjacent(a, b) {
+    return Math.abs(a.row - b.row) + Math.abs(a.col - b.col) === 1;
+  }
+
+  function attemptSwap(a, b) {
+    if (busy || !isAdjacent(a, b)) return;
+    busy = true;
+    swapEntries(a, b);
+    setTimeout(function () {
+      var matches = findMatches();
+      if (matches.length) {
+        resolveCascade(matches);
+      } else {
+        failSound();
+        swapEntries(a, b);
+        setTimeout(function () { busy = false; }, SWAP_MS);
+      }
+    }, SWAP_MS);
+  }
+
+  function collapseColumn(col, spawned) {
+    var existing = [];
+    for (var row = 0; row < N; row++) {
+      if (grid[row][col]) existing.push(grid[row][col]);
+      grid[row][col] = null;
+    }
+    var writeRow = N - 1;
+    for (var i = existing.length - 1; i >= 0; i--) {
+      var t = existing[i];
+      t.row = writeRow;
+      t.el.dataset.row = writeRow;
+      grid[writeRow][col] = t;
+      setTilePosition(t, true);
+      writeRow--;
+    }
+    var spawnIndex = 1;
+    for (var row2 = writeRow; row2 >= 0; row2--) {
+      var t2 = newTile(row2, col, randomIcon());
+      var spawnRow = row2 - spawnIndex;
+      t2.row = spawnRow;
+      t2.el.dataset.row = spawnRow;
+      setTilePosition(t2, false);
+      grid[row2][col] = t2;
+      spawned.push({ tile: t2, targetRow: row2 });
+      spawnIndex++;
+    }
+  }
+
+  function resolveCascade(matches) {
+    function step(current) {
+      cleared += current.length;
+      matchSound();
+      var cols = {};
+      var toRemove = [];
+      current.forEach(function (pos) {
+        var t = grid[pos.row][pos.col];
+        t.el.style.transform = t.el.style.transform + " scale(0.3)";
+        t.el.style.opacity = "0";
+        toRemove.push(t.el);
+        grid[pos.row][pos.col] = null;
+        cols[pos.col] = true;
+      });
+
+      setTimeout(function () {
+        toRemove.forEach(function (el) { el.remove(); });
+
+        var spawned = [];
+        Object.keys(cols).forEach(function (colKey) { collapseColumn(Number(colKey), spawned); });
+
+        requestAnimationFrame(function () {
+          spawned.forEach(function (s) {
+            s.tile.row = s.targetRow;
+            s.tile.el.dataset.row = s.targetRow;
+            setTilePosition(s.tile, true);
+          });
+        });
+
+        setTimeout(function () {
+          var next = findMatches();
+          if (next.length) {
+            step(next);
+          } else {
+            Arcade.save("cleared", cleared);
+            renderStats();
+            if (!hasAnyMove()) {
+              setStatus("No moves left — reshuffling");
+              generateBoard();
+            }
+            busy = false;
+          }
+        }, FALL_MS);
+      }, CLEAR_MS);
+    }
+    step(matches);
+  }
+
+  // ---- input ---------------------------------------------------------------
+  function coordsFromEl(el) {
+    return { row: Number(el.dataset.row), col: Number(el.dataset.col) };
+  }
+
+  function select(coord) {
+    if (selected) grid[selected.row][selected.col].el.classList.remove("selected");
+    selected = coord;
+    grid[coord.row][coord.col].el.classList.add("selected");
+  }
+
+  function deselect() {
+    if (selected) grid[selected.row][selected.col].el.classList.remove("selected");
+    selected = null;
+  }
+
+  var SWIPE_THRESHOLD = 20;
+
+  boardEl.addEventListener("pointerdown", function (e) {
+    var el = e.target.closest(".tile");
+    if (!el || busy) return;
+    el.setPointerCapture(e.pointerId);
+    pointerStart = { x: e.clientX, y: e.clientY, coord: coordsFromEl(el) };
+  });
+
+  boardEl.addEventListener("pointerup", function (e) {
+    if (!pointerStart) return;
+    var start = pointerStart;
+    pointerStart = null;
+    if (busy) return;
+
+    var dx = e.clientX - start.x;
+    var dy = e.clientY - start.y;
+    var dist = Math.sqrt(dx * dx + dy * dy);
+
+    if (dist >= Math.max(SWIPE_THRESHOLD, CELL * 0.35)) {
+      var dir;
+      if (Math.abs(dx) > Math.abs(dy)) dir = dx > 0 ? { row: 0, col: 1 } : { row: 0, col: -1 };
+      else dir = dy > 0 ? { row: 1, col: 0 } : { row: -1, col: 0 };
+      var target = { row: start.coord.row + dir.row, col: start.coord.col + dir.col };
+      if (target.row >= 0 && target.row < N && target.col >= 0 && target.col < N) {
+        deselect();
+        attemptSwap(start.coord, target);
+      }
+      return;
+    }
+
+    // tap
+    var tapped = start.coord;
+    if (!selected) {
+      select(tapped);
+    } else if (selected.row === tapped.row && selected.col === tapped.col) {
+      deselect();
+    } else if (isAdjacent(selected, tapped)) {
+      var a = selected;
+      deselect();
+      attemptSwap(a, tapped);
+    } else {
+      select(tapped);
+    }
+  });
+
+  // ---- boot ------------------------------------------------------------
+  function start() {
+    renderMute();
+    computeLayout();
+    generateBoard();
+    renderStats();
+    busy = false;
+  }
+
+  Arcade.boot(start);
+</script>
+</body>
+</html>
