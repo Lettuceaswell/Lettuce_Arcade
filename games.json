@@ -10,5 +10,12 @@
     "title": "Lettuce Slots",
     "blurb": "Three reels. One button. The third one takes its time.",
     "emoji": "🥬"
+  },
+  {
+    "slug": "totodiles-pond",
+    "title": "Totodile's Pond",
+    "blurb": "A pond that keeps going while you're away.",
+    "emoji": "🐊",
+    "icon": "totodile-2.png"
   }
 ]

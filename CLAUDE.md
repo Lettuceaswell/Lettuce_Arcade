@@ -18,9 +18,6 @@ Cloudflare Pages as-is.
   in the codebase should need to change.
 - Portrait-first, one-thumb play. Minimum 44×44px tap targets. No reliance
   on hover states or precise dragging — assume a thumb on glass.
-- Games are turn-based or pausable by default. No twitch reflexes, no timers
-  that punish the player for looking away. (`tap-race` is a deliberate,
-  labeled exception — it's the pipeline smoke test, not a template.)
 - Assume the target device is an older iPhone on cell data. Keep total page
   weight per game under 500KB.
 - Increment `Arcade.VERSION` in `shared/arcade.js` on every change that gets

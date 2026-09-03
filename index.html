@@ -65,6 +65,13 @@
     flex-shrink: 0;
   }
 
+  .tile-icon {
+    width: 56px;
+    height: 56px;
+    flex-shrink: 0;
+    object-fit: contain;
+  }
+
   .tile-title {
     font-size: 1.3rem;
     font-weight: 700;
@@ -110,9 +117,22 @@
           a.className = "tile";
           a.href = "/games/" + encodeURIComponent(game.slug) + "/";
 
-          var emoji = document.createElement("div");
-          emoji.className = "tile-emoji";
-          emoji.textContent = game.emoji || "🎮";
+          // A game may supply `icon` (a file inside its own folder) instead of
+          // an emoji. `emoji` stays the fallback for everything else.
+          var emoji;
+          if (game.icon) {
+            emoji = document.createElement("img");
+            emoji.className = "tile-icon";
+            emoji.src = "/games/" + encodeURIComponent(game.slug) + "/" + encodeURIComponent(game.icon);
+            emoji.alt = "";
+            emoji.width = 56;
+            emoji.height = 56;
+            emoji.loading = "lazy";
+          } else {
+            emoji = document.createElement("div");
+            emoji.className = "tile-emoji";
+            emoji.textContent = game.emoji || "🎮";
+          }
           emoji.setAttribute("aria-hidden", "true");
 
           var text = document.createElement("div");

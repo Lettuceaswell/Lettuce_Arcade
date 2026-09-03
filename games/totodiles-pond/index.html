@@ -1,0 +1,1374 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Totodile's Pond — Lettuce Arcade</title>
+<meta name="theme-color" content="#0b4d49">
+<link rel="stylesheet" href="/shared/arcade.css">
+<style>
+  body {
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+    overflow: hidden;
+    padding: 0;
+  }
+
+  /* ---- the pond scene ------------------------------------------------ */
+
+  .scene {
+    position: relative;
+    flex: 1 1 auto;
+    overflow: hidden;
+    transition: background 1.2s linear;
+  }
+
+  .water {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 46%;
+    transition: background 1.2s linear;
+  }
+
+  /* Three offset ripple bands. Cheap, and it reads as moving water. */
+  .ripple {
+    position: absolute;
+    left: -20%;
+    width: 140%;
+    height: 2px;
+    background: rgba(255, 255, 255, 0.22);
+    border-radius: 50%;
+    animation: drift-x 7s ease-in-out infinite alternate;
+  }
+
+  .ripple.r1 { top: 18%; animation-duration: 7s; }
+  .ripple.r2 { top: 42%; animation-duration: 9s; animation-direction: alternate-reverse; }
+  .ripple.r3 { top: 68%; animation-duration: 11s; opacity: 0.6; }
+
+  @keyframes drift-x {
+    from { transform: translateX(-6%); }
+    to   { transform: translateX(6%); }
+  }
+
+  /* ---- header readouts ----------------------------------------------- */
+
+  .topbar {
+    position: relative;
+    z-index: 3;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 10px;
+    padding: calc(10px + var(--safe-top)) calc(12px + var(--safe-right)) 6px 12px;
+    font-size: 0.85rem;
+    color: var(--fg-dim);
+    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.45);
+  }
+
+  .topbar .day { font-weight: 700; color: var(--fg); }
+
+  .mute {
+    background: rgba(0, 0, 0, 0.28);
+    border: none;
+    color: var(--fg);
+    font-size: 1rem;
+    min-width: 44px;
+    min-height: 44px;
+    border-radius: 12px;
+    cursor: pointer;
+  }
+
+  /* ---- the creature --------------------------------------------------- */
+
+  .creature-slot {
+    position: absolute;
+    left: 50%;
+    bottom: 34%;
+    transform: translateX(-50%);
+    z-index: 2;
+    text-align: center;
+  }
+
+  .creature {
+    display: block;
+    width: 140px;
+    height: 140px;
+    /* 80x80 source upscaled — keep the sprite edges hard, not smeared. */
+    image-rendering: pixelated;
+    image-rendering: -moz-crisp-edges;
+    -ms-interpolation-mode: nearest-neighbor;
+    animation: bob 3.4s ease-in-out infinite;
+    transform-origin: 50% 100%;
+  }
+
+  .creature.big { width: 168px; height: 168px; }
+  .creature.huge { width: 196px; height: 196px; }
+
+  @keyframes bob {
+    0%, 100% { transform: translateY(0) scaleY(1); }
+    50%      { transform: translateY(-7px) scaleY(1.03); }
+  }
+
+  .creature.happy { animation: hop 0.55s ease-out 2; }
+
+  @keyframes hop {
+    0%   { transform: translateY(0) scale(1, 1); }
+    25%  { transform: translateY(-26px) scale(0.94, 1.08); }
+    55%  { transform: translateY(0) scale(1.08, 0.92); }
+    100% { transform: translateY(0) scale(1, 1); }
+  }
+
+  .creature.wiggle { animation: wiggle 0.5s ease-in-out 4; }
+
+  @keyframes wiggle {
+    0%, 100% { transform: rotate(0deg); }
+    25%      { transform: rotate(-7deg); }
+    75%      { transform: rotate(7deg); }
+  }
+
+  .creature.asleep {
+    animation: snooze 5s ease-in-out infinite;
+    transform: rotate(9deg);
+    filter: brightness(0.72) saturate(0.8);
+  }
+
+  @keyframes snooze {
+    0%, 100% { transform: rotate(9deg) translateY(0) scaleY(1); }
+    50%      { transform: rotate(9deg) translateY(-3px) scaleY(1.04); }
+  }
+
+  .zzz {
+    position: absolute;
+    top: -6px;
+    right: -6px;
+    font-size: 1.4rem;
+    opacity: 0;
+    animation: zzz-rise 4s ease-out infinite;
+  }
+
+  @keyframes zzz-rise {
+    0%   { opacity: 0; transform: translate(0, 0) scale(0.7); }
+    30%  { opacity: 0.9; }
+    100% { opacity: 0; transform: translate(16px, -34px) scale(1.2); }
+  }
+
+  .name-tag {
+    margin-top: 2px;
+    font-size: 0.9rem;
+    font-weight: 700;
+    color: var(--fg);
+    text-shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
+  }
+
+  /* ---- decor ---------------------------------------------------------- */
+
+  .decor {
+    position: absolute;
+    font-size: 1.9rem;
+    line-height: 1;
+    z-index: 1;
+    filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.35));
+    animation: bob 5s ease-in-out infinite;
+  }
+
+  /* ---- weather -------------------------------------------------------- */
+
+  .weather-layer {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    z-index: 4;
+    overflow: hidden;
+  }
+
+  .drop {
+    position: absolute;
+    top: -12%;
+    width: 2px;
+    height: 16px;
+    background: rgba(220, 245, 255, 0.55);
+    animation: fall linear infinite;
+  }
+
+  @keyframes fall {
+    to { transform: translateY(120vh); }
+  }
+
+  .fog {
+    position: absolute;
+    inset: 0;
+    background: rgba(220, 240, 245, 0.16);
+    backdrop-filter: blur(1px);
+  }
+
+  .star {
+    position: absolute;
+    width: 2px;
+    height: 2px;
+    background: #fff;
+    border-radius: 50%;
+    animation: twinkle 4s ease-in-out infinite;
+  }
+
+  @keyframes twinkle {
+    0%, 100% { opacity: 0.25; }
+    50%      { opacity: 1; }
+  }
+
+  /* ---- reaction + drift ------------------------------------------------ */
+
+  .reaction {
+    position: absolute;
+    left: 12px;
+    right: 12px;
+    bottom: 20%;
+    z-index: 5;
+    text-align: center;
+    font-size: 1.05rem;
+    font-weight: 600;
+    min-height: 1.5em;
+    text-shadow: 0 2px 6px rgba(0, 0, 0, 0.6);
+    pointer-events: none;
+  }
+
+  .card-wrap {
+    position: absolute;
+    inset: 0;
+    z-index: 20;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    background: rgba(4, 24, 26, 0.72);
+  }
+
+  .card-wrap.on { display: flex; }
+
+  .card {
+    background: var(--bg-elevated);
+    border-radius: 18px;
+    padding: 22px 20px;
+    max-width: 340px;
+    text-align: center;
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
+  }
+
+  .card .art { font-size: 2.6rem; line-height: 1; margin-bottom: 10px; }
+  .card .body { font-size: 1.05rem; line-height: 1.45; }
+  .card .sub { margin-top: 10px; font-size: 0.9rem; color: var(--fg-dim); }
+  .card .tap { margin-top: 16px; font-size: 0.8rem; opacity: 0.65; }
+
+  /* ---- readouts + buttons ---------------------------------------------- */
+
+  .readouts {
+    display: flex;
+    justify-content: center;
+    gap: 16px;
+    padding: 8px 12px;
+    font-size: 0.92rem;
+    background: rgba(0, 0, 0, 0.22);
+  }
+
+  .readouts span { white-space: nowrap; }
+  .readouts .hungry { color: #ffd166; font-weight: 700; }
+  .readouts .ready { color: #9dffb0; font-weight: 700; }
+
+  .actions {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 6px;
+    padding: 8px calc(8px + var(--safe-right)) calc(10px + var(--safe-bottom)) calc(8px + var(--safe-left));
+    background: rgba(0, 0, 0, 0.3);
+  }
+
+  .act {
+    min-height: 64px;
+    border: none;
+    border-radius: 14px;
+    background: var(--accent);
+    color: #04302c;
+    font-size: 0.78rem;
+    font-weight: 800;
+    letter-spacing: 0.02em;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    cursor: pointer;
+    padding: 4px 2px;
+  }
+
+  .act .ico { font-size: 1.3rem; line-height: 1; }
+  .act:active { background: var(--accent-dim); }
+  .act:disabled { opacity: 0.38; cursor: default; }
+  .act.alert { background: #ffd166; }
+
+  /* ---- wheel (feed / play pickers) -------------------------------------- */
+
+  .wheel-wrap {
+    position: absolute;
+    inset: 0;
+    z-index: 25;
+    display: none;
+    align-items: flex-end;
+    justify-content: center;
+    background: rgba(4, 24, 26, 0.7);
+  }
+
+  .wheel-wrap.on { display: flex; }
+
+  .wheel {
+    width: 100%;
+    max-width: 460px;
+    background: var(--bg-elevated);
+    border-radius: 18px 18px 0 0;
+    padding: 16px 12px calc(16px + var(--safe-bottom));
+  }
+
+  .wheel h2 { font-size: 1rem; text-align: center; margin-bottom: 12px; }
+
+  .wheel-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+  }
+
+  .pick {
+    min-height: 72px;
+    border: none;
+    border-radius: 14px;
+    background: rgba(0, 0, 0, 0.25);
+    color: var(--fg);
+    font-size: 0.78rem;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    cursor: pointer;
+  }
+
+  .pick .ico { font-size: 1.7rem; line-height: 1; }
+  .pick:active { background: rgba(0, 0, 0, 0.45); }
+  .pick .heart { color: #ff8fa3; font-size: 0.7rem; }
+
+  /* ---- pond overlay (collection + shop) ---------------------------------- */
+
+  .sheet-wrap {
+    position: absolute;
+    inset: 0;
+    z-index: 30;
+    display: none;
+    background: rgba(4, 24, 26, 0.94);
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .sheet-wrap.on { display: block; }
+
+  .sheet {
+    max-width: 460px;
+    margin: 0 auto;
+    padding: calc(16px + var(--safe-top)) 14px calc(90px + var(--safe-bottom));
+  }
+
+  .sheet h2 { font-size: 1.1rem; margin: 16px 0 8px; }
+  .sheet .hint { font-size: 0.85rem; color: var(--fg-dim); margin-bottom: 10px; }
+
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 8px;
+  }
+
+  .slot {
+    aspect-ratio: 1;
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.07);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.6rem;
+    gap: 2px;
+  }
+
+  .slot.empty { color: rgba(255, 255, 255, 0.18); font-size: 1.2rem; }
+  .slot .lbl { font-size: 0.55rem; color: var(--fg-dim); }
+
+  .shop-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px;
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.06);
+    margin-bottom: 8px;
+  }
+
+  .shop-row .ico { font-size: 1.6rem; }
+  .shop-row .nm { flex: 1; font-size: 0.95rem; }
+
+  .buy {
+    min-height: 44px;
+    min-width: 72px;
+    border: none;
+    border-radius: 10px;
+    background: var(--accent);
+    color: #04302c;
+    font-weight: 800;
+    font-size: 0.85rem;
+    cursor: pointer;
+  }
+
+  .buy:disabled { opacity: 0.4; cursor: default; }
+  .buy.owned { background: transparent; color: var(--fg-dim); font-weight: 600; }
+
+  .sheet-close {
+    position: sticky;
+    bottom: 0;
+    display: block;
+    width: 100%;
+    margin-top: 18px;
+  }
+
+  /* ---- naming (first run) ------------------------------------------------ */
+
+  .naming {
+    position: absolute;
+    inset: 0;
+    z-index: 40;
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    padding: 24px;
+    background: rgba(4, 24, 26, 0.96);
+    text-align: center;
+  }
+
+  .naming.on { display: flex; }
+  .naming img { width: 140px; height: 140px; image-rendering: pixelated; }
+  .naming p { font-size: 1.05rem; }
+
+  .naming input {
+    width: 100%;
+    max-width: 280px;
+    min-height: 52px;
+    border-radius: 12px;
+    border: 2px solid var(--accent);
+    background: rgba(0, 0, 0, 0.3);
+    color: var(--fg);
+    font-size: 1.2rem;
+    text-align: center;
+    padding: 8px;
+  }
+
+  /* ---- evolution ---------------------------------------------------------- */
+
+  .evo {
+    position: absolute;
+    inset: 0;
+    z-index: 45;
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 14px;
+    background: rgba(255, 255, 255, 0.96);
+    color: #04302c;
+    text-align: center;
+    padding: 24px;
+  }
+
+  .evo.on { display: flex; }
+  .evo img { width: 180px; height: 180px; image-rendering: pixelated; animation: evo-pulse 1.1s ease-in-out infinite; }
+  .evo h2 { font-size: 1.6rem; }
+
+  @keyframes evo-pulse {
+    0%, 100% { transform: scale(1); }
+    50%      { transform: scale(1.09); }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .creature, .decor, .ripple, .drop, .star, .zzz, .evo img {
+      animation-duration: 8s !important;
+      animation-iteration-count: 1 !important;
+    }
+  }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <span id="clock"></span>
+  <span class="day" id="daycount"></span>
+  <button class="mute" id="mute" aria-label="Toggle sound">&#128266;</button>
+</div>
+
+<div class="scene" id="scene">
+  <div class="weather-layer" id="weather"></div>
+  <div class="water" id="water">
+    <div class="ripple r1"></div>
+    <div class="ripple r2"></div>
+    <div class="ripple r3"></div>
+  </div>
+
+  <div class="creature-slot">
+    <img class="creature" id="sprite" src="totodile.png" alt="Totodile" width="140" height="140">
+    <span class="zzz" id="zzz" aria-hidden="true">z</span>
+    <div class="name-tag" id="nametag"></div>
+  </div>
+
+  <div class="reaction" id="reaction" aria-live="polite"></div>
+
+  <div class="card-wrap" id="cardwrap">
+    <div class="card">
+      <div class="art" id="cardart"></div>
+      <div class="body" id="cardbody"></div>
+      <div class="sub" id="cardsub"></div>
+      <div class="tap">tap to continue</div>
+    </div>
+  </div>
+
+  <div class="wheel-wrap" id="wheelwrap">
+    <div class="wheel">
+      <h2 id="wheeltitle"></h2>
+      <div class="wheel-grid" id="wheelgrid"></div>
+    </div>
+  </div>
+
+  <div class="sheet-wrap" id="sheetwrap">
+    <div class="sheet">
+      <h2>The pond</h2>
+      <div class="hint" id="dropline"></div>
+      <div id="shoplist"></div>
+      <h2>Collection</h2>
+      <div class="hint" id="collhint"></div>
+      <div class="grid" id="collgrid"></div>
+      <button class="btn sheet-close" id="sheetclose">Close</button>
+    </div>
+  </div>
+
+  <div class="naming" id="naming">
+    <img src="totodile.png" alt="Totodile" width="140" height="140">
+    <p>A little Totodile has moved into your pond.<br>What will you call him?</p>
+    <input id="nameinput" maxlength="12" value="Totodile" aria-label="Name">
+    <button class="btn" id="namego">That's his name</button>
+  </div>
+
+  <div class="evo" id="evo">
+    <h2 id="evotitle"></h2>
+    <img id="evoimg" src="totodile.png" alt="">
+    <p id="evobody"></p>
+    <button class="btn" id="evogo">Wow</button>
+  </div>
+</div>
+
+<div class="readouts">
+  <span id="r-appetite"></span>
+  <span id="r-line"></span>
+  <span id="r-drops"></span>
+</div>
+
+<div class="actions">
+  <button class="act" id="a-feed"><span class="ico">&#127830;</span>FEED</button>
+  <button class="act" id="a-play"><span class="ico">&#127994;</span>PLAY</button>
+  <button class="act" id="a-dive"><span class="ico">&#127754;</span>DIVE</button>
+  <button class="act" id="a-cast"><span class="ico">&#127907;</span>CAST</button>
+  <button class="act" id="a-pond"><span class="ico">&#129704;</span>POND</button>
+</div>
+
+<script src="/shared/arcade.js"></script>
+<script>
+(function () {
+  "use strict";
+
+  var HOUR = 3600000;
+  var DAY = 86400000;
+
+  // ---- content tables ---------------------------------------------------
+
+  var FOODS = [
+    { id: "berry", ico: "🍓", name: "Berries" },
+    { id: "fish",  ico: "🐟", name: "Fish" },
+    { id: "apple", ico: "🍎", name: "Apple" },
+    { id: "honey", ico: "🍯", name: "Honey" },
+    { id: "meat",  ico: "🥩", name: "Meat" },
+    { id: "candy", ico: "🍬", name: "Candy" }
+  ];
+
+  var PLAYS = [
+    { id: "fetch",  ico: "🎾", name: "Fetch" },
+    { id: "splash", ico: "💦", name: "Splash" },
+    { id: "sing",   ico: "🎵", name: "Sing" },
+    { id: "spin",   ico: "🌀", name: "Spin" }
+  ];
+
+  // Depth tiers. Each unlocks on stage (0-2) and/or a dive count.
+  var TIERS = [
+    { id: "shallows", name: "the Shallows", stage: 0, dives: 0 },
+    { id: "reeds",    name: "the Reeds",    stage: 0, dives: 10 },
+    { id: "dropoff",  name: "the Drop-off", stage: 1, dives: 0 },
+    { id: "deep",     name: "the Cold Deep", stage: 1, dives: 40 },
+    { id: "dark",     name: "the Dark",     stage: 2, dives: 0 }
+  ];
+
+  // weight = relative draw chance inside its tier.
+  var FINDS = [
+    { id: "pebble", ico: "🪨", name: "Pebble",    tier: "shallows", w: 30, drops: 1 },
+    { id: "weed",   ico: "🌿", name: "Pondweed",  tier: "shallows", w: 30, drops: 1 },
+    { id: "snail",  ico: "🐌", name: "Snail",     tier: "shallows", w: 20, drops: 2 },
+    { id: "minnow", ico: "🐟", name: "Minnow",    tier: "shallows", w: 20, drops: 2 },
+    { id: "shell",  ico: "🐚", name: "Shell",     tier: "reeds",    w: 30, drops: 3 },
+    { id: "frog",   ico: "🐸", name: "Frog",      tier: "reeds",    w: 25, drops: 3 },
+    { id: "lotus",  ico: "🪷", name: "Lotus",     tier: "reeds",    w: 25, drops: 4 },
+    { id: "newt",   ico: "🦎", name: "Newt",      tier: "reeds",    w: 20, drops: 4 },
+    { id: "crab",   ico: "🦀", name: "Crab",      tier: "dropoff",  w: 30, drops: 5 },
+    { id: "coin",   ico: "🪙", name: "Old coin",  tier: "dropoff",  w: 25, drops: 6 },
+    { id: "carp",   ico: "🐠", name: "Big carp",  tier: "dropoff",  w: 25, drops: 6 },
+    { id: "boot",   ico: "🥾", name: "A boot",    tier: "dropoff",  w: 20, drops: 2 },
+    { id: "squid",  ico: "🦑", name: "Squid",     tier: "deep",     w: 30, drops: 8 },
+    { id: "octo",   ico: "🐙", name: "Octopus",   tier: "deep",     w: 25, drops: 9 },
+    { id: "pearl",  ico: "🫧", name: "Pearl",     tier: "deep",     w: 15, drops: 12 },
+    { id: "gem",    ico: "💎", name: "Gem",       tier: "deep",     w: 10, drops: 15 },
+    { id: "key",    ico: "🗝", name: "Old key",   tier: "dark",     w: 30, drops: 14 },
+    { id: "ring",   ico: "💍", name: "Lost ring", tier: "dark",     w: 22, drops: 18 },
+    { id: "crown",  ico: "👑", name: "Crown",     tier: "dark",     w: 10, drops: 30 },
+    { id: "star",   ico: "🌟", name: "Fallen star", tier: "dark",   w: 6,  drops: 40 }
+  ];
+
+  // Decor is cosmetic and permanent. x/y are % positions in the scene.
+  var DECOR = [
+    { id: "lily",    ico: "🪷", name: "Lily pad",  cost: 5,  x: 18, y: 62 },
+    { id: "rock",    ico: "🪨", name: "Big rock",  cost: 6,  x: 80, y: 60 },
+    { id: "reeds",   ico: "🌿", name: "Reeds",     cost: 9,  x: 8,  y: 74 },
+    { id: "fish",    ico: "🐟", name: "Pond fish", cost: 12, x: 30, y: 84 },
+    { id: "flower",  ico: "🌺", name: "Flowers",   cost: 16, x: 88, y: 76 },
+    { id: "lantern", ico: "🏮", name: "Lantern",   cost: 20, x: 70, y: 44 },
+    { id: "frog",    ico: "🐸", name: "A frog",    cost: 26, x: 62, y: 80 },
+    { id: "log",     ico: "🪵", name: "Old log",   cost: 30, x: 44, y: 90 },
+    { id: "duck",    ico: "🦆", name: "A duck",    cost: 38, x: 22, y: 50 },
+    { id: "shrine",  ico: "⛩️", name: "Tiny shrine", cost: 55, x: 90, y: 34 }
+  ];
+
+  // Drift events, bucketed by hours away. Some leave a permanent trace.
+  var DRIFT = {
+    t0: [
+      { art: "💤", txt: "He hasn't moved. Not one inch." },
+      { art: "👀", txt: "He was watching the door." }
+    ],
+    t1: [
+      { art: "🪨", txt: "He dragged a smooth stone in from somewhere.", drops: 2 },
+      { art: "🌿", txt: "He has weed on his head and seems proud of it." },
+      { art: "💤", txt: "He fell asleep in the reeds and woke up when you did." },
+      { art: "💦", txt: "The whole bank is soaked. No explanation offered." },
+      { art: "🐟", txt: "He tried to catch a fish. The fish is fine.", drops: 1 }
+    ],
+    t6: [
+      { art: "🪷", txt: "He's rearranged your lily pads. They're worse now." },
+      { art: "🐸", txt: "There's a frog here. They appear to have an understanding.", drops: 3 },
+      { art: "🍽️", txt: "He caught something by himself and left half of it for you.", drops: 4 },
+      { art: "🌀", txt: "He has been spinning. You can see the marks.", drops: 2 },
+      { art: "🪨", txt: "A neat little pile of pebbles, sorted by size.", drops: 3 }
+    ],
+    t24: [
+      { art: "✨", txt: "He's built a pile of everything shiny he could find.", drops: 6 },
+      { art: "🛌", txt: "He's been sleeping on your side of the pond.", drops: 4 },
+      { art: "👣", txt: "Muddy tracks lead out and come back. Twice.", drops: 5 },
+      { art: "🌾", txt: "He has redecorated. It is not an improvement.", drops: 4 }
+    ],
+    t72: [
+      { art: "💚", txt: "He waited by the edge a lot. He's fine — he's just glad you're back.", drops: 10 },
+      { art: "🎁", txt: "He's been saving things for you. All of them, apparently.", drops: 12 }
+    ]
+  };
+
+  var DREAMS = [
+    "He dreamed he was very large.",
+    "He dreamed about a fish the size of the pond.",
+    "He dreamed of somewhere with colder, deeper water.",
+    "He dreamed you were there. You were, sort of.",
+    "He dreamed about the moon on the water.",
+    "He dreamed of something silver, down where it's dark.",
+    "He dreamed he could sing. He cannot.",
+    "He dreamed about the frog. They were friends.",
+    "He dreamed of rain, and woke up disappointed.",
+    "He dreamed about a warm rock in the sun."
+  ];
+
+  var STAGES = [
+    { id: 0, file: "totodile.png",   name: "Totodile",   cls: "" },
+    { id: 1, file: "croconaw.png",   name: "Croconaw",   cls: "big" },
+    { id: 2, file: "feraligatr.png", name: "Feraligatr", cls: "huge" }
+  ];
+
+  var EVO_AT = [14, 40]; // care-days for stage 1 and stage 2
+
+  var LINES = [
+    { id: "short", label: "20 min", ms: 20 * 60000 },
+    { id: "mid",   label: "2 hours", ms: 2 * HOUR },
+    { id: "long",  label: "Overnight", ms: 8 * HOUR }
+  ];
+
+  // ---- state -------------------------------------------------------------
+
+  var S = Arcade.load("state", null);
+
+  function freshState() {
+    return {
+      born: 0,
+      name: "Totodile",
+      careDays: 0,
+      lastCareDay: "",
+      lastSeen: 0,
+      fedAt: 0,
+      line: null,
+      drops: 0,
+      decor: [],
+      found: [],
+      dives: 0,
+      dreamDay: "",
+      stageSeen: 0,
+      favHits: {},
+      muted: false
+    };
+  }
+
+  if (!S || typeof S !== "object") S = freshState();
+
+  // Fill in anything a save from an older version is missing, so a new key
+  // never lands as undefined on an existing pond.
+  (function () {
+    var defaults = freshState();
+    for (var k in defaults) {
+      if (!Object.prototype.hasOwnProperty.call(S, k) || S[k] === null && defaults[k] !== null) {
+        if (k !== "line") S[k] = defaults[k];
+      }
+    }
+    if (!Array.isArray(S.decor)) S.decor = [];
+    if (!Array.isArray(S.found)) S.found = [];
+    if (!S.favHits || typeof S.favHits !== "object") S.favHits = {};
+  })();
+
+  function save() { Arcade.save("state", S); }
+
+  // ---- helpers -----------------------------------------------------------
+
+  var $ = function (id) { return document.getElementById(id); };
+
+  function clamp(n, lo, hi) { return n < lo ? lo : (n > hi ? hi : n); }
+
+  function pickWeighted(list, rnd) {
+    var total = 0, i;
+    for (i = 0; i < list.length; i++) total += list[i].w;
+    var roll = rnd() * total;
+    for (i = 0; i < list.length; i++) {
+      roll -= list[i].w;
+      if (roll <= 0) return list[i];
+    }
+    return list[list.length - 1];
+  }
+
+  function stage() {
+    if (S.careDays >= EVO_AT[1]) return 2;
+    if (S.careDays >= EVO_AT[0]) return 1;
+    return 0;
+  }
+
+  // Favourites are rolled once per save from `born` and never shown outright.
+  function favourites() {
+    var r = Arcade.seededRandom("fav:" + S.born);
+    return {
+      food: FOODS[Math.floor(r() * FOODS.length)].id,
+      play: PLAYS[Math.floor(r() * PLAYS.length)].id
+    };
+  }
+
+  function hoursSince(ts) {
+    if (!ts) return 99;
+    return clamp((Date.now() - ts) / HOUR, 0, 999);
+  }
+
+  function appetite() {
+    var h = hoursSince(S.fedAt);
+    if (h >= 5) return 2;      // hungry
+    if (h >= 2) return 1;      // peckish
+    return 0;                  // full
+  }
+
+  function phase() {
+    var h = new Date().getHours();
+    if (h >= 23 || h < 5) return "night";
+    if (h < 8) return "dawn";
+    if (h < 12) return "morning";
+    if (h < 17) return "afternoon";
+    if (h < 20) return "dusk";
+    return "evening";
+  }
+
+  function asleep() { return phase() === "night"; }
+
+  var SKY = {
+    dawn:      { sky: "linear-gradient(#f7c59f, #9fd8cb)", water: "#4a9d9a" },
+    morning:   { sky: "linear-gradient(#7fd4e8, #bdf0e6)", water: "#2fa5a0" },
+    afternoon: { sky: "linear-gradient(#9fe2f0, #d7f6ea)", water: "#28a09c" },
+    dusk:      { sky: "linear-gradient(#f79d65, #7a6a9c)", water: "#3c6f88" },
+    evening:   { sky: "linear-gradient(#2c3e70, #1b4b60)", water: "#10444f" },
+    night:     { sky: "linear-gradient(#0a1230, #0d2b3a)", water: "#07303a" }
+  };
+
+  function weatherToday() {
+    var r = Arcade.seededRandom("wx:" + Arcade.dailySeed());
+    var v = r();
+    if (v < 0.40) return "clear";
+    if (v < 0.62) return "cloud";
+    if (v < 0.87) return "rain";
+    return "fog";
+  }
+
+  // ---- audio --------------------------------------------------------------
+
+  function blip(freq, dur, type, vol) {
+    var ctx = Arcade.audioCtx;
+    if (!ctx || S.muted) return;
+    try {
+      var osc = ctx.createOscillator();
+      var gain = ctx.createGain();
+      osc.type = type || "sine";
+      osc.frequency.value = freq;
+      gain.gain.setValueAtTime(vol || 0.14, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + (dur || 0.18));
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start();
+      osc.stop(ctx.currentTime + (dur || 0.18));
+    } catch (e) { /* no audio; game continues silently */ }
+  }
+
+  function melody(notes, gap) {
+    notes.forEach(function (n, i) {
+      setTimeout(function () { blip(n, 0.3, "triangle", 0.16); }, i * (gap || 130));
+    });
+  }
+
+  // ---- rendering ----------------------------------------------------------
+
+  var sprite = $("sprite");
+  var scene = $("scene");
+  var water = $("water");
+
+  function paintScene() {
+    var p = SKY[phase()];
+    scene.style.background = p.sky;
+    water.style.background = p.water;
+  }
+
+  function paintWeather() {
+    var layer = $("weather");
+    layer.innerHTML = "";
+    var wx = weatherToday();
+    var i, el;
+
+    if (phase() === "night") {
+      for (i = 0; i < 26; i++) {
+        el = document.createElement("div");
+        el.className = "star";
+        el.style.left = (Math.random() * 100) + "%";
+        el.style.top = (Math.random() * 45) + "%";
+        el.style.animationDelay = (Math.random() * 4) + "s";
+        layer.appendChild(el);
+      }
+    }
+
+    if (wx === "rain") {
+      for (i = 0; i < 34; i++) {
+        el = document.createElement("div");
+        el.className = "drop";
+        el.style.left = (Math.random() * 100) + "%";
+        el.style.animationDuration = (0.5 + Math.random() * 0.5) + "s";
+        el.style.animationDelay = (Math.random() * 1.2) + "s";
+        layer.appendChild(el);
+      }
+    } else if (wx === "fog") {
+      el = document.createElement("div");
+      el.className = "fog";
+      layer.appendChild(el);
+    }
+  }
+
+  function paintDecor() {
+    var old = scene.querySelectorAll(".decor");
+    for (var i = 0; i < old.length; i++) old[i].remove();
+    S.decor.forEach(function (id, idx) {
+      var d = null;
+      DECOR.forEach(function (x) { if (x.id === id) d = x; });
+      if (!d) return;
+      var el = document.createElement("div");
+      el.className = "decor";
+      el.textContent = d.ico;
+      el.style.left = d.x + "%";
+      el.style.top = d.y + "%";
+      el.style.animationDelay = (idx * 0.4) + "s";
+      el.setAttribute("aria-hidden", "true");
+      scene.appendChild(el);
+    });
+  }
+
+  function paintSprite() {
+    var st = STAGES[stage()];
+    sprite.src = st.file;
+    sprite.alt = S.name + " the " + st.name;
+    sprite.className = "creature " + st.cls + (asleep() ? " asleep" : "");
+    $("zzz").style.display = asleep() ? "block" : "none";
+    $("nametag").textContent = S.name;
+  }
+
+  function react(text, anim) {
+    $("reaction").textContent = text;
+    if (anim && !asleep()) {
+      var st = STAGES[stage()];
+      sprite.className = "creature " + st.cls + " " + anim;
+      setTimeout(paintSprite, 2200);
+    }
+  }
+
+  function paintReadouts() {
+    var ap = appetite();
+    var apEl = $("r-appetite");
+    apEl.textContent = ap === 2 ? "🍖 hungry" : (ap === 1 ? "🍖 peckish" : "🍖 full");
+    apEl.className = ap === 2 ? "hungry" : "";
+
+    var lnEl = $("r-line");
+    if (!S.line) {
+      lnEl.textContent = "🎣 no line";
+      lnEl.className = "";
+    } else {
+      var left = S.line.castAt + S.line.ms - Date.now();
+      if (left <= 0) {
+        lnEl.textContent = "🎣 ready!";
+        lnEl.className = "ready";
+      } else {
+        lnEl.textContent = "🎣 " + fmtLeft(left);
+        lnEl.className = "";
+      }
+    }
+
+    $("r-drops").textContent = "💧 " + S.drops;
+
+    var d = new Date();
+    $("clock").textContent = String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0");
+    $("daycount").textContent = "day " + S.careDays;
+
+    // Button states
+    var sleeping = asleep();
+    $("a-feed").disabled = sleeping;
+    $("a-play").disabled = sleeping;
+    $("a-dive").disabled = sleeping;
+    $("a-feed").className = "act" + (!sleeping && ap === 2 ? " alert" : "");
+    var lineReady = S.line && (S.line.castAt + S.line.ms - Date.now()) <= 0;
+    $("a-cast").className = "act" + (lineReady ? " alert" : "");
+    $("a-cast").querySelector(".ico").innerHTML = lineReady ? "&#10071;" : "&#127907;";
+    $("a-cast").childNodes[1].nodeValue = lineReady ? "REEL" : (S.line ? "WAIT" : "CAST");
+    $("a-cast").disabled = !!(S.line && !lineReady);
+  }
+
+  function fmtLeft(ms) {
+    var s = Math.ceil(ms / 1000);
+    var h = Math.floor(s / 3600);
+    var m = Math.floor((s % 3600) / 60);
+    if (h > 0) return h + "h " + m + "m";
+    if (m > 0) return m + "m";
+    return s + "s";
+  }
+
+  // ---- cards (drift, dreams, catches) --------------------------------------
+
+  var cardQueue = [];
+
+  function showCard(art, body, sub) {
+    cardQueue.push({ art: art, body: body, sub: sub || "" });
+    if (!$("cardwrap").classList.contains("on")) nextCard();
+  }
+
+  function nextCard() {
+    if (cardQueue.length === 0) {
+      $("cardwrap").classList.remove("on");
+      return;
+    }
+    var c = cardQueue.shift();
+    $("cardart").textContent = c.art;
+    $("cardbody").textContent = c.body;
+    $("cardsub").textContent = c.sub;
+    $("cardwrap").classList.add("on");
+  }
+
+  $("cardwrap").addEventListener("click", nextCard);
+
+  // ---- the open sequence ----------------------------------------------------
+
+  function doDrift() {
+    if (!S.lastSeen) return;
+    var away = Date.now() - S.lastSeen;
+    if (away < 0) return;                 // clock moved backwards; ignore
+    away = Math.min(away, 10 * DAY);      // cap so tampering gains little
+    var hrs = away / HOUR;
+
+    var bucket;
+    if (hrs < 1) bucket = "t0";
+    else if (hrs < 6) bucket = "t1";
+    else if (hrs < 24) bucket = "t6";
+    else if (hrs < 72) bucket = "t24";
+    else bucket = "t72";
+
+    var pool = DRIFT[bucket];
+    var r = Arcade.seededRandom("drift:" + S.lastSeen);
+    var ev = pool[Math.floor(r() * pool.length)];
+
+    if (ev.drops) S.drops += ev.drops;
+    showCard(ev.art, ev.txt, ev.drops ? "+" + ev.drops + " 💧" : "");
+
+    if (bucket === "t72") react("It missed you.", "wiggle");
+    else if (bucket === "t24") react("You're back!", "happy");
+  }
+
+  function doDream() {
+    var today = Arcade.dailySeed();
+    if (S.dreamDay === today) return;
+    var d = new Date();
+    if (d.getHours() < 5) return;
+    S.dreamDay = today;
+    var r = Arcade.seededRandom("dream:" + today + S.born);
+    showCard("💭", DREAMS[Math.floor(r() * DREAMS.length)], "last night");
+  }
+
+  function checkEvolution() {
+    var st = stage();
+    if (st <= S.stageSeen) return;
+    S.stageSeen = st;
+    save();
+    var info = STAGES[st];
+    $("evotitle").textContent = "What?";
+    $("evoimg").src = info.file;
+    $("evoimg").alt = info.name;
+    $("evobody").textContent = S.name + " evolved into " + info.name + "!";
+    $("evo").classList.add("on");
+    melody([523, 659, 784, 1047], 170);
+  }
+
+  $("evogo").addEventListener("click", function () {
+    $("evo").classList.remove("on");
+    paintSprite();
+  });
+
+  // ---- actions ----------------------------------------------------------------
+
+  function markCareDay() {
+    var today = Arcade.dailySeed();
+    if (S.lastCareDay !== today) {
+      S.lastCareDay = today;
+      S.careDays += 1;
+    }
+  }
+
+  var wheelPick = null;
+
+  function openWheel(title, items, favId, onPick) {
+    $("wheeltitle").textContent = title;
+    var grid = $("wheelgrid");
+    grid.innerHTML = "";
+    items.forEach(function (it) {
+      var b = document.createElement("button");
+      b.className = "pick";
+      var hits = S.favHits[it.id] || 0;
+      b.innerHTML = '<span class="ico"></span><span class="nm"></span>';
+      b.querySelector(".ico").textContent = it.ico;
+      b.querySelector(".nm").textContent = it.name;
+      // The heart only appears once you've clearly noticed the favourite.
+      if (it.id === favId && hits >= 5) {
+        var h = document.createElement("span");
+        h.className = "heart";
+        h.textContent = "♥";
+        b.appendChild(h);
+      }
+      b.addEventListener("click", function () {
+        $("wheelwrap").classList.remove("on");
+        onPick(it);
+      });
+      grid.appendChild(b);
+    });
+    $("wheelwrap").classList.add("on");
+  }
+
+  $("wheelwrap").addEventListener("click", function (e) {
+    if (e.target === $("wheelwrap")) $("wheelwrap").classList.remove("on");
+  });
+
+  $("a-feed").addEventListener("click", function () {
+    var fav = favourites();
+    openWheel("What's for dinner?", FOODS, fav.food, function (food) {
+      var ap = appetite();
+      var isFav = food.id === fav.food;
+      var gain = (ap === 2 ? 6 : ap === 1 ? 3 : 1) + (isFav ? 3 : 0);
+      S.drops += gain;
+      S.fedAt = Date.now();
+      S.favHits[food.id] = (S.favHits[food.id] || 0) + (isFav ? 1 : 0);
+      markCareDay();
+
+      if (isFav) {
+        react("He went WILD for the " + food.name.toLowerCase() + ".", "wiggle");
+        melody([523, 659, 880], 90);
+      } else if (ap === 2) {
+        react("He ate it in one go.", "happy");
+        blip(660, 0.2, "sine");
+      } else if (ap === 1) {
+        react("He's happy with that.", "happy");
+        blip(587, 0.18, "sine");
+      } else {
+        react("He nibbles politely. Not really hungry.", null);
+        blip(392, 0.16, "sine");
+      }
+      save();
+      paintReadouts();
+      checkEvolution();
+    });
+  });
+
+  $("a-play").addEventListener("click", function () {
+    var fav = favourites();
+    openWheel("What shall we do?", PLAYS, fav.play, function (p) {
+      var isFav = p.id === fav.play;
+      var gain = isFav ? 5 : 2;
+      S.drops += gain;
+      S.favHits[p.id] = (S.favHits[p.id] || 0) + (isFav ? 1 : 0);
+      markCareDay();
+      if (isFav) {
+        react("He could do this all day.", "wiggle");
+        melody([659, 784, 988], 90);
+      } else {
+        react("That was fun.", "happy");
+        blip(587, 0.18, "sine");
+      }
+      save();
+      paintReadouts();
+      checkEvolution();
+    });
+  });
+
+  function unlockedTiers() {
+    var st = stage();
+    return TIERS.filter(function (t) { return st >= t.stage && S.dives >= t.dives; });
+  }
+
+  function drawFind(rnd) {
+    var tiers = unlockedTiers();
+    // Deeper tiers are rarer: weight each tier by its position, favouring depth
+    // only slightly so the Shallows never stop producing.
+    var tier = tiers[Math.floor(rnd() * tiers.length)];
+    var pool = FINDS.filter(function (f) { return f.tier === tier.id; });
+    return { find: pickWeighted(pool, rnd), tier: tier };
+  }
+
+  $("a-dive").addEventListener("click", function () {
+    S.dives += 1;
+    var rnd = Arcade.seededRandom("dive:" + S.dives + ":" + Date.now());
+    var res = drawFind(rnd);
+    var isNew = S.found.indexOf(res.find.id) === -1;
+    if (isNew) S.found.push(res.find.id);
+    S.drops += res.find.drops;
+    markCareDay();
+    save();
+    blip(330, 0.3, "sine");
+    setTimeout(function () { blip(523, 0.25, "triangle"); }, 260);
+    showCard(res.find.ico,
+      S.name + " dove into " + res.tier.name + " and came back with a " + res.find.name.toLowerCase() + ".",
+      (isNew ? "NEW! " : "") + "+" + res.find.drops + " 💧");
+    react("Splash!", "happy");
+    paintReadouts();
+    checkEvolution();
+  });
+
+  $("a-cast").addEventListener("click", function () {
+    if (S.line) {
+      var left = S.line.castAt + S.line.ms - Date.now();
+      if (left > 0) return;
+      // Longer lines fish deeper: bias the draw by giving long lines extra rolls.
+      var rolls = S.line.ms >= 8 * HOUR ? 3 : (S.line.ms >= 2 * HOUR ? 2 : 1);
+      var rnd = Arcade.seededRandom("line:" + S.line.castAt);
+      var best = null;
+      for (var i = 0; i < rolls; i++) {
+        var res = drawFind(rnd);
+        if (!best || res.find.drops > best.find.drops) best = res;
+      }
+      var isNew = S.found.indexOf(best.find.id) === -1;
+      if (isNew) S.found.push(best.find.id);
+      S.drops += best.find.drops;
+      S.line = null;
+      markCareDay();
+      save();
+      melody([523, 784], 110);
+      showCard(best.find.ico,
+        "The line pulled tight. A " + best.find.name.toLowerCase() + ", up from " + best.tier.name + ".",
+        (isNew ? "NEW! " : "") + "+" + best.find.drops + " 💧");
+      paintReadouts();
+      checkEvolution();
+      return;
+    }
+
+    openWheel("How long a line?", LINES.map(function (l) {
+      return { id: l.id, ico: "🎣", name: l.label };
+    }), null, function (choice) {
+      var def = null;
+      LINES.forEach(function (l) { if (l.id === choice.id) def = l; });
+      S.line = { castAt: Date.now(), ms: def.ms };
+      save();
+      blip(440, 0.2, "sine");
+      react("Line's in the water.", null);
+      paintReadouts();
+    });
+  });
+
+  // ---- pond sheet (shop + collection) --------------------------------------
+
+  function paintSheet() {
+    $("dropline").textContent = "You have " + S.drops + " dew drops.";
+
+    var shop = $("shoplist");
+    shop.innerHTML = "";
+    DECOR.forEach(function (d) {
+      var owned = S.decor.indexOf(d.id) !== -1;
+      var row = document.createElement("div");
+      row.className = "shop-row";
+      var ico = document.createElement("span");
+      ico.className = "ico";
+      ico.textContent = d.ico;
+      var nm = document.createElement("span");
+      nm.className = "nm";
+      nm.textContent = d.name;
+      var btn = document.createElement("button");
+      btn.className = "buy" + (owned ? " owned" : "");
+      btn.textContent = owned ? "in pond" : d.cost + " 💧";
+      btn.disabled = owned || S.drops < d.cost;
+      btn.addEventListener("click", function () {
+        if (S.drops < d.cost || S.decor.indexOf(d.id) !== -1) return;
+        S.drops -= d.cost;
+        S.decor.push(d.id);
+        save();
+        blip(784, 0.22, "triangle");
+        paintDecor();
+        paintSheet();
+        paintReadouts();
+      });
+      row.appendChild(ico);
+      row.appendChild(nm);
+      row.appendChild(btn);
+      shop.appendChild(row);
+    });
+
+    var tiers = unlockedTiers();
+    $("collhint").textContent = S.found.length + " of " + FINDS.length + " found · " +
+      S.dives + " dives · open: " + tiers.map(function (t) { return t.name; }).join(", ");
+
+    var grid = $("collgrid");
+    grid.innerHTML = "";
+    FINDS.forEach(function (f) {
+      var slot = document.createElement("div");
+      var has = S.found.indexOf(f.id) !== -1;
+      slot.className = "slot" + (has ? "" : " empty");
+      var top = document.createElement("div");
+      top.textContent = has ? f.ico : "?";
+      var lbl = document.createElement("div");
+      lbl.className = "lbl";
+      lbl.textContent = has ? f.name : "";
+      slot.appendChild(top);
+      slot.appendChild(lbl);
+      grid.appendChild(slot);
+    });
+  }
+
+  $("a-pond").addEventListener("click", function () {
+    paintSheet();
+    $("sheetwrap").classList.add("on");
+  });
+
+  $("sheetclose").addEventListener("click", function () {
+    $("sheetwrap").classList.remove("on");
+  });
+
+  // ---- mute ------------------------------------------------------------------
+
+  function paintMute() {
+    $("mute").innerHTML = S.muted ? "&#128263;" : "&#128266;";
+  }
+
+  $("mute").addEventListener("click", function () {
+    S.muted = !S.muted;
+    save();
+    paintMute();
+  });
+
+  // ---- naming (first run) -------------------------------------------------------
+
+  function askName(done) {
+    $("naming").classList.add("on");
+    $("namego").addEventListener("click", function go() {
+      var v = ($("nameinput").value || "").trim().slice(0, 12);
+      S.name = v || "Totodile";
+      S.born = Date.now();
+      S.fedAt = Date.now();
+      save();
+      $("naming").classList.remove("on");
+      $("namego").removeEventListener("click", go);
+      done();
+    });
+  }
+
+  // ---- main loop ------------------------------------------------------------------
+
+  function tick() {
+    paintScene();
+    paintSprite();
+    paintReadouts();
+  }
+
+  function begin() {
+    paintMute();
+    paintScene();
+    paintWeather();
+    paintDecor();
+    paintSprite();
+    paintReadouts();
+
+    if (asleep()) {
+      react("He's fast asleep.", null);
+    } else {
+      doDrift();
+      doDream();
+    }
+
+    S.lastSeen = Date.now();
+    save();
+    checkEvolution();
+
+    setInterval(tick, 1000);
+    // Weather and stars only need repainting when the phase could have changed.
+    setInterval(paintWeather, 5 * 60000);
+  }
+
+  Arcade.backButton();
+  Arcade.boot(function () {
+    if (!S.born) {
+      askName(begin);
+    } else {
+      begin();
+    }
+  });
+})();
+</script>
+</body>
+</html>
