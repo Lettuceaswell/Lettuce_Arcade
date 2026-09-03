@@ -802,14 +802,23 @@
     return 0;                  // full
   }
 
+  // Sleep window in local hours. inWindow() wraps midnight, so SLEEP_FROM may
+  // be later than SLEEP_TO (23 -> 5) or earlier (1 -> 5); these two numbers are
+  // the only thing to edit when the window moves.
+  var SLEEP_FROM = 1, SLEEP_TO = 5;
+
+  function inWindow(h, from, to) {
+    return from <= to ? (h >= from && h < to) : (h >= from || h < to);
+  }
+
   function phase() {
     var h = new Date().getHours();
-    if (h >= 1 || h < 5) return "night";
+    if (inWindow(h, SLEEP_FROM, SLEEP_TO)) return "night";
+    if (h >= 20 || h < SLEEP_FROM) return "evening";
     if (h < 8) return "dawn";
     if (h < 12) return "morning";
     if (h < 17) return "afternoon";
-    if (h < 20) return "dusk";
-    return "evening";
+    return "dusk";
   }
 
   function asleep() { return phase() === "night"; }
@@ -1041,7 +1050,7 @@
     var today = Arcade.dailySeed();
     if (S.dreamDay === today) return;
     var d = new Date();
-    if (d.getHours() < 5) return;
+    if (d.getHours() < SLEEP_TO) return;   // no dream until he's actually woken up
     S.dreamDay = today;
     var r = Arcade.seededRandom("dream:" + today + S.born);
     showCard("💭", DREAMS[Math.floor(r() * DREAMS.length)], "last night");

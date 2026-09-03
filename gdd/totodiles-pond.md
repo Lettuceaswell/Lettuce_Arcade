@@ -111,8 +111,13 @@ the highest-impact one.
 | 08–12 | bright, high sun | most active, best play reactions |
 | 12–17 | warm, long light | lazy; naps on the rock if unattended |
 | 17–20 | orange, the good hour | second wind, most affectionate |
-| 20–23 | deep blue, lanterns lit | winding down, yawning |
-| 23–05 | near-black, stars, moonlit water | **asleep** — curled up, visibly breathing |
+| 20–01 | deep blue, lanterns lit | winding down, yawning |
+| 01–05 | near-black, stars, moonlit water | **asleep** — curled up, visibly breathing |
+
+The sleep window is `SLEEP_FROM`/`SLEEP_TO` at the top of `phase()`. Move those
+two numbers and nothing else — `inWindow()` handles a window that wraps past
+midnight (23 → 5) and one that doesn't (1 → 5), and the dream gate reads
+`SLEEP_TO` rather than keeping its own copy of the wake hour.
 
 Night is not a lockout. You can visit at 1am and watch him sleep, and that
 peek is deliberately one of the prettiest screens in the game. You can tuck a
