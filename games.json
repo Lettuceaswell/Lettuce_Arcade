@@ -23,5 +23,11 @@
     "title": "Keto Krush",
     "blurb": "A match-3 about meat, cheese, bread, and knowing which is which.",
     "emoji": "🍖"
+  },
+  {
+    "slug": "zorro-runner",
+    "title": "Zorro Runner",
+    "blurb": "Tap to jump-slash, hold to swing on the canopy. One touch, endless road.",
+    "emoji": "🦊"
   }
 ]

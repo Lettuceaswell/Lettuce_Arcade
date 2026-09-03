@@ -1,0 +1,906 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<title>Zorro Runner — Lettuce Arcade</title>
+<meta name="theme-color" content="#3a1f14">
+<link rel="stylesheet" href="/shared/arcade.css">
+<style>
+  body {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    background: #180d08;
+    overflow: hidden;
+  }
+
+  #stage {
+    position: relative;
+    width: 100%;
+    max-width: 520px;
+    height: 100vh;
+    max-height: 900px;
+  }
+
+  #game {
+    display: block;
+    width: 100%;
+    height: 100%;
+    touch-action: none;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+
+  #hud {
+    position: absolute;
+    top: calc(10px + var(--safe-top));
+    left: 0;
+    right: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    pointer-events: none;
+    text-shadow: 0 2px 6px rgba(0,0,0,0.6);
+  }
+
+  #score {
+    font-size: 1.6rem;
+    font-weight: 800;
+    color: #ffe9c7;
+    letter-spacing: 0.02em;
+  }
+
+  #combo {
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: #ffcf6b;
+    min-height: 1.2rem;
+  }
+
+  #best {
+    font-size: 0.75rem;
+    color: #d7b89a;
+    opacity: 0.85;
+    margin-top: 2px;
+  }
+
+  #popups {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+  }
+
+  .popup {
+    position: absolute;
+    font-weight: 800;
+    color: #ffe066;
+    font-size: 1rem;
+    text-shadow: 0 2px 4px rgba(0,0,0,0.7);
+    animation: popup-rise 700ms ease-out forwards;
+  }
+
+  @keyframes popup-rise {
+    from { transform: translateY(0); opacity: 1; }
+    to { transform: translateY(-34px); opacity: 0; }
+  }
+
+  #mute {
+    position: fixed;
+    top: calc(8px + var(--safe-top));
+    right: calc(8px + var(--safe-right));
+    min-height: 44px;
+    min-width: 44px;
+    font-size: 1.2rem;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 9999;
+  }
+
+  #overlay {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    text-align: center;
+    background: rgba(10, 6, 4, 0.72);
+    padding: 24px;
+  }
+
+  #overlay h2 {
+    font-size: 1.6rem;
+    color: #ffe9c7;
+  }
+
+  #overlay p {
+    color: #d7b89a;
+    font-size: 0.95rem;
+    max-width: 320px;
+  }
+
+  #overlay .btn {
+    margin-top: 8px;
+    background: #d9542b;
+  }
+
+  #overlay .btn:active {
+    background: #b8401d;
+  }
+
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+
+<div id="stage">
+  <canvas id="game"></canvas>
+
+  <div id="hud">
+    <div id="score">0</div>
+    <div id="combo"></div>
+    <div id="best">BEST 0</div>
+  </div>
+
+  <div id="popups"></div>
+
+  <div id="overlay">
+    <h2>Zorro Runner</h2>
+    <p>Tap to jump-slash. Hold to swing on the canopy — the longer you hold, the farther the arc.
+       Swipe down (or press ↓) to slide under low aqueducts.</p>
+    <button id="startBtn" class="btn">Ride</button>
+  </div>
+</div>
+
+<button id="mute" class="btn" aria-label="Mute sound">🔊</button>
+
+<script src="/shared/arcade.js"></script>
+<script>
+Arcade.backButton();
+
+(function () {
+  "use strict";
+
+  var REF_H = 380;
+  var canvas = document.getElementById("game");
+  var ctx = canvas.getContext("2d");
+  var stage = document.getElementById("stage");
+  var scoreEl = document.getElementById("score");
+  var comboEl = document.getElementById("combo");
+  var bestEl = document.getElementById("best");
+  var popupsEl = document.getElementById("popups");
+  var overlayEl = document.getElementById("overlay");
+  var startBtn = document.getElementById("startBtn");
+  var muteBtn = document.getElementById("mute");
+
+  var muted = Arcade.load("muted", false) === true;
+  var best = Number(Arcade.load("best", 0)) || 0;
+
+  function renderMute() {
+    muteBtn.textContent = muted ? "🔇" : "🔊";
+    muteBtn.setAttribute("aria-label", muted ? "Unmute sound" : "Mute sound");
+  }
+  muteBtn.addEventListener("click", function () {
+    muted = !muted;
+    Arcade.save("muted", muted);
+    renderMute();
+  });
+  renderMute();
+  bestEl.textContent = "BEST " + Math.floor(best);
+
+  // ---- canvas sizing -------------------------------------------------------
+  var W = 0, H = 0, scale = 1, refW = 0;
+  function resize() {
+    var rect = stage.getBoundingClientRect();
+    var dpr = Math.min(window.devicePixelRatio || 1, 2);
+    W = Math.round(rect.width * dpr);
+    H = Math.round(rect.height * dpr);
+    canvas.width = W;
+    canvas.height = H;
+    scale = H / REF_H;
+    refW = W / scale;
+  }
+  resize();
+  window.addEventListener("resize", resize);
+
+  // ---- audio ----------------------------------------------------------------
+  function tone(freq, dur, delay, vol, type) {
+    var ac = Arcade.audioCtx;
+    if (!ac || muted) return;
+    try {
+      var t0 = ac.currentTime + (delay || 0);
+      var osc = ac.createOscillator();
+      var gain = ac.createGain();
+      osc.type = type || "triangle";
+      osc.frequency.value = freq;
+      gain.gain.setValueAtTime(0.0001, t0);
+      gain.gain.exponentialRampToValueAtTime(vol || 0.15, t0 + 0.01);
+      gain.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+      osc.connect(gain);
+      gain.connect(ac.destination);
+      osc.start(t0);
+      osc.stop(t0 + dur + 0.02);
+    } catch (e) { /* no audio */ }
+  }
+  function whipSound() { tone(1200, 0.07, 0, 0.14, "square"); tone(700, 0.05, 0.02, 0.1, "square"); }
+  function landSound() { tone(180, 0.09, 0, 0.1, "sine"); }
+  function guardSound() { tone(150, 0.14, 0, 0.16, "sawtooth"); }
+  function carveSound() { tone(880, 0.09, 0, 0.14); tone(1175, 0.09, 0.07, 0.13); tone(1568, 0.14, 0.14, 0.13); }
+  function deathSound() { tone(320, 0.18, 0, 0.16, "sawtooth"); tone(160, 0.3, 0.1, 0.14, "sawtooth"); }
+
+  // background guitar loop — a simple synthesized flamenco-ish arpeggio
+  var GUITAR_CHORDS = [
+    [220.0, 261.6, 329.6],   // Am
+    [196.0, 246.9, 293.7],   // G
+    [174.6, 220.0, 261.6],   // F
+    [164.8, 207.7, 246.9]    // E
+  ];
+  var guitarStep = 0;
+  var guitarTimer = null;
+  function guitarPluck() {
+    var ac = Arcade.audioCtx;
+    if (!ac) return;
+    var chord = GUITAR_CHORDS[Math.floor(guitarStep / 4) % GUITAR_CHORDS.length];
+    var note = chord[guitarStep % chord.length];
+    if (!muted) tone(note, 0.5, 0, 0.045, "triangle");
+    guitarStep++;
+  }
+  function startGuitar() {
+    if (guitarTimer) return;
+    guitarTimer = setInterval(guitarPluck, 260);
+  }
+  function stopGuitar() {
+    if (guitarTimer) { clearInterval(guitarTimer); guitarTimer = null; }
+  }
+
+  // ---- world constants (reference units, 380 = screen height) -------------
+  var GROUND_Y = 330;
+  var CANOPY_H = 46;
+  var PLAYER_W = 26;
+  var PLAYER_STAND_H = 54;
+  var PLAYER_SLIDE_H = 24;
+
+  var HOLD_THRESHOLD = 0.15;
+  var MAX_HOLD = 0.9;
+  var JUMP_V = 300;
+  var GRAVITY = 780;
+  var JUMP_APEX_H = (JUMP_V * JUMP_V) / (2 * GRAVITY);
+  var SWING_MAX_H = 230;
+  var SWING_SPEED_BOOST = 90;
+  var SWING_DESCEND_T = 0.32;
+  var SLIDE_TIME = 0.46;
+  var STRIKE_RANGE = 46;
+
+  var CART_CLEAR_H = 46;
+  var WALL_CLEAR_H = 130;
+  var GRAZE_MARGIN = 14;
+
+  var BASE_SPEED = 168;
+  var SPEED_RAMP = 3.1;
+  var SPEED_CAP = 420;
+
+  // ---- obstacle chunk pool --------------------------------------------------
+  function chunk(items) { return items; }
+  var EASY = [
+    chunk([{ t: "cart", x: 0 }]),
+    chunk([{ t: "wall", x: 0 }]),
+    chunk([{ t: "guard", x: 0 }]),
+    chunk([{ t: "aqueduct", x: 0 }]),
+    chunk([{ t: "banner", x: 0 }])
+  ];
+  var MEDIUM = [
+    chunk([{ t: "wall", x: 0 }, { t: "cart", x: 150 }]),
+    chunk([{ t: "guard", x: 0 }, { t: "banner", x: 100 }]),
+    chunk([{ t: "aqueduct", x: 0 }, { t: "wall", x: 170 }]),
+    chunk([{ t: "cart", x: 0 }, { t: "guard", x: 140 }])
+  ];
+  var HARD = [
+    chunk([{ t: "cart", x: 0 }, { t: "aqueduct", x: 130 }, { t: "wall", x: 280 }]),
+    chunk([{ t: "guard", x: 0 }, { t: "guard", x: 95 }]),
+    chunk([{ t: "wall", x: 0 }, { t: "banner", x: 45 }, { t: "cart", x: 190 }]),
+    chunk([{ t: "aqueduct", x: 0 }, { t: "guard", x: 150 }, { t: "banner", x: 220 }])
+  ];
+
+  function pickChunk(score) {
+    var pool = EASY.slice();
+    if (score > 260) pool = pool.concat(MEDIUM);
+    if (score > 700) pool = pool.concat(HARD);
+    return pool[Math.floor(Math.random() * pool.length)];
+  }
+
+  var OBSTACLE_W = { wall: 40, cart: 56, aqueduct: 70, guard: 32, banner: 14 };
+
+  // ---- game state -------------------------------------------------------
+  var running = false;
+  var scrollDist = 0;
+  var speed = BASE_SPEED;
+  var elapsed = 0;
+  var score = 0;
+  var combo = 0;
+  var obstacles = [];
+  var nextSpawnX = 0;
+  var lastTime = 0;
+
+  var player = {
+    state: "run",        // run | jump | swing | swingDown | slide | dead
+    height: 0,
+    vy: 0,
+    t: 0,                 // state timer
+    holdT: 0,
+    swingDur: 0,
+    swingStartH: 0,
+    legPhase: 0,
+    strikeT: -1
+  };
+
+  var pressStart = -1;
+  var holding = false;
+
+  function reset() {
+    running = true;
+    scrollDist = 0;
+    speed = BASE_SPEED;
+    elapsed = 0;
+    score = 0;
+    combo = 0;
+    obstacles = [];
+    nextSpawnX = 260;
+    player.state = "run";
+    player.height = 0;
+    player.vy = 0;
+    player.t = 0;
+    player.legPhase = 0;
+    player.strikeT = -1;
+    updateHud();
+    comboEl.textContent = "";
+  }
+
+  // ---- input -------------------------------------------------------------
+  function doJump() {
+    if (player.state !== "run") return;
+    player.state = "jump";
+    player.vy = JUMP_V;
+    player.height = 0.001;
+    player.strikeT = 0;
+    whipSound();
+    tryStrikeGuard();
+  }
+
+  function doSwingStart() {
+    if (player.state !== "run" && player.state !== "jump") return;
+    player.state = "swing";
+    player.holdT = 0;
+    whipSound();
+  }
+
+  function doSwingRelease() {
+    if (player.state !== "swing") return;
+    player.state = "swingDown";
+    player.swingStartH = player.height;
+    player.t = 0;
+  }
+
+  function doSlide() {
+    if (player.state !== "run") return;
+    player.state = "slide";
+    player.t = 0;
+  }
+
+  function tryStrikeGuard() {
+    var px = playerWorldX();
+    for (var i = 0; i < obstacles.length; i++) {
+      var o = obstacles[i];
+      if (o.type === "guard" && !o.struck && !o.passed) {
+        var dist = o.x - px;
+        if (dist >= -10 && dist <= STRIKE_RANGE) {
+          o.struck = true;
+          guardSound();
+          spawnPopup("+25", worldToScreenX(o.x), GROUND_Y - 60, "#ffcf6b");
+          addScore(25, true);
+        }
+      }
+    }
+  }
+
+  function playerWorldX() { return scrollDist + refW * 0.24; }
+  function worldToScreenX(x) { return (x - scrollDist) * scale; }
+
+  canvas.addEventListener("pointerdown", function (e) {
+    if (!running) return;
+    e.preventDefault();
+    pressStart = performance.now() / 1000;
+    holding = true;
+  }, { passive: false });
+
+  canvas.addEventListener("pointerup", function () {
+    if (!running) { holding = false; return; }
+    holding = false;
+    if (pressStart < 0) return;
+    var dur = performance.now() / 1000 - pressStart;
+    pressStart = -1;
+    if (player.state === "swing") {
+      doSwingRelease();
+    } else if (dur < HOLD_THRESHOLD) {
+      doJump();
+    }
+  });
+
+  canvas.addEventListener("touchstart", function (e) { e.preventDefault(); }, { passive: false });
+
+  var touchStartY = null;
+  canvas.addEventListener("pointerdown", function (e) { touchStartY = e.clientY; });
+  canvas.addEventListener("pointerup", function (e) {
+    if (touchStartY === null) return;
+    var dy = e.clientY - touchStartY;
+    touchStartY = null;
+    if (dy > 40) doSlide();
+  });
+
+  window.addEventListener("keydown", function (e) {
+    if (!running) return;
+    if (e.code === "Space") {
+      if (pressStart < 0) { pressStart = performance.now() / 1000; holding = true; }
+      e.preventDefault();
+    } else if (e.code === "ArrowDown") {
+      doSlide();
+    }
+  });
+  window.addEventListener("keyup", function (e) {
+    if (e.code === "Space") {
+      holding = false;
+      if (pressStart < 0) return;
+      var dur = performance.now() / 1000 - pressStart;
+      pressStart = -1;
+      if (player.state === "swing") doSwingRelease();
+      else if (dur < HOLD_THRESHOLD) doJump();
+    }
+  });
+
+  startBtn.addEventListener("click", function () {
+    overlayEl.hidden = true;
+    startGuitar();
+    reset();
+  });
+
+  // ---- scoring -------------------------------------------------------------
+  function updateHud() {
+    scoreEl.textContent = Math.floor(score).toLocaleString();
+  }
+
+  function addScore(base, isBonus) {
+    var mult = 1 + Math.min(combo, 20) * 0.1;
+    score += isBonus ? base : base * mult;
+    updateHud();
+  }
+
+  function spawnPopup(text, x, yRef, color) {
+    var el = document.createElement("div");
+    el.className = "popup";
+    el.textContent = text;
+    el.style.left = x + "px";
+    el.style.top = (yRef * scale) + "px";
+    el.style.color = color || "#ffe066";
+    popupsEl.appendChild(el);
+    setTimeout(function () { el.remove(); }, 720);
+  }
+
+  function registerClear(o, clean) {
+    if (clean) {
+      combo++;
+      addScore(10 + combo, false);
+    } else {
+      combo = 0;
+      addScore(5, false);
+    }
+    comboEl.textContent = combo >= 2 ? (combo + "x combo") : "";
+  }
+
+  // ---- update ----------------------------------------------------------
+  function spawnChunkIfNeeded() {
+    var horizon = scrollDist + refW + 40;
+    if (nextSpawnX < horizon) {
+      var items = pickChunk(score);
+      var maxEnd = 0;
+      items.forEach(function (it) {
+        var w = OBSTACLE_W[it.t];
+        var o = {
+          type: it.t,
+          x: nextSpawnX + it.x,
+          w: w,
+          passed: false,
+          struck: false,
+          scored: false,
+          carved: false
+        };
+        obstacles.push(o);
+        maxEnd = Math.max(maxEnd, it.x + w);
+      });
+      var gap = 210 + Math.random() * 150;
+      nextSpawnX += maxEnd + gap;
+    }
+  }
+
+  function updatePlayer(dt) {
+    player.legPhase += dt * (player.state === "run" || player.state === "slide" ? 10 : 0);
+
+    if (player.state === "jump") {
+      player.strikeT += dt;
+      if (player.strikeT < 0.12) tryStrikeGuard();
+      player.height += player.vy * dt;
+      player.vy -= GRAVITY * dt;
+      if (player.height <= 0) {
+        player.height = 0;
+        player.state = "run";
+        landSound();
+      }
+    } else if (player.state === "swing") {
+      player.holdT = Math.min(player.holdT + dt, MAX_HOLD);
+      var t = player.holdT / MAX_HOLD;
+      player.height = Math.sin(t * Math.PI / 2) * SWING_MAX_H;
+      if (!holding || player.holdT >= MAX_HOLD) {
+        doSwingRelease();
+      }
+    } else if (player.state === "swingDown") {
+      player.t += dt;
+      var t2 = Math.min(player.t / SWING_DESCEND_T, 1);
+      var ease = 1 - Math.pow(1 - t2, 2);
+      player.height = player.swingStartH * (1 - ease);
+      if (t2 >= 1) {
+        player.height = 0;
+        player.state = "run";
+        landSound();
+      }
+    } else if (player.state === "slide") {
+      player.t += dt;
+      if (player.t >= SLIDE_TIME) player.state = "run";
+    }
+  }
+
+  function currentSpeedBoost() {
+    return (player.state === "swing" || player.state === "swingDown") ? SWING_SPEED_BOOST : 0;
+  }
+
+  function playerBox() {
+    var top, bottom;
+    if (player.state === "slide") {
+      bottom = 0; top = PLAYER_SLIDE_H;
+    } else {
+      bottom = player.height; top = player.height + PLAYER_STAND_H;
+    }
+    return { bottom: bottom, top: top, low: player.height };
+  }
+
+  function checkCollisions() {
+    var px = playerWorldX();
+    var pLeft = px - PLAYER_W / 2, pRight = px + PLAYER_W / 2;
+    var box = playerBox();
+
+    for (var i = 0; i < obstacles.length; i++) {
+      var o = obstacles[i];
+      if (o.passed) continue;
+      var oLeft = o.x, oRight = o.x + o.w;
+      var overlapping = pRight > oLeft && pLeft < oRight;
+
+      if (overlapping) {
+        if (o.type === "banner") {
+          if (!o.carved && (player.state === "swing" || player.state === "swingDown") && player.height > 30) {
+            o.carved = true;
+            carveSound();
+            spawnPopup("Z-CARVE!", worldToScreenX(o.x), GROUND_Y - 90, "#7be4ff");
+            addScore(50, true);
+          }
+          continue;
+        }
+        if (o.type === "guard") {
+          if (o.struck) continue;
+          if (box.low >= CART_CLEAR_H) continue;
+          return true;
+        }
+        if (o.type === "cart") {
+          if (box.low >= CART_CLEAR_H) continue;
+          return true;
+        }
+        if (o.type === "wall") {
+          if (box.low >= WALL_CLEAR_H) continue;
+          return true;
+        }
+        if (o.type === "aqueduct") {
+          if (player.state === "slide") continue;
+          return true;
+        }
+      }
+
+      if (oRight < pLeft && !o.passed) {
+        o.passed = true;
+        if (o.type === "banner") continue;
+        var clean;
+        if (o.type === "guard") clean = o.struck || box.low >= CART_CLEAR_H + GRAZE_MARGIN;
+        else if (o.type === "cart") clean = box.low >= CART_CLEAR_H + GRAZE_MARGIN;
+        else if (o.type === "wall") clean = box.low >= WALL_CLEAR_H + GRAZE_MARGIN;
+        else if (o.type === "aqueduct") clean = player.state === "slide";
+        else clean = true;
+        registerClear(o, clean);
+      }
+    }
+    return false;
+  }
+
+  function die() {
+    running = false;
+    player.state = "dead";
+    deathSound();
+    stopGuitar();
+    if (score > best) {
+      best = score;
+      Arcade.save("best", best);
+    }
+    bestEl.textContent = "BEST " + Math.floor(best);
+    showGameOver();
+  }
+
+  function showGameOver() {
+    overlayEl.querySelector("h2").textContent = "You've been caught!";
+    overlayEl.querySelector("p").textContent =
+      "Distance " + Math.floor(score).toLocaleString() + " — best " + Math.floor(best).toLocaleString() + ".";
+    startBtn.textContent = "Ride again";
+    overlayEl.hidden = false;
+  }
+
+  function pollHold() {
+    if (holding && pressStart >= 0 && player.state === "run") {
+      var dur = performance.now() / 1000 - pressStart;
+      if (dur >= HOLD_THRESHOLD) doSwingStart();
+    }
+  }
+
+  function update(dt) {
+    pollHold();
+    elapsed += dt;
+    speed = Math.min(BASE_SPEED + elapsed * SPEED_RAMP, SPEED_CAP);
+    scrollDist += (speed + currentSpeedBoost()) * dt;
+    score += dt * (speed / 34);
+    updateHud();
+
+    updatePlayer(dt);
+    spawnChunkIfNeeded();
+
+    while (obstacles.length && worldToScreenX(obstacles[0].x + obstacles[0].w) < -60 && obstacles[0].passed) {
+      obstacles.shift();
+    }
+
+    if (checkCollisions()) {
+      die();
+    }
+  }
+
+  // ---- render ---------------------------------------------------------------
+  function drawSky() {
+    var g = ctx.createLinearGradient(0, 0, 0, H);
+    g.addColorStop(0, "#5b1f4a");
+    g.addColorStop(0.35, "#a3416a");
+    g.addColorStop(0.62, "#e08a4f");
+    g.addColorStop(1, "#f7c873");
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, W, H);
+
+    var sunX = W * 0.72, sunY = H * 0.4, r = 46 * scale;
+    var sg = ctx.createRadialGradient(sunX, sunY, 0, sunX, sunY, r);
+    sg.addColorStop(0, "rgba(255,230,170,0.95)");
+    sg.addColorStop(1, "rgba(255,230,170,0)");
+    ctx.fillStyle = sg;
+    ctx.beginPath(); ctx.arc(sunX, sunY, r, 0, Math.PI * 2); ctx.fill();
+  }
+
+  function drawHills(offset) {
+    ctx.fillStyle = "#7a3a52";
+    ctx.beginPath();
+    ctx.moveTo(0, H);
+    var baseY = H * 0.62;
+    var step = 120 * scale;
+    var n = Math.ceil(W / step) + 2;
+    for (var i = -1; i <= n; i++) {
+      var x = i * step - (offset % step);
+      var hy = baseY - Math.sin(i * 1.7) * 22 * scale;
+      ctx.lineTo(x, hy);
+    }
+    ctx.lineTo(W, H);
+    ctx.closePath();
+    ctx.fill();
+  }
+
+  function drawRooftops(offset) {
+    ctx.fillStyle = "#7d3620";
+    var step = 96 * scale;
+    var baseY = GROUND_Y * scale - 6 * scale;
+    var n = Math.ceil(W / step) + 2;
+    for (var i = -1; i <= n; i++) {
+      var x = i * step - (offset % step);
+      var bw = 60 * scale, bh = 40 * scale;
+      ctx.fillRect(x, baseY - bh, bw, bh);
+      ctx.beginPath();
+      ctx.moveTo(x - 4 * scale, baseY - bh);
+      ctx.lineTo(x + bw / 2, baseY - bh - 18 * scale);
+      ctx.lineTo(x + bw + 4 * scale, baseY - bh);
+      ctx.closePath();
+      ctx.fillStyle = "#5f2716";
+      ctx.fill();
+      ctx.fillStyle = "#7d3620";
+    }
+  }
+
+  function drawCanopy(offset) {
+    var h = CANOPY_H * scale;
+    ctx.fillStyle = "#1c3018";
+    ctx.fillRect(0, 0, W, h);
+    ctx.fillStyle = "#25401f";
+    var step = 26 * scale;
+    var n = Math.ceil(W / step) + 2;
+    for (var i = -1; i <= n; i++) {
+      var x = i * step - (offset % step);
+      ctx.beginPath();
+      ctx.arc(x, h - 4 * scale, 15 * scale, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+
+  function drawRoad() {
+    var gy = GROUND_Y * scale;
+    ctx.fillStyle = "#8a5a3a";
+    ctx.fillRect(0, gy, W, H - gy);
+    ctx.fillStyle = "rgba(0,0,0,0.15)";
+    var step = 50 * scale;
+    var off = scrollDist * scale % step;
+    for (var x = -off; x < W; x += step) {
+      ctx.fillRect(x, gy + 6 * scale, 22 * scale, 4 * scale);
+    }
+  }
+
+  function drawObstacle(o) {
+    var sx = worldToScreenX(o.x);
+    var sw = o.w * scale;
+    if (sx + sw < -20 || sx > W + 20) return;
+    var gy = GROUND_Y * scale;
+
+    if (o.type === "wall") {
+      var h = WALL_CLEAR_H * scale;
+      ctx.fillStyle = "#c9a878";
+      ctx.fillRect(sx, gy - h, sw, h);
+      ctx.fillStyle = "rgba(0,0,0,0.12)";
+      for (var r = 0; r < 3; r++) ctx.fillRect(sx, gy - h + r * (h / 3) + 2, sw, 2);
+    } else if (o.type === "cart") {
+      var ch = CART_CLEAR_H * scale;
+      ctx.fillStyle = "#7a4a26";
+      ctx.fillRect(sx, gy - ch, sw, ch);
+      ctx.fillStyle = "#e0c27a";
+      ctx.fillRect(sx + sw * 0.15, gy - ch - 8 * scale, sw * 0.7, 8 * scale);
+      ctx.fillStyle = "#3a2413";
+      ctx.beginPath(); ctx.arc(sx + sw * 0.2, gy, 6 * scale, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.arc(sx + sw * 0.8, gy, 6 * scale, 0, Math.PI * 2); ctx.fill();
+    } else if (o.type === "aqueduct") {
+      var top = 0, bottom = GROUND_Y - 8;
+      ctx.fillStyle = "#b3a68f";
+      ctx.fillRect(sx, top * scale, sw * 0.24, (bottom) * scale);
+      ctx.fillRect(sx + sw * 0.76, top * scale, sw * 0.24, (bottom) * scale);
+      ctx.fillRect(sx, (bottom - 30) * scale, sw, 22 * scale);
+    } else if (o.type === "guard") {
+      var alive = !o.struck;
+      var col = alive ? "#3a2c22" : "rgba(58,44,34,0.25)";
+      ctx.fillStyle = col;
+      var gh = CART_CLEAR_H * scale;
+      ctx.fillRect(sx + sw * 0.35, gy - gh, sw * 0.3, gh * 0.7);
+      ctx.beginPath();
+      ctx.ellipse(sx + sw * 0.5, gy - gh * 0.9, sw * 0.28, gh * 0.4, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = alive ? "#5a4632" : "rgba(90,70,50,0.2)";
+      ctx.fillRect(sx, gy - gh * 0.55, sw, gh * 0.55);
+    } else if (o.type === "banner") {
+      var carved = o.carved;
+      ctx.fillStyle = "#6b4a2a";
+      ctx.fillRect(sx + sw * 0.4, 0, sw * 0.2, gy);
+      ctx.fillStyle = carved ? "rgba(217,84,43,0.4)" : "#d9542b";
+      ctx.fillRect(sx, 30 * scale, sw, 60 * scale);
+      if (!carved) {
+        ctx.strokeStyle = "#ffe9c7";
+        ctx.lineWidth = 3 * scale;
+        ctx.beginPath();
+        ctx.moveTo(sx + sw * 0.2, 40 * scale);
+        ctx.lineTo(sx + sw * 0.8, 40 * scale);
+        ctx.lineTo(sx + sw * 0.2, 80 * scale);
+        ctx.lineTo(sx + sw * 0.8, 80 * scale);
+        ctx.stroke();
+      }
+    }
+  }
+
+  function drawZorro() {
+    var px = refW * 0.24 * scale;
+    var gy = GROUND_Y * scale;
+    var h = player.height * scale;
+    var bob = (player.state === "run") ? Math.abs(Math.sin(player.legPhase)) * 3 * scale : 0;
+    var cy = gy - h - bob;
+    var bodyH = (player.state === "slide" ? PLAYER_SLIDE_H : PLAYER_STAND_H) * scale;
+
+    if (player.state === "swing" || player.state === "swingDown") {
+      ctx.strokeStyle = "rgba(30,20,10,0.8)";
+      ctx.lineWidth = 2 * scale;
+      ctx.beginPath();
+      ctx.moveTo(px, CANOPY_H * scale);
+      ctx.lineTo(px + 6 * scale, cy - bodyH * 0.3);
+      ctx.stroke();
+    }
+
+    ctx.save();
+    ctx.translate(px, cy);
+
+    ctx.fillStyle = "#1b1b22";
+    ctx.beginPath();
+    ctx.moveTo(-2 * scale, -bodyH * 0.55);
+    ctx.quadraticCurveTo(-16 * scale, -bodyH * 0.2, -10 * scale, 4 * scale);
+    ctx.lineTo(2 * scale, -bodyH * 0.15);
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.fillStyle = "#2a2a33";
+    ctx.fillRect(-8 * scale, -bodyH * 0.55, 16 * scale, bodyH * 0.55);
+
+    var headR = 9 * scale;
+    var headY = -bodyH * 0.55 - headR * 0.6;
+    ctx.fillStyle = "#e0b48a";
+    ctx.beginPath(); ctx.arc(0, headY, headR, 0, Math.PI * 2); ctx.fill();
+
+    ctx.fillStyle = "#161616";
+    ctx.fillRect(-headR, headY - 3 * scale, headR * 2, 5 * scale);
+
+    ctx.fillStyle = "#161616";
+    ctx.beginPath();
+    ctx.moveTo(-headR - 2 * scale, headY - 6 * scale);
+    ctx.lineTo(headR + 2 * scale, headY - 6 * scale);
+    ctx.lineTo(headR - 3 * scale, headY - 12 * scale);
+    ctx.lineTo(-headR + 3 * scale, headY - 12 * scale);
+    ctx.closePath();
+    ctx.fill();
+
+    if (player.strikeT >= 0 && player.strikeT < 0.14) {
+      ctx.strokeStyle = "#ffe9c7";
+      ctx.lineWidth = 2 * scale;
+      ctx.beginPath();
+      ctx.moveTo(8 * scale, -bodyH * 0.3);
+      ctx.quadraticCurveTo(30 * scale, -bodyH * 0.5, 44 * scale, -bodyH * 0.15);
+      ctx.stroke();
+    }
+
+    ctx.restore();
+  }
+
+  function render() {
+    drawSky();
+    drawHills(scrollDist * 0.25 * scale);
+    drawRooftops(scrollDist * 0.5 * scale);
+    drawRoad();
+    for (var i = 0; i < obstacles.length; i++) drawObstacle(obstacles[i]);
+    drawZorro();
+    drawCanopy(scrollDist * 0.1 * scale);
+  }
+
+  // ---- loop ---------------------------------------------------------------
+  function frame(ts) {
+    if (!lastTime) lastTime = ts;
+    var dt = Math.min((ts - lastTime) / 1000, 0.05);
+    lastTime = ts;
+
+    if (running) update(dt);
+    render();
+
+    requestAnimationFrame(frame);
+  }
+
+  Arcade.boot(function () {
+    requestAnimationFrame(frame);
+  });
+})();
+</script>
+</body>
+</html>
