@@ -7,12 +7,12 @@
 }
 
 :root {
-  --bg: #1e1b2e;
-  --bg-elevated: #29253d;
-  --fg: #f5f5fa;
-  --fg-dim: #b7b3c9;
-  --accent: #7c5cff;
-  --accent-dim: #5a44b8;
+  --bg: #0b4d49;
+  --bg-elevated: #18aca4;
+  --fg: #d2f9f7;
+  --fg-dim: #a5f3ef;
+  --accent: #4adec5;
+  --accent-dim: #18aca4;
   --safe-top: env(safe-area-inset-top, 0px);
   --safe-bottom: env(safe-area-inset-bottom, 0px);
   --safe-left: env(safe-area-inset-left, 0px);
