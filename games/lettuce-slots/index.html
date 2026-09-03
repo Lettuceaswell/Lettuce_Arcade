@@ -24,7 +24,35 @@
 
   h1 { font-size: 1.35rem; letter-spacing: 0.02em; }
 
+  .stage { position: relative; }
+
   .reels { display: flex; gap: 10px; }
+
+  /* Floats over the reels, so it can be loud without shifting any layout. */
+  .payout {
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: clamp(46px, 15vw, 66px);
+    font-weight: 900;
+    line-height: 1;
+    opacity: 0;
+    pointer-events: none;
+    text-shadow: 0 3px 14px rgba(0, 0, 0, 0.6);
+  }
+
+  .payout.jackpot { color: #ffe066; }
+  .payout.match { color: #eafffb; }
+  .payout.pop { animation: payout-pop 1.15s ease-out forwards; }
+
+  @keyframes payout-pop {
+    0%   { opacity: 0; transform: translateY(-50%) scale(0.5); }
+    18%  { opacity: 1; transform: translateY(-58%) scale(1.3); }
+    34%  { opacity: 1; transform: translateY(-54%) scale(1.05); }
+    100% { opacity: 0; transform: translateY(-120%) scale(1.02); }
+  }
 
   .reel {
     width: clamp(76px, 26vw, 98px);
@@ -65,7 +93,9 @@
     letter-spacing: 0.04em;
   }
 
-  #stats { font-size: 0.95rem; color: var(--fg-dim); }
+  /* Wins read first; the running total stays deliberately quiet below it. */
+  #stats { font-size: 1.05rem; font-weight: 700; color: var(--fg); }
+  #stats-run { font-size: 0.9rem; color: var(--fg-dim); margin-top: 3px; }
 
   #mute {
     position: fixed;
@@ -82,17 +112,23 @@
 <body>
 <h1>🥬 Lettuce Slots</h1>
 
-<div class="reels" aria-hidden="true">
-  <div class="reel" id="reel0">🥬</div>
-  <div class="reel" id="reel1">🍅</div>
-  <div class="reel" id="reel2">🥕</div>
+<div class="stage" aria-hidden="true">
+  <div class="reels">
+    <div class="reel" id="reel0">🥬</div>
+    <div class="reel" id="reel1">🍅</div>
+    <div class="reel" id="reel2">🥕</div>
+  </div>
+  <div class="payout" id="payout"></div>
 </div>
 
 <div id="status" aria-live="polite"></div>
 
 <button id="spin" class="btn">SPIN</button>
 
-<div id="stats"></div>
+<div>
+  <div id="stats"></div>
+  <div id="stats-run"></div>
+</div>
 
 <button id="mute" class="btn" aria-label="Mute sound">🔊</button>
 
@@ -171,6 +207,8 @@
   var statusEl = document.getElementById("status");
   var spinBtn = document.getElementById("spin");
   var statsEl = document.getElementById("stats");
+  var statsRunEl = document.getElementById("stats-run");
+  var payoutEl = document.getElementById("payout");
   var muteBtn = document.getElementById("mute");
 
   // ---- state ------------------------------------------------------------
@@ -181,14 +219,29 @@
 
   var points = num(Arcade.load("points", 0));
   var jackpots = num(Arcade.load("jackpots", 0));
+  var matches = num(Arcade.load("matches", 0));
   var dry = num(Arcade.load("dry", 0));
   var spinning = false;
 
+  function plural(n, word) {
+    return n.toLocaleString() + " " + word + (n === 1 ? "" : "s");
+  }
+
   function renderStats() {
     statsEl.textContent =
+      plural(jackpots, "jackpot") + " · " +
+      matches.toLocaleString() + " match" + (matches === 1 ? "" : "es");
+    statsRunEl.textContent =
       points.toLocaleString() + " pts · " +
-      jackpots.toLocaleString() + " jackpot" + (jackpots === 1 ? "" : "s") + " · " +
       dry.toLocaleString() + " since last 🥬";
+  }
+
+  // The per-spin win, loud and centered over the reels.
+  function showPayout(text, cls) {
+    payoutEl.textContent = text;
+    payoutEl.className = "payout " + cls;
+    void payoutEl.offsetWidth; // restart the animation on back-to-back wins
+    payoutEl.classList.add("pop");
   }
 
   function setStatus(text, cls) {
@@ -227,6 +280,7 @@
     spinning = true;
     spinBtn.disabled = true;
     setStatus("");
+    payoutEl.className = "payout";
     reelEls.forEach(function (el) { el.classList.remove("hot"); });
 
     // Three independent uniform draws. This alone gives the real odds:
@@ -284,11 +338,14 @@
       jackpots += 1;
       dry = 0;
       setStatus("JACKPOT! 🥬🥬🥬", "jackpot");
+      showPayout("+500", "jackpot");
       jackpotSound();
     } else if (win) {
       points += 50;
+      matches += 1;
       dry += 1;
       setStatus("MATCH — " + STRIP[r1].repeat(3), "match");
+      showPayout("+50", "match");
       matchSound();
     } else {
       points += 1;
@@ -305,6 +362,7 @@
 
     Arcade.save("points", points);
     Arcade.save("jackpots", jackpots);
+    Arcade.save("matches", matches);
     Arcade.save("dry", dry);
     renderStats();
 
