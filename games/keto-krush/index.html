@@ -83,6 +83,30 @@
     animation: hintPulse 900ms ease-in-out infinite;
   }
 
+  #ketosis {
+    width: 220px;
+    max-width: 80vw;
+    height: 12px;
+    border-radius: 7px;
+    background: rgba(255, 255, 255, 0.12);
+    overflow: hidden;
+  }
+
+  #ketosis-fill {
+    height: 100%;
+    width: 50%;
+    background: #ffd23f;
+    transition: width 200ms ease, background-color 200ms ease;
+  }
+
+  #ketosis-label {
+    font-size: 0.75rem;
+    color: var(--fg-dim);
+  }
+
+  body.ketosis #ketosis-fill { box-shadow: 0 0 8px 2px rgba(74, 222, 128, 0.7); }
+  body.carbcrash #ketosis-fill { box-shadow: 0 0 8px 2px rgba(255, 107, 107, 0.7); }
+
   #stats { font-size: 0.85rem; color: var(--fg-dim); }
 
   #runover {
@@ -117,6 +141,8 @@
 
 <div id="status" aria-live="polite"></div>
 <div id="scoreline"></div>
+<div id="ketosis"><div id="ketosis-fill"></div></div>
+<div id="ketosis-label"></div>
 
 <div class="board" id="board"></div>
 
@@ -142,10 +168,17 @@
   var CLEAR_MS = 160;
   var FALL_MS = 190;
   var HINT_IDLE_MS = 5000;
+  var KETOSIS_START = 50;
+  var KETOSIS_HIGH = 70; // at/above this: fat-burning, 2x score
+  var KETOSIS_LOW = 15;  // at/below this: carb crash, 0.5x score
+  var KETOSIS_PROTEIN_GAIN = 4; // per protein tile cleared
+  var KETOSIS_CARB_LOSS = 3;    // per carb tile cleared
 
   var boardEl = document.getElementById("board");
   var statusEl = document.getElementById("status");
   var scorelineEl = document.getElementById("scoreline");
+  var ketosisFillEl = document.getElementById("ketosis-fill");
+  var ketosisLabelEl = document.getElementById("ketosis-label");
   var statsEl = document.getElementById("stats");
   var muteBtn = document.getElementById("mute");
   var runoverEl = document.getElementById("runover");
@@ -172,6 +205,8 @@
   var runOver = false;
   var hintTimer = null;
   var hintTiles = null;
+  var ketosis = KETOSIS_START;
+  var ketosisState = "normal"; // "high" | "normal" | "low"
 
   // ---- audio -------------------------------------------------------------
   function tone(freq, dur, delay, vol) {
@@ -198,6 +233,8 @@
   function matchSound() { tone(659, 0.12, 0, 0.15); }
   function failSound() { tone(220, 0.1, 0, 0.1); }
   function specialSound() { tone(880, 0.18, 0, 0.18); }
+  function ketosisInSound() { tone(784, 0.14, 0, 0.16); tone(1046, 0.16, 0.08, 0.16); }
+  function ketosisOutSound() { tone(196, 0.22, 0, 0.14); }
 
   function renderMute() {
     muteBtn.textContent = muted ? "🔇" : "🔊";
@@ -225,6 +262,27 @@
 
   function renderScoreline() {
     scorelineEl.textContent = "Score: " + score.toLocaleString() + "   Best: " + highScore.toLocaleString();
+  }
+
+  function renderKetosis() {
+    ketosisFillEl.style.width = ketosis + "%";
+    if (ketosis >= KETOSIS_HIGH) {
+      ketosisFillEl.style.background = "#4ade80";
+      ketosisLabelEl.textContent = "🥑 Ketosis — 2x score";
+    } else if (ketosis <= KETOSIS_LOW) {
+      ketosisFillEl.style.background = "#ff6b6b";
+      ketosisLabelEl.textContent = "🍩 Carb crash — 0.5x score";
+    } else {
+      ketosisFillEl.style.background = "#ffd23f";
+      ketosisLabelEl.textContent = "Ketosis " + ketosis + "%";
+    }
+  }
+
+  function resetKetosis() {
+    ketosis = KETOSIS_START;
+    ketosisState = "normal";
+    document.body.classList.remove("ketosis", "carbcrash");
+    renderKetosis();
   }
 
   // ---- layout --------------------------------------------------------------
@@ -568,13 +626,36 @@
         }
       }
 
-      var gained = Object.keys(clearedSet).length;
+      var gained = 0, proteinCount = 0, carbCount = 0;
+      Object.keys(clearedSet).forEach(function (key) {
+        var parts = key.split(",");
+        var t = grid[Number(parts[0])][Number(parts[1])];
+        if (!t) return;
+        gained++;
+        if (PROTEIN_ICONS[t.icon]) proteinCount++; else carbCount++;
+      });
       cleared += gained;
-      score += gained * comboStep;
+
+      ketosis = Math.max(0, Math.min(100, ketosis + proteinCount * KETOSIS_PROTEIN_GAIN - carbCount * KETOSIS_CARB_LOSS));
+      var multiplier = ketosis >= KETOSIS_HIGH ? 2 : (ketosis <= KETOSIS_LOW ? 0.5 : 1);
+      score += Math.round(gained * comboStep * multiplier);
       renderScoreline();
+      renderKetosis();
+
+      var newKetosisState = ketosis >= KETOSIS_HIGH ? "high" : (ketosis <= KETOSIS_LOW ? "low" : "normal");
+      var ketosisTransitioned = newKetosisState !== ketosisState;
+      if (ketosisTransitioned) {
+        ketosisState = newKetosisState;
+        document.body.classList.toggle("ketosis", newKetosisState === "high");
+        document.body.classList.toggle("carbcrash", newKetosisState === "low");
+        if (newKetosisState === "high") ketosisInSound();
+        else if (newKetosisState === "low") ketosisOutSound();
+      }
 
       if (triggeredSpecial) specialSound(); else matchSound();
-      if (comboStep > 1) setStatus("🔥 x" + comboStep + " combo!");
+      if (ketosisTransitioned && newKetosisState === "high") setStatus("🥑 Ketosis! 2x score");
+      else if (ketosisTransitioned && newKetosisState === "low") setStatus("🍩 Carb crash — 0.5x score");
+      else if (comboStep > 1) setStatus("🔥 x" + comboStep + " combo!");
 
       var cols = {};
       var toRemove = [];
@@ -699,6 +780,7 @@
     score = 0;
     comboStep = 0;
     renderScoreline();
+    resetKetosis();
     generateBoard();
     busy = false;
     scheduleHint();
@@ -711,6 +793,7 @@
     generateBoard();
     renderStats();
     renderScoreline();
+    resetKetosis();
     busy = false;
     scheduleHint();
   }
