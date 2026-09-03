@@ -29,28 +29,75 @@
     left: 0;
     right: 0;
     bottom: 0;
-    height: 46%;
+    height: 60%;
     transition: background 1.2s linear;
+  }
+
+  /* The pond is the screen, so the water needs to read as deep rather than as
+     a flat slab: a bright surface line and a darkening toward the bottom. */
+  .water::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 0;
+    height: 3px;
+    background: rgba(255, 255, 255, 0.35);
+  }
+
+  .depthfade {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(rgba(0, 0, 0, 0) 20%, rgba(0, 0, 0, 0.38));
+    pointer-events: none;
   }
 
   /* Three offset ripple bands. Cheap, and it reads as moving water. */
   .ripple {
     position: absolute;
-    left: -20%;
-    width: 140%;
     height: 2px;
-    background: rgba(255, 255, 255, 0.22);
+    background: rgba(255, 255, 255, 0.18);
     border-radius: 50%;
     animation: drift-x 7s ease-in-out infinite alternate;
   }
 
-  .ripple.r1 { top: 18%; animation-duration: 7s; }
-  .ripple.r2 { top: 42%; animation-duration: 9s; animation-direction: alternate-reverse; }
-  .ripple.r3 { top: 68%; animation-duration: 11s; opacity: 0.6; }
+  .ripple.r1 { top: 6%;  left: 8%;  width: 32%; animation-duration: 7s; }
+  .ripple.r2 { top: 13%; left: 54%; width: 28%; animation-duration: 9s; animation-direction: alternate-reverse; }
+  .ripple.r3 { top: 22%; left: 26%; width: 22%; animation-duration: 11s; opacity: 0.55; }
 
   @keyframes drift-x {
     from { transform: translateX(-6%); }
     to   { transform: translateX(6%); }
+  }
+
+  /* Sun by day, moon by night, and it moves. The palette alone tells you
+     roughly when it is; a disc that climbs and sets tells you exactly. */
+  .disc {
+    position: absolute;
+    width: 54px;
+    height: 54px;
+    border-radius: 50%;
+    z-index: 0;
+    pointer-events: none;
+    transition: background 1.2s linear, top 1.2s linear, left 1.2s linear,
+                box-shadow 1.2s linear;
+  }
+
+  /* A silhouetted far bank. Reads correctly in every phase because it's a
+     shape, not a colour, and it gives the sky something to end against. */
+  .bank {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: calc(60% - 2px);
+    height: 30px;
+    z-index: 0;
+    pointer-events: none;
+    background:
+      radial-gradient(58% 100% at 14% 100%, #14403a 0 99%, transparent 100%),
+      radial-gradient(72% 128% at 60% 100%, #10352f 0 99%, transparent 100%),
+      radial-gradient(48% 88% at 93% 100%, #14403a 0 99%, transparent 100%);
+    background-repeat: no-repeat;
   }
 
   /* ---- header readouts ----------------------------------------------- */
@@ -69,6 +116,7 @@
   }
 
   .topbar .day { font-weight: 700; color: var(--fg); }
+  .topbar .mood { font-style: italic; }
 
   .mute {
     background: rgba(0, 0, 0, 0.28);
@@ -86,16 +134,18 @@
   .creature-slot {
     position: absolute;
     left: 50%;
-    bottom: 34%;
+    bottom: 48%;
     transform: translateX(-50%);
     z-index: 2;
     text-align: center;
   }
 
+  .creature-slot.hidden { display: none; }
+
   .creature {
     display: block;
-    width: 140px;
-    height: 140px;
+    width: 168px;
+    height: 168px;
     /* 80x80 source upscaled — keep the sprite edges hard, not smeared. */
     image-rendering: pixelated;
     image-rendering: -moz-crisp-edges;
@@ -104,15 +154,15 @@
     transform-origin: 50% 100%;
   }
 
-  .creature.big { width: 168px; height: 168px; }
-  .creature.huge { width: 196px; height: 196px; }
+  .creature.big { width: 198px; height: 198px; }
+  .creature.huge { width: 228px; height: 228px; }
 
   @keyframes bob {
     0%, 100% { transform: translateY(0) scaleY(1); }
     50%      { transform: translateY(-7px) scaleY(1.03); }
   }
 
-  .creature.happy { animation: hop 0.55s ease-out 2; }
+  .creature.happy { animation: hop 0.55s ease-out 3; }
 
   @keyframes hop {
     0%   { transform: translateY(0) scale(1, 1); }
@@ -121,7 +171,7 @@
     100% { transform: translateY(0) scale(1, 1); }
   }
 
-  .creature.wiggle { animation: wiggle 0.5s ease-in-out 4; }
+  .creature.wiggle { animation: wiggle 0.5s ease-in-out 5; }
 
   @keyframes wiggle {
     0%, 100% { transform: rotate(0deg); }
@@ -131,13 +181,13 @@
 
   .creature.asleep {
     animation: snooze 5s ease-in-out infinite;
-    transform: rotate(9deg);
-    filter: brightness(0.72) saturate(0.8);
+    transform: rotate(16deg) translateY(10px);
+    filter: brightness(0.6) saturate(0.7);
   }
 
   @keyframes snooze {
-    0%, 100% { transform: rotate(9deg) translateY(0) scaleY(1); }
-    50%      { transform: rotate(9deg) translateY(-3px) scaleY(1.04); }
+    0%, 100% { transform: rotate(16deg) translateY(10px) scaleY(1); }
+    50%      { transform: rotate(16deg) translateY(6px) scaleY(1.05); }
   }
 
   .zzz {
@@ -155,15 +205,65 @@
     100% { opacity: 0; transform: translate(16px, -34px) scale(1.2); }
   }
 
+  /* A chip, not bare text — it sits over whatever he's standing next to. */
   .name-tag {
-    margin-top: 2px;
-    font-size: 0.9rem;
+    display: inline-block;
+    margin-top: 4px;
+    padding: 2px 10px;
+    border-radius: 999px;
+    background: rgba(0, 0, 0, 0.35);
+    font-size: 0.85rem;
     font-weight: 700;
     color: var(--fg);
-    text-shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
   }
 
-  /* ---- decor ---------------------------------------------------------- */
+  /* ---- he's down there ------------------------------------------------- */
+
+  .divespot {
+    position: absolute;
+    left: 50%;
+    bottom: 30%;
+    transform: translateX(-50%);
+    z-index: 2;
+    display: none;
+    text-align: center;
+    width: 220px;
+  }
+
+  .divespot.on { display: block; }
+
+  .bub {
+    display: inline-block;
+    width: 12px;
+    height: 12px;
+    margin: 0 5px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.42);
+    box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.85);
+    animation: rise 2.6s ease-in infinite;
+  }
+
+  .bub:nth-child(2) { width: 8px; height: 8px; animation-delay: 0.7s; }
+  .bub:nth-child(3) { width: 16px; height: 16px; animation-delay: 1.4s; }
+
+  @keyframes rise {
+    0%   { transform: translateY(14px); opacity: 0; }
+    25%  { opacity: 0.85; }
+    100% { transform: translateY(-52px); opacity: 0; }
+  }
+
+  .divespot .lbl {
+    display: inline-block;
+    margin-top: 10px;
+    padding: 3px 12px;
+    border-radius: 999px;
+    background: rgba(0, 0, 0, 0.35);
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--fg);
+  }
+
+  /* ---- decor and traces -------------------------------------------------- */
 
   .decor {
     position: absolute;
@@ -173,6 +273,9 @@
     filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.35));
     animation: bob 5s ease-in-out infinite;
   }
+
+  /* Traces are things he did, not things you bought. Slightly smaller. */
+  .decor.trace { font-size: 1.5rem; opacity: 0.95; }
 
   /* ---- weather -------------------------------------------------------- */
 
@@ -224,7 +327,7 @@
     position: absolute;
     left: 12px;
     right: 12px;
-    bottom: 20%;
+    bottom: 18%;
     z-index: 5;
     text-align: center;
     font-size: 1.05rem;
@@ -232,10 +335,13 @@
     min-height: 1.5em;
     text-shadow: 0 2px 6px rgba(0, 0, 0, 0.6);
     pointer-events: none;
+    transition: opacity 0.5s linear;
   }
 
+  .reaction.fade { opacity: 0; }
+
   .card-wrap {
-    position: absolute;
+    position: fixed;
     inset: 0;
     z-index: 20;
     display: none;
@@ -265,16 +371,18 @@
 
   .readouts {
     display: flex;
+    flex-wrap: wrap;
     justify-content: center;
-    gap: 16px;
+    gap: 6px 14px;
     padding: 8px 12px;
-    font-size: 0.92rem;
+    font-size: 0.9rem;
     background: rgba(0, 0, 0, 0.22);
   }
 
   .readouts span { white-space: nowrap; }
   .readouts .hungry { color: #ffd166; font-weight: 700; }
   .readouts .ready { color: #9dffb0; font-weight: 700; }
+  .readouts .off { display: none; }
 
   .actions {
     display: grid;
@@ -290,7 +398,7 @@
     border-radius: 14px;
     background: var(--accent);
     color: #04302c;
-    font-size: 0.78rem;
+    font-size: 0.76rem;
     font-weight: 800;
     letter-spacing: 0.02em;
     display: flex;
@@ -307,10 +415,10 @@
   .act:disabled { opacity: 0.38; cursor: default; }
   .act.alert { background: #ffd166; }
 
-  /* ---- wheel (feed / play pickers) -------------------------------------- */
+  /* ---- picker sheet (feed / play / dive / cast) -------------------------- */
 
   .wheel-wrap {
-    position: absolute;
+    position: fixed;
     inset: 0;
     z-index: 25;
     display: none;
@@ -324,6 +432,8 @@
   .wheel {
     width: 100%;
     max-width: 460px;
+    max-height: 86%;
+    overflow-y: auto;
     background: var(--bg-elevated);
     border-radius: 18px 18px 0 0;
     padding: 16px 12px calc(16px + var(--safe-bottom));
@@ -336,6 +446,8 @@
     grid-template-columns: repeat(3, 1fr);
     gap: 8px;
   }
+
+  .wheel-grid.wide { grid-template-columns: 1fr; }
 
   .pick {
     min-height: 72px;
@@ -350,20 +462,35 @@
     justify-content: center;
     gap: 4px;
     cursor: pointer;
+    padding: 8px 6px;
+    text-align: center;
   }
 
-  .pick .ico { font-size: 1.7rem; line-height: 1; }
-  .pick:active { background: rgba(0, 0, 0, 0.45); }
-  .pick .heart { color: #ff8fa3; font-size: 0.7rem; }
+  .wheel-grid.wide .pick {
+    flex-direction: row;
+    justify-content: flex-start;
+    gap: 12px;
+    text-align: left;
+    min-height: 62px;
+  }
 
-  /* ---- pond overlay (collection + shop) ---------------------------------- */
+  .wheel-grid.wide .pick .txt { flex: 1; }
+  .wheel-grid.wide .pick .nm { font-size: 0.95rem; font-weight: 700; }
+
+  .pick .ico { font-size: 1.7rem; line-height: 1; }
+  .pick .sub { font-size: 0.72rem; color: var(--fg-dim); font-weight: 400; }
+  .pick:active { background: rgba(0, 0, 0, 0.45); }
+  .pick:disabled { opacity: 0.42; cursor: default; }
+  .pick .heart { color: #ff8fa3; font-size: 0.72rem; }
+
+  /* ---- pond overlay ------------------------------------------------------ */
 
   .sheet-wrap {
-    position: absolute;
+    position: fixed;
     inset: 0;
     z-index: 30;
     display: none;
-    background: rgba(4, 24, 26, 0.94);
+    background: #06282b;
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;
   }
@@ -373,11 +500,22 @@
   .sheet {
     max-width: 460px;
     margin: 0 auto;
-    padding: calc(16px + var(--safe-top)) 14px calc(90px + var(--safe-bottom));
+    padding: calc(64px + var(--safe-top)) 14px calc(96px + var(--safe-bottom));
   }
 
-  .sheet h2 { font-size: 1.1rem; margin: 16px 0 8px; }
+  .sheet h2 { font-size: 1.1rem; margin: 18px 0 8px; }
+  .sheet h2:first-child { margin-top: 0; }
   .sheet .hint { font-size: 0.85rem; color: var(--fg-dim); margin-bottom: 10px; }
+
+  .who {
+    text-align: center;
+    padding: 4px 0 10px;
+  }
+
+  .who .nm { font-size: 1.4rem; font-weight: 800; }
+  .who .sub { font-size: 0.88rem; color: var(--fg-dim); margin-top: 2px; }
+  .who .trait { margin-top: 8px; font-size: 0.92rem; }
+  .who .trait b { color: #ffd166; }
 
   .grid {
     display: grid;
@@ -395,12 +533,13 @@
     justify-content: center;
     font-size: 1.6rem;
     gap: 2px;
+    padding: 2px;
   }
 
   .slot.empty { color: rgba(255, 255, 255, 0.18); font-size: 1.2rem; }
-  .slot .lbl { font-size: 0.55rem; color: var(--fg-dim); }
+  .slot .lbl { font-size: 0.55rem; color: var(--fg-dim); text-align: center; line-height: 1.1; }
 
-  .shop-row {
+  .keep-row, .shop-row {
     display: flex;
     align-items: center;
     gap: 12px;
@@ -410,8 +549,20 @@
     margin-bottom: 8px;
   }
 
-  .shop-row .ico { font-size: 1.6rem; }
+  .keep-row .ico, .shop-row .ico { font-size: 1.6rem; }
   .shop-row .nm { flex: 1; font-size: 0.95rem; }
+  .keep-row .txt { flex: 1; font-size: 0.88rem; line-height: 1.35; }
+  .keep-row .txt em { color: var(--fg-dim); font-style: italic; }
+  .keep-row .txt .when { display: block; font-size: 0.75rem; color: var(--fg-dim); margin-top: 3px; }
+
+  .jrn {
+    font-size: 0.9rem;
+    line-height: 1.4;
+    padding: 8px 0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.09);
+  }
+
+  .jrn .when { font-size: 0.72rem; color: var(--fg-dim); display: block; }
 
   .buy {
     min-height: 44px;
@@ -430,16 +581,17 @@
 
   .sheet-close {
     position: sticky;
-    bottom: 0;
+    bottom: calc(10px + var(--safe-bottom));
     display: block;
     width: 100%;
-    margin-top: 18px;
+    margin-top: 22px;
+    box-shadow: 0 0 0 10px #06282b, 0 -10px 20px rgba(6, 40, 43, 0.95);
   }
 
   /* ---- naming (first run) ------------------------------------------------ */
 
   .naming {
-    position: absolute;
+    position: fixed;
     inset: 0;
     z-index: 40;
     display: none;
@@ -472,7 +624,7 @@
   /* ---- evolution ---------------------------------------------------------- */
 
   .evo {
-    position: absolute;
+    position: fixed;
     inset: 0;
     z-index: 45;
     display: none;
@@ -489,6 +641,7 @@
   .evo.on { display: flex; }
   .evo img { width: 180px; height: 180px; image-rendering: pixelated; animation: evo-pulse 1.1s ease-in-out infinite; }
   .evo h2 { font-size: 1.6rem; }
+  .evo p { white-space: pre-line; }
 
   @keyframes evo-pulse {
     0%, 100% { transform: scale(1); }
@@ -496,7 +649,7 @@
   }
 
   @media (prefers-reduced-motion: reduce) {
-    .creature, .decor, .ripple, .drop, .star, .zzz, .evo img {
+    .creature, .decor, .ripple, .drop, .star, .zzz, .evo img, .bub {
       animation-duration: 8s !important;
       animation-iteration-count: 1 !important;
     }
@@ -508,26 +661,36 @@
 <div class="topbar">
   <span id="clock"></span>
   <span class="day" id="daycount"></span>
+  <span class="mood" id="moodline"></span>
   <button class="mute" id="mute" aria-label="Toggle sound">&#128266;</button>
 </div>
 
 <div class="scene" id="scene">
   <div class="weather-layer" id="weather"></div>
+  <div class="disc" id="disc"></div>
+  <div class="bank"></div>
   <div class="water" id="water">
     <div class="ripple r1"></div>
     <div class="ripple r2"></div>
     <div class="ripple r3"></div>
+    <div class="depthfade"></div>
   </div>
 
-  <div class="creature-slot">
+  <div class="creature-slot" id="creatureslot">
     <img class="creature" id="sprite" src="totodile.png" alt="Totodile" width="140" height="140">
     <span class="zzz" id="zzz" aria-hidden="true">z</span>
     <div class="name-tag" id="nametag"></div>
   </div>
 
-  <div class="reaction" id="reaction" aria-live="polite"></div>
+  <div class="divespot" id="divespot">
+    <span class="bub"></span><span class="bub"></span><span class="bub"></span>
+    <span class="lbl" id="divelbl"></span>
+  </div>
 
-  <div class="card-wrap" id="cardwrap">
+  <div class="reaction" id="reaction" aria-live="polite"></div>
+</div>
+
+<div class="card-wrap" id="cardwrap">
     <div class="card">
       <div class="art" id="cardart"></div>
       <div class="body" id="cardbody"></div>
@@ -545,12 +708,34 @@
 
   <div class="sheet-wrap" id="sheetwrap">
     <div class="sheet">
-      <h2>The pond</h2>
-      <div class="hint" id="dropline"></div>
-      <div id="shoplist"></div>
+      <div class="who">
+        <div class="nm" id="whoname"></div>
+        <div class="sub" id="whosub"></div>
+        <div class="trait" id="whotrait"></div>
+      </div>
+
+      <h2>Today</h2>
+      <div class="hint" id="todayline"></div>
+
+      <h2>What he likes</h2>
+      <div class="hint" id="likesline"></div>
+
+      <h2>Keepsakes</h2>
+      <div class="hint" id="keephint"></div>
+      <div id="keeplist"></div>
+
       <h2>Collection</h2>
       <div class="hint" id="collhint"></div>
       <div class="grid" id="collgrid"></div>
+
+      <h2>The pond</h2>
+      <div class="hint" id="dropline"></div>
+      <div id="shoplist"></div>
+
+      <h2>Journal</h2>
+      <div class="hint" id="jrnhint"></div>
+      <div id="jrnlist"></div>
+
       <button class="btn sheet-close" id="sheetclose">Close</button>
     </div>
   </div>
@@ -567,21 +752,21 @@
     <img id="evoimg" src="totodile.png" alt="">
     <p id="evobody"></p>
     <button class="btn" id="evogo">Wow</button>
-  </div>
 </div>
 
 <div class="readouts">
   <span id="r-appetite"></span>
   <span id="r-line"></span>
+  <span id="r-dive"></span>
   <span id="r-drops"></span>
 </div>
 
 <div class="actions">
-  <button class="act" id="a-feed"><span class="ico">&#127830;</span>FEED</button>
-  <button class="act" id="a-play"><span class="ico">&#127994;</span>PLAY</button>
-  <button class="act" id="a-dive"><span class="ico">&#127754;</span>DIVE</button>
-  <button class="act" id="a-cast"><span class="ico">&#127907;</span>CAST</button>
-  <button class="act" id="a-pond"><span class="ico">&#129704;</span>POND</button>
+  <button class="act" id="a-feed"><span class="ico">&#127830;</span><span class="lbl">FEED</span></button>
+  <button class="act" id="a-play"><span class="ico">&#127994;</span><span class="lbl">PLAY</span></button>
+  <button class="act" id="a-dive"><span class="ico">&#127754;</span><span class="lbl">DIVE</span></button>
+  <button class="act" id="a-cast"><span class="ico">&#127907;</span><span class="lbl">CAST</span></button>
+  <button class="act" id="a-pond"><span class="ico">&#129704;</span><span class="lbl">POND</span></button>
 </div>
 
 <script src="/shared/arcade.js"></script>
@@ -591,6 +776,8 @@
 
   var HOUR = 3600000;
   var DAY = 86400000;
+  var MIN = 60000;
+  var SAVE_V = 2;
 
   // ---- content tables ---------------------------------------------------
 
@@ -610,16 +797,23 @@
     { id: "spin",   ico: "🌀", name: "Spin" }
   ];
 
-  // Depth tiers. Each unlocks on stage (0-2) and/or a dive count.
+  // Depths. `stage`/`dives` unlock the tier for good; `app` is the appetite
+  // ceiling he can manage on the day (0 = must be full, 2 = any). `ms` is how
+  // long he is actually gone — the thing that makes a dive an appointment
+  // rather than a button that dispenses loot.
   var TIERS = [
-    { id: "shallows", name: "the Shallows", stage: 0, dives: 0 },
-    { id: "reeds",    name: "the Reeds",    stage: 0, dives: 10 },
-    { id: "dropoff",  name: "the Drop-off", stage: 1, dives: 0 },
-    { id: "deep",     name: "the Cold Deep", stage: 1, dives: 40 },
-    { id: "dark",     name: "the Dark",     stage: 2, dives: 0 }
+    { id: "shallows", name: "the Shallows",  stage: 0, dives: 0,  ms: 90 * 1000,  app: 2 },
+    { id: "reeds",    name: "the Reeds",     stage: 0, dives: 8,  ms: 6 * MIN,    app: 2 },
+    { id: "dropoff",  name: "the Drop-off",  stage: 1, dives: 0,  ms: 25 * MIN,   app: 1 },
+    { id: "deep",     name: "the Cold Deep", stage: 1, dives: 25, ms: 90 * MIN,   app: 1 },
+    { id: "dark",     name: "the Dark",      stage: 2, dives: 0,  ms: 5 * HOUR,   app: 0 }
   ];
 
-  // weight = relative draw chance inside its tier.
+  // How likely each tier is when a *line* (not a dive) turns up a find.
+  // Shallow-weighted, which is the rarity curve v1 claimed and never had.
+  var LINE_TIER_W = [40, 30, 18, 9, 3];
+
+  // weight = relative draw chance inside its own tier.
   var FINDS = [
     { id: "pebble", ico: "🪨", name: "Pebble",    tier: "shallows", w: 30, drops: 1 },
     { id: "weed",   ico: "🌿", name: "Pondweed",  tier: "shallows", w: 30, drops: 1 },
@@ -643,63 +837,104 @@
     { id: "star",   ico: "🌟", name: "Fallen star", tier: "dark",   w: 6,  drops: 40 }
   ];
 
-  // Decor is cosmetic and permanent. x/y are % positions in the scene.
+  // Decor is cosmetic and permanent. x/y are % of the scene; the water starts
+  // at 54%, so every y here sits at or below the surface.
   var DECOR = [
-    { id: "lily",    ico: "🪷", name: "Lily pad",  cost: 5,  x: 18, y: 62 },
-    { id: "rock",    ico: "🪨", name: "Big rock",  cost: 6,  x: 80, y: 60 },
-    { id: "reeds",   ico: "🌿", name: "Reeds",     cost: 9,  x: 8,  y: 74 },
-    { id: "fish",    ico: "🐟", name: "Pond fish", cost: 12, x: 30, y: 84 },
-    { id: "flower",  ico: "🌺", name: "Flowers",   cost: 16, x: 88, y: 76 },
-    { id: "lantern", ico: "🏮", name: "Lantern",   cost: 20, x: 70, y: 44 },
-    { id: "frog",    ico: "🐸", name: "A frog",    cost: 26, x: 62, y: 80 },
-    { id: "log",     ico: "🪵", name: "Old log",   cost: 30, x: 44, y: 90 },
-    { id: "duck",    ico: "🦆", name: "A duck",    cost: 38, x: 22, y: 50 },
-    { id: "shrine",  ico: "⛩️", name: "Tiny shrine", cost: 55, x: 90, y: 34 }
+    { id: "lily",    ico: "🪷", name: "Lily pad",    cost: 8,   x: 18, y: 44 },
+    { id: "rock",    ico: "🪨", name: "Big rock",    cost: 12,  x: 80, y: 86 },
+    { id: "reeds",   ico: "🌿", name: "Reeds",       cost: 18,  x: 6,  y: 74 },
+    { id: "fish",    ico: "🐟", name: "Pond fish",   cost: 26,  x: 30, y: 66 },
+    { id: "flower",  ico: "🌺", name: "Flowers",     cost: 36,  x: 8,  y: 52 },
+    { id: "lantern", ico: "🏮", name: "Lantern",     cost: 50,  x: 88, y: 46 },
+    { id: "frog",    ico: "🐸", name: "A frog",      cost: 70,  x: 68, y: 54 },
+    { id: "log",     ico: "🪵", name: "Old log",     cost: 95,  x: 46, y: 92 },
+    { id: "duck",    ico: "🦆", name: "A duck",      cost: 130, x: 74, y: 42 },
+    { id: "shrine",  ico: "⛩️", name: "Tiny shrine", cost: 200, x: 90, y: 64 }
   ];
 
-  // Drift events, bucketed by hours away. Some leave a permanent trace.
+  // Traces are things *he* did that stay in the pond. Absence you can point at.
+  // Kept clear of the centre column, where he stands and his name chip sits.
+  var TRACES = [
+    { id: "glass",  ico: "🔷", x: 70, y: 78 },
+    { id: "snail",  ico: "🐌", x: 16, y: 88 },
+    { id: "nest",   ico: "🪺", x: 26, y: 56 },
+    { id: "shiny",  ico: "✨", x: 58, y: 82 },
+    { id: "tracks", ico: "👣", x: 68, y: 94 }
+  ];
+
+  // Keepsakes are gifts. They are not currency and can never be spent — which
+  // is exactly why they work.
+  var KEEPSAKES = [
+    { id: "stone",  ico: "🪨", name: "a smooth grey stone",     note: "He carried it up from somewhere and put it down in front of you." },
+    { id: "feather",ico: "🪶", name: "a wet feather",           note: "Not his. He wanted you to have it anyway." },
+    { id: "glass",  ico: "🔷", name: "a piece of green glass",  note: "Worn soft by the water. He held it up to the light first." },
+    { id: "shell",  ico: "🐚", name: "half a shell",            note: "He kept the other half." },
+    { id: "bell",   ico: "🔔", name: "a tiny tarnished bell",   note: "It still rings. Barely." },
+    { id: "leaf",   ico: "🍂", name: "a perfect red leaf",      note: "He was very careful with it." },
+    { id: "marble", ico: "⚪", name: "a clouded marble",        note: "He found it in the mud and washed it for you." },
+    { id: "ribbon", ico: "🎀", name: "a faded ribbon",          note: "He wore it for a while first." }
+  ];
+
+  // Drift events, bucketed by hours away. `trace` leaves something behind.
   var DRIFT = {
     t0: [
       { art: "💤", txt: "He hasn't moved. Not one inch." },
-      { art: "👀", txt: "He was watching the door." }
+      { art: "👀", txt: "He was watching the door." },
+      { art: "🫧", txt: "He blew one bubble, saw you, and stopped." }
     ],
     t1: [
-      { art: "🪨", txt: "He dragged a smooth stone in from somewhere.", drops: 2 },
+      { art: "🔷", txt: "He found a piece of green glass and propped it where the light hits.", drops: 2, trace: "glass" },
       { art: "🌿", txt: "He has weed on his head and seems proud of it." },
       { art: "💤", txt: "He fell asleep in the reeds and woke up when you did." },
       { art: "💦", txt: "The whole bank is soaked. No explanation offered." },
       { art: "🐟", txt: "He tried to catch a fish. The fish is fine.", drops: 1 }
     ],
     t6: [
-      { art: "🪷", txt: "He's rearranged your lily pads. They're worse now." },
-      { art: "🐸", txt: "There's a frog here. They appear to have an understanding.", drops: 3 },
+      { art: "🪷", txt: "He's rearranged the pond. It's worse now." },
+      { art: "🐌", txt: "There's a snail here now. They appear to have an understanding.", drops: 3, trace: "snail" },
       { art: "🍽️", txt: "He caught something by himself and left half of it for you.", drops: 4 },
       { art: "🌀", txt: "He has been spinning. You can see the marks.", drops: 2 },
-      { art: "🪨", txt: "A neat little pile of pebbles, sorted by size.", drops: 3 }
+      { art: "🪺", txt: "He built a little nest out of reeds. It is not for anything.", drops: 3, trace: "nest" }
     ],
     t24: [
-      { art: "✨", txt: "He's built a pile of everything shiny he could find.", drops: 6 },
+      { art: "✨", txt: "He's built a pile of everything shiny he could find.", drops: 6, trace: "shiny" },
       { art: "🛌", txt: "He's been sleeping on your side of the pond.", drops: 4 },
-      { art: "👣", txt: "Muddy tracks lead out and come back. Twice.", drops: 5 },
+      { art: "👣", txt: "Muddy tracks lead out and come back. Twice.", drops: 5, trace: "tracks" },
       { art: "🌾", txt: "He has redecorated. It is not an improvement.", drops: 4 }
     ],
     t72: [
       { art: "💚", txt: "He waited by the edge a lot. He's fine — he's just glad you're back.", drops: 10 },
       { art: "🎁", txt: "He's been saving things for you. All of them, apparently.", drops: 12 }
+    ],
+    // Used whenever you look in on him mid-sleep, at any away-length. A night
+    // visit is content, so it gets its own quiet pool instead of a lockout.
+    night: [
+      { art: "🌙", txt: "He's curled up exactly where you left him." },
+      { art: "💤", txt: "He's dreaming about something. His feet are moving." },
+      { art: "⭐", txt: "The pond is very still, and he is very small." },
+      { art: "🫧", txt: "He surfaced once in his sleep and went straight back down." }
     ]
   };
 
   var DREAMS = [
-    "He dreamed he was very large.",
-    "He dreamed about a fish the size of the pond.",
-    "He dreamed of somewhere with colder, deeper water.",
-    "He dreamed you were there. You were, sort of.",
-    "He dreamed about the moon on the water.",
-    "He dreamed of something silver, down where it's dark.",
-    "He dreamed he could sing. He cannot.",
-    "He dreamed about the frog. They were friends.",
-    "He dreamed of rain, and woke up disappointed.",
-    "He dreamed about a warm rock in the sun."
+    { txt: "He dreamed he was very large." },
+    { txt: "He dreamed about a fish the size of the pond." },
+    { txt: "He dreamed of somewhere colder and much deeper.", boost: "deep" },
+    { txt: "He dreamed you were there. You were, sort of." },
+    { txt: "He dreamed about the moon on the water." },
+    { txt: "He dreamed of something silver, down where it's dark.", boost: "dark" },
+    { txt: "He dreamed he could sing. He cannot." },
+    { txt: "He dreamed about the frog. They were friends." },
+    { txt: "He dreamed of rain, and woke up disappointed." },
+    { txt: "He dreamed about a warm rock in the sun." },
+    { txt: "He dreamed the drop-off went on forever.", boost: "dropoff" },
+    { txt: "He dreamed he was carrying you somewhere." }
+  ];
+
+  var DREAMY_EXTRA = [
+    { txt: "He dreamed inside a dream. He seems tired." },
+    { txt: "He dreamed of a door at the bottom of the pond.", boost: "dark" },
+    { txt: "He dreamed in a colour you haven't got a name for." }
   ];
 
   var STAGES = [
@@ -711,10 +946,29 @@
   var EVO_AT = [14, 40]; // care-days for stage 1 and stage 2
 
   var LINES = [
-    { id: "short", label: "20 min", ms: 20 * 60000 },
-    { id: "mid",   label: "2 hours", ms: 2 * HOUR },
-    { id: "long",  label: "Overnight", ms: 8 * HOUR }
+    { id: "short", label: "Short line",  sub: "20 minutes",  ms: 20 * MIN, drops: 8,  find: 0.15 },
+    { id: "mid",   label: "Long line",   sub: "2 hours",     ms: 2 * HOUR, drops: 25, find: 0.30 },
+    { id: "night", label: "Overnight",   sub: "8 hours",     ms: 8 * HOUR, drops: 45, find: 0.60 }
   ];
+
+  // Rolled once from `born`, never re-rolled, never announced at birth. Each
+  // carries a voice and exactly one small mechanical tilt.
+  var TRAITS = [
+    { id: "bold",   name: "Bold",   desc: "He goes first and asks later.",
+      feedFav: "He took it straight out of your hand.", play: "He went first. He always goes first." },
+    { id: "shy",    name: "Shy",    desc: "He waits to be sure it's you.",
+      feedFav: "He checked it was you, then ate the lot.", play: "He needed a second. Then he was all in." },
+    { id: "greedy", name: "Greedy", desc: "He keeps everything. Everything.",
+      feedFav: "Gone. You're not certain he chewed.", play: "He kept the ball. He's keeping the ball." },
+    { id: "dreamy", name: "Dreamy", desc: "Half of him is always somewhere else.",
+      feedFav: "He ate it slowly, thinking about something else.", play: "Half of him was elsewhere. The good half was here." },
+    { id: "silly",  name: "Silly",  desc: "He has never once been embarrassed.",
+      feedFav: "He ate it upside down. On purpose.", play: "He fell in. He meant to." },
+    { id: "gentle", name: "Gentle", desc: "He is careful with things that are small.",
+      feedFav: "He took it very carefully, like it might break.", play: "He was gentle about it, the way he is." }
+  ];
+
+  var MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
   // ---- state -------------------------------------------------------------
 
@@ -722,39 +976,79 @@
 
   function freshState() {
     return {
+      v: SAVE_V,
       born: 0,
       name: "Totodile",
       careDays: 0,
       lastCareDay: "",
+      lastCareAt: 0,
+      actDay: "",
+      actKinds: [],
       lastSeen: 0,
+      lastPlayAt: 0,
       fedAt: 0,
       line: null,
+      dive: null,
       drops: 0,
       decor: [],
       found: [],
+      traces: [],
+      keepsakes: [],
+      journal: [],
+      tierFirsts: [],
       dives: 0,
       dreamDay: "",
+      boostDay: "",
+      boostTier: "",
+      tuckNight: "",
       stageSeen: 0,
       favHits: {},
+      favSeen: {},
+      redug: false,
       muted: false
     };
   }
 
   if (!S || typeof S !== "object") S = freshState();
 
-  // Fill in anything a save from an older version is missing, so a new key
-  // never lands as undefined on an existing pond.
+  // Read the save version BEFORE the defaults fill below, which would
+  // otherwise stamp the current version onto an old save and skip migration.
+  var oldV = typeof S.v === "number" ? S.v : 0;
+
+  // Fill in anything an older save is missing, so a new key never lands as
+  // undefined on an existing pond. `line`/`dive` are legitimately null.
   (function () {
     var defaults = freshState();
     for (var k in defaults) {
-      if (!Object.prototype.hasOwnProperty.call(S, k) || S[k] === null && defaults[k] !== null) {
-        if (k !== "line") S[k] = defaults[k];
+      if (k === "line" || k === "dive") continue;
+      if (!Object.prototype.hasOwnProperty.call(S, k) || S[k] === null || S[k] === undefined) {
+        S[k] = defaults[k];
       }
     }
-    if (!Array.isArray(S.decor)) S.decor = [];
-    if (!Array.isArray(S.found)) S.found = [];
-    if (!S.favHits || typeof S.favHits !== "object") S.favHits = {};
+    ["decor", "found", "traces", "keepsakes", "journal", "tierFirsts", "actKinds"].forEach(function (k) {
+      if (!Array.isArray(S[k])) S[k] = [];
+    });
+    ["favHits", "favSeen"].forEach(function (k) {
+      if (!S[k] || typeof S[k] !== "object") S[k] = {};
+    });
+    if (S.line && typeof S.line.ms !== "number") S.line = null;
+    if (S.dive && typeof S.dive.ms !== "number") S.dive = null;
   })();
+
+  // v1 -> v2. Diving in v1 was ungated and picked its tier uniformly, so a
+  // minute of tapping cleared the whole collection and funded the whole shop.
+  // Re-dig the pond: collection, dive count and drops reset. His name, his
+  // birthday, his care-days and everything you bought are kept — and he tells
+  // you it happened rather than the game quietly robbing you.
+  if (S.born && oldV < SAVE_V) {
+    S.found = [];
+    S.dives = 0;
+    S.tierFirsts = [];
+    S.drops = Math.min(S.drops || 0, 30);
+    S.dive = null;
+    S.redug = true;
+  }
+  S.v = SAVE_V;
 
   function save() { Arcade.save("state", S); }
 
@@ -763,6 +1057,11 @@
   var $ = function (id) { return document.getElementById(id); };
 
   function clamp(n, lo, hi) { return n < lo ? lo : (n > hi ? hi : n); }
+
+  function byId(list, id) {
+    for (var i = 0; i < list.length; i++) if (list[i].id === id) return list[i];
+    return null;
+  }
 
   function pickWeighted(list, rnd) {
     var total = 0, i;
@@ -775,13 +1074,26 @@
     return list[list.length - 1];
   }
 
+  function dayKey(ms) {
+    var d = new Date(ms);
+    return d.getFullYear() + "-" +
+      String(d.getMonth() + 1).padStart(2, "0") + "-" +
+      String(d.getDate()).padStart(2, "0");
+  }
+
   function stage() {
     if (S.careDays >= EVO_AT[1]) return 2;
     if (S.careDays >= EVO_AT[0]) return 1;
     return 0;
   }
 
-  // Favourites are rolled once per save from `born` and never shown outright.
+  function trait() {
+    var r = Arcade.seededRandom("trait:" + S.born);
+    return TRAITS[Math.floor(r() * TRAITS.length)];
+  }
+
+  // Favourites are rolled once from `born` and never shown outright — but they
+  // are *findable*, which v1's five-hit invisible counter was not.
   function favourites() {
     var r = Arcade.seededRandom("fav:" + S.born);
     return {
@@ -801,6 +1113,8 @@
     if (h >= 2) return 1;      // peckish
     return 0;                  // full
   }
+
+  var APPETITE_WORD = ["full", "peckish", "hungry"];
 
   // Sleep window in local hours. inWindow() wraps midnight, so SLEEP_FROM may
   // be later than SLEEP_TO (23 -> 5) or earlier (1 -> 5); these two numbers are
@@ -823,13 +1137,38 @@
 
   function asleep() { return phase() === "night"; }
 
+  // One "night" spans midnight, so it's keyed off the day the evening began.
+  function nightKey() { return dayKey(Date.now() - SLEEP_TO * HOUR); }
+
+  function mood() {
+    if (asleep()) return "asleep";
+    if (S.dive) return "down there";
+    if (Date.now() - S.lastPlayAt < 8 * MIN) return "delighted";
+    // Not appetite — the 🍖 readout already says that, and a top bar that
+    // repeats it wastes the one slot that could show temperament instead.
+    if (S.lastCareAt && Date.now() - S.lastCareAt > 2 * DAY) return "waiting";
+    var p = phase();
+    if (p === "evening") return "sleepy";
+    if (p === "afternoon") return "lazy";
+    if (p === "morning") return "lively";
+    if (p === "dawn") return "just up";
+    return "content";
+  }
+
+  // `disc` is the sun or the moon: colour, glow, and where it sits in the sky.
   var SKY = {
-    dawn:      { sky: "linear-gradient(#f7c59f, #9fd8cb)", water: "#4a9d9a" },
-    morning:   { sky: "linear-gradient(#7fd4e8, #bdf0e6)", water: "#2fa5a0" },
-    afternoon: { sky: "linear-gradient(#9fe2f0, #d7f6ea)", water: "#28a09c" },
-    dusk:      { sky: "linear-gradient(#f79d65, #7a6a9c)", water: "#3c6f88" },
-    evening:   { sky: "linear-gradient(#2c3e70, #1b4b60)", water: "#10444f" },
-    night:     { sky: "linear-gradient(#0a1230, #0d2b3a)", water: "#07303a" }
+    dawn:      { sky: "linear-gradient(#f7c59f, #9fd8cb)", water: "#4a9d9a",
+                 disc: "#fff1c4", glow: "rgba(255,214,140,0.45)", x: 16, y: 30 },
+    morning:   { sky: "linear-gradient(#7fd4e8, #bdf0e6)", water: "#2fa5a0",
+                 disc: "#fffbe0", glow: "rgba(255,246,190,0.55)", x: 30, y: 12 },
+    afternoon: { sky: "linear-gradient(#9fe2f0, #d7f6ea)", water: "#28a09c",
+                 disc: "#fffdf0", glow: "rgba(255,250,210,0.5)",  x: 60, y: 7 },
+    dusk:      { sky: "linear-gradient(#f79d65, #7a6a9c)", water: "#3c6f88",
+                 disc: "#ffcf8f", glow: "rgba(255,160,90,0.5)",   x: 78, y: 30 },
+    evening:   { sky: "linear-gradient(#2c3e70, #1b4b60)", water: "#10444f",
+                 disc: "#dfe7ff", glow: "rgba(190,210,255,0.28)", x: 22, y: 16 },
+    night:     { sky: "linear-gradient(#0a1230, #0d2b3a)", water: "#07303a",
+                 disc: "#eef2ff", glow: "rgba(200,215,255,0.3)",  x: 66, y: 9 }
   };
 
   function weatherToday() {
@@ -839,6 +1178,67 @@
     if (v < 0.62) return "cloud";
     if (v < 0.87) return "rain";
     return "fog";
+  }
+
+  var WX_ICON = { clear: "☀️", cloud: "☁️", rain: "🌧", fog: "🌫" };
+  var WX_ICON_NIGHT = { clear: "🌙", cloud: "☁️", rain: "🌧", fog: "🌫" };
+
+  function weatherIcon() {
+    var p = phase();
+    var dark = p === "night" || p === "evening";
+    return (dark ? WX_ICON_NIGHT : WX_ICON)[weatherToday()];
+  }
+
+  function whenStr(t) {
+    var a = new Date(t); a.setHours(0, 0, 0, 0);
+    var b = new Date();  b.setHours(0, 0, 0, 0);
+    var days = Math.round((b - a) / DAY);
+    if (days <= 0) return "today";
+    if (days === 1) return "yesterday";
+    if (days < 7) return days + " days ago";
+    var d = new Date(t);
+    return MONTHS[d.getMonth()] + " " + d.getDate();
+  }
+
+  function fmtLeft(ms) {
+    var s = Math.ceil(ms / 1000);
+    var h = Math.floor(s / 3600);
+    var m = Math.floor((s % 3600) / 60);
+    if (h > 0) return h + "h " + m + "m";
+    if (m > 0) return m + "m";
+    return s + "s";
+  }
+
+  function fmtDur(ms) {
+    if (ms < 2 * MIN) return Math.round(ms / 1000) + " sec";
+    var m = Math.round(ms / MIN);
+    if (m < 60) return m + " min";
+    var h = Math.floor(m / 60), rm = m % 60;
+    return h + "h" + (rm ? " " + rm + "m" : "");
+  }
+
+  // ---- memory ------------------------------------------------------------
+
+  function journal(txt) {
+    S.journal.unshift({ t: Date.now(), txt: txt });
+    if (S.journal.length > 40) S.journal.length = 40;
+  }
+
+  function giveKeepsake() {
+    var owned = S.keepsakes.map(function (k) { return k.id; });
+    var avail = KEEPSAKES.filter(function (k) { return owned.indexOf(k.id) === -1; });
+    if (!avail.length) return null;
+    var k = avail[Math.floor(Math.random() * avail.length)];
+    S.keepsakes.push({ id: k.id, t: Date.now() });
+    journal("He gave you " + k.name + ".");
+    return k;
+  }
+
+  function addTrace(id) {
+    if (S.traces.indexOf(id) !== -1) return false;
+    S.traces.push(id);
+    if (S.traces.length > 5) S.traces.shift();
+    return true;
   }
 
   // ---- audio --------------------------------------------------------------
@@ -872,10 +1272,21 @@
   var scene = $("scene");
   var water = $("water");
 
+  var lastPhase = "";
+  var lastSpriteKey = "";
+  var animCls = "";
+  var animTimer = null;
+  var reactTimer = null;
+
   function paintScene() {
     var p = SKY[phase()];
     scene.style.background = p.sky;
     water.style.background = p.water;
+    var d = $("disc");
+    d.style.background = p.disc;
+    d.style.left = p.x + "%";
+    d.style.top = p.y + "%";
+    d.style.boxShadow = "0 0 44px 14px " + p.glow;
   }
 
   function paintWeather() {
@@ -914,89 +1325,164 @@
   function paintDecor() {
     var old = scene.querySelectorAll(".decor");
     for (var i = 0; i < old.length; i++) old[i].remove();
-    S.decor.forEach(function (id, idx) {
-      var d = null;
-      DECOR.forEach(function (x) { if (x.id === id) d = x; });
-      if (!d) return;
+
+    function place(def, extraCls, idx) {
       var el = document.createElement("div");
-      el.className = "decor";
-      el.textContent = d.ico;
-      el.style.left = d.x + "%";
-      el.style.top = d.y + "%";
+      el.className = "decor" + extraCls;
+      el.textContent = def.ico;
+      el.style.left = def.x + "%";
+      el.style.top = def.y + "%";
       el.style.animationDelay = (idx * 0.4) + "s";
       el.setAttribute("aria-hidden", "true");
       scene.appendChild(el);
+    }
+
+    S.decor.forEach(function (id, idx) {
+      var d = byId(DECOR, id);
+      if (d) place(d, "", idx);
+    });
+    S.traces.forEach(function (id, idx) {
+      var t = byId(TRACES, id);
+      if (t) place(t, " trace", idx + 3);
     });
   }
 
   function paintSprite() {
     var st = STAGES[stage()];
-    sprite.src = st.file;
+    var diving = !!S.dive;
+    var sleeping = asleep();
+    var key = [st.id, sleeping ? 1 : 0, diving ? 1 : 0, animCls, S.name].join("|");
+    if (key === lastSpriteKey) return;   // never restart a running animation
+    lastSpriteKey = key;
+
+    $("creatureslot").className = "creature-slot" + (diving ? " hidden" : "");
+    $("divespot").className = "divespot" + (diving ? " on" : "");
+
+    if (diving) return;
+    if (sprite.getAttribute("src") !== st.file) sprite.src = st.file;
     sprite.alt = S.name + " the " + st.name;
-    sprite.className = "creature " + st.cls + (asleep() ? " asleep" : "");
-    $("zzz").style.display = asleep() ? "block" : "none";
+    sprite.className = "creature " + st.cls + (sleeping ? " asleep" : "") + (animCls ? " " + animCls : "");
+    $("zzz").style.display = sleeping ? "block" : "none";
     $("nametag").textContent = S.name;
   }
 
   function react(text, anim) {
-    $("reaction").textContent = text;
-    if (anim && !asleep()) {
-      var st = STAGES[stage()];
-      sprite.className = "creature " + st.cls + " " + anim;
-      setTimeout(paintSprite, 2200);
+    var el = $("reaction");
+    el.textContent = text;
+    el.className = "reaction";
+    if (reactTimer) clearTimeout(reactTimer);
+    reactTimer = setTimeout(function () { el.className = "reaction fade"; }, 6000);
+
+    if (anim && !asleep() && !S.dive) {
+      animCls = anim;
+      paintSprite();
+      if (animTimer) clearTimeout(animTimer);
+      animTimer = setTimeout(function () { animCls = ""; paintSprite(); }, 2600);
     }
   }
+
+  function lineLeft() { return S.line ? S.line.castAt + S.line.ms - Date.now() : 0; }
+  function diveLeft() { return S.dive ? S.dive.startAt + S.dive.ms - Date.now() : 0; }
 
   function paintReadouts() {
     var ap = appetite();
     var apEl = $("r-appetite");
-    apEl.textContent = ap === 2 ? "🍖 hungry" : (ap === 1 ? "🍖 peckish" : "🍖 full");
+    apEl.textContent = "🍖 " + APPETITE_WORD[ap];
     apEl.className = ap === 2 ? "hungry" : "";
 
     var lnEl = $("r-line");
     if (!S.line) {
       lnEl.textContent = "🎣 no line";
       lnEl.className = "";
+    } else if (lineLeft() <= 0) {
+      lnEl.textContent = "🎣 ready!";
+      lnEl.className = "ready";
     } else {
-      var left = S.line.castAt + S.line.ms - Date.now();
-      if (left <= 0) {
-        lnEl.textContent = "🎣 ready!";
-        lnEl.className = "ready";
-      } else {
-        lnEl.textContent = "🎣 " + fmtLeft(left);
-        lnEl.className = "";
-      }
+      lnEl.textContent = "🎣 " + fmtLeft(lineLeft());
+      lnEl.className = "";
+    }
+
+    var dvEl = $("r-dive");
+    if (!S.dive) {
+      dvEl.className = "off";
+    } else if (diveLeft() <= 0) {
+      dvEl.textContent = "🫧 surfacing";
+      dvEl.className = "ready";
+    } else {
+      dvEl.textContent = "🫧 " + fmtLeft(diveLeft());
+      dvEl.className = "";
     }
 
     $("r-drops").textContent = "💧 " + S.drops;
 
     var d = new Date();
-    $("clock").textContent = String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0");
-    $("daycount").textContent = "day " + S.careDays;
+    $("clock").textContent = weatherIcon() + " " +
+      String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0");
+    $("daycount").textContent = "day " + ageDays();
+    $("moodline").textContent = mood();
 
-    // Button states
+    if (S.dive) {
+      $("divelbl").textContent = diveLeft() <= 0
+        ? "coming up!"
+        : S.name + " is in " + byId(TIERS, S.dive.tier).name;
+    }
+
+    paintActions();
+  }
+
+  function ageDays() {
+    if (!S.born) return 1;
+    return Math.max(1, Math.floor((Date.now() - S.born) / DAY) + 1);
+  }
+
+  function setBtn(id, ico, label, cls, disabled) {
+    var b = $(id);
+    b.querySelector(".ico").textContent = ico;
+    b.querySelector(".lbl").textContent = label;
+    b.className = "act" + (cls ? " " + cls : "");
+    b.disabled = !!disabled;
+  }
+
+  function paintActions() {
     var sleeping = asleep();
-    $("a-feed").disabled = sleeping;
-    $("a-play").disabled = sleeping;
-    $("a-dive").disabled = sleeping;
-    $("a-feed").className = "act" + (!sleeping && ap === 2 ? " alert" : "");
-    var lineReady = S.line && (S.line.castAt + S.line.ms - Date.now()) <= 0;
-    $("a-cast").className = "act" + (lineReady ? " alert" : "");
-    $("a-cast").querySelector(".ico").innerHTML = lineReady ? "&#10071;" : "&#127907;";
-    $("a-cast").childNodes[1].nodeValue = lineReady ? "REEL" : (S.line ? "WAIT" : "CAST");
-    $("a-cast").disabled = !!(S.line && !lineReady);
+    var diving = !!S.dive;
+    var ap = appetite();
+
+    // FEED — off while he's asleep or underwater; highlighted when he's hungry.
+    setBtn("a-feed", "🍖", "FEED", (!sleeping && !diving && ap === 2) ? "alert" : "",
+      sleeping || diving);
+
+    // PLAY becomes TUCK at night. Casting and tucking are the two things the
+    // night screen is for, so neither is ever disabled without cause.
+    if (sleeping) {
+      var tucked = S.tuckNight === nightKey();
+      setBtn("a-play", "🛌", "TUCK", tucked ? "" : "alert", tucked);
+    } else {
+      setBtn("a-play", "🎽", "PLAY", "", diving);
+    }
+
+    // DIVE
+    if (!diving) {
+      setBtn("a-dive", "🌊", "DIVE", "", sleeping);
+    } else if (diveLeft() > 0) {
+      setBtn("a-dive", "🫧", "DOWN", "", true);
+    } else {
+      setBtn("a-dive", "❗", "UP!", "alert", false);
+    }
+
+    // CAST
+    if (!S.line) {
+      setBtn("a-cast", "🎣", "CAST", "", false);
+    } else if (lineLeft() > 0) {
+      setBtn("a-cast", "🎣", "WAIT", "", true);
+    } else {
+      setBtn("a-cast", "❗", "REEL", "alert", false);
+    }
+
+    setBtn("a-pond", "🪷", "POND", "", false);
   }
 
-  function fmtLeft(ms) {
-    var s = Math.ceil(ms / 1000);
-    var h = Math.floor(s / 3600);
-    var m = Math.floor((s % 3600) / 60);
-    if (h > 0) return h + "h " + m + "m";
-    if (m > 0) return m + "m";
-    return s + "s";
-  }
-
-  // ---- cards (drift, dreams, catches) --------------------------------------
+  // ---- cards ---------------------------------------------------------------
 
   var cardQueue = [];
 
@@ -1021,11 +1507,13 @@
 
   // ---- the open sequence ----------------------------------------------------
 
+  // Everything he did while you were gone. This is the engine: it must produce
+  // content for absence, and some of that content must be a physical object.
   function doDrift() {
     if (!S.lastSeen) return;
     var away = Date.now() - S.lastSeen;
-    if (away < 0) return;                 // clock moved backwards; ignore
-    away = Math.min(away, 10 * DAY);      // cap so tampering gains little
+    if (away < 0) { S.lastSeen = Date.now(); return; }  // clock moved back
+    away = Math.min(away, 10 * DAY);                     // cap tampering
     var hrs = away / HOUR;
 
     var bucket;
@@ -1035,79 +1523,205 @@
     else if (hrs < 72) bucket = "t24";
     else bucket = "t72";
 
-    var pool = DRIFT[bucket];
-    var r = Arcade.seededRandom("drift:" + S.lastSeen);
-    var ev = pool[Math.floor(r() * pool.length)];
+    var rnd = Arcade.seededRandom("drift:" + S.lastSeen + ":" + S.born);
+    var ev;
 
-    if (ev.drops) S.drops += ev.drops;
-    showCard(ev.art, ev.txt, ev.drops ? "+" + ev.drops + " 💧" : "");
+    // A night peek gets its own quiet pool — but only for a short absence. If
+    // you've been gone a day or three, the big card fires at 2am the same as
+    // it would at noon. v1 threw that content away entirely; never again.
+    if (asleep() && (bucket === "t0" || bucket === "t1")) {
+      ev = DRIFT.night[Math.floor(rnd() * DRIFT.night.length)];
+    } else {
+      // History-aware lines get a real share of the draw for short and medium
+      // absences — they're the whole reason the pond feels like it remembers
+      // you. They are NEVER allowed to substitute for the 1-day and 3-day
+      // cards: those are the payoff for being away, and a callback landing
+      // instead of "he's just glad you're back" is a worse game.
+      var dyn = (bucket === "t24" || bucket === "t72") ? [] : dynamicDrift();
+      if (dyn.length && rnd() < 0.4) {
+        ev = dyn[Math.floor(rnd() * dyn.length)];
+      } else {
+        var pool = DRIFT[bucket];
+        ev = pool[Math.floor(rnd() * pool.length)];
+      }
+    }
 
-    if (bucket === "t72") react("It missed you.", "wiggle");
-    else if (bucket === "t24") react("You're back!", "happy");
+    var gained = ev.drops || 0;
+    if (gained && trait().id === "shy") gained += 1;
+    if (gained) S.drops += gained;
+    if (ev.trace) addTrace(ev.trace);
+
+    var sub = gained ? "+" + gained + " 💧" : "";
+    var gift = null;
+    if ((bucket === "t24" || bucket === "t72") && rnd() < 0.3) {
+      gift = giveKeepsake();
+    }
+
+    showCard(ev.art, ev.txt, sub);
+    if (gift) {
+      showCard(gift.ico, "He'd been keeping " + gift.name + " for you.", gift.note);
+    }
+
+    if (bucket === "t72") {
+      react("It missed you.", "wiggle");
+      journal("You were away three days. He waited.");
+    } else if (bucket === "t24") {
+      react("You're back!", "happy");
+    }
+  }
+
+  // Built fresh at open time out of live state. This is the memory layer
+  // surfacing in the place the player already looks.
+  function dynamicDrift() {
+    var out = [];
+
+    if (S.line) {
+      out.push(lineLeft() <= 0
+        ? { art: "🎣", txt: "Your line's been tight for a while. He keeps looking at it, then at you." }
+        : { art: "🎣", txt: "He's been watching your float. He has not blinked." });
+    }
+
+    if (S.dive && diveLeft() > 0) {
+      out.push({ art: "🫧", txt: "Still down there. You can see the bubbles from here." });
+    }
+
+    if (S.keepsakes.length) {
+      var k = byId(KEEPSAKES, S.keepsakes[S.keepsakes.length - 1].id);
+      if (k) out.push({ art: k.ico, txt: "He's still got " + k.name + ". He keeps it where he can see it." });
+    }
+
+    if (S.decor.length) {
+      var d = byId(DECOR, S.decor[S.decor.length - 1]);
+      if (d) out.push({ art: d.ico, txt: "He's moved the " + d.name.toLowerCase() + ". It is not where you left it.", drops: 1 });
+    }
+
+    if (S.favSeen.food) {
+      var f = byId(FOODS, favourites().food);
+      if (f) out.push({ art: f.ico, txt: "He's been sitting where the " + f.name.toLowerCase() + " usually turns up." });
+    }
+
+    if (S.traces.length >= 3) {
+      out.push({ art: "🪺", txt: "He has been busy. The pond is entirely his now.", drops: 3 });
+    }
+
+    if (S.careDays >= EVO_AT[0] - 1 && stage() === 0) {
+      out.push({ art: "❔", txt: "He feels different today. You can't say how." });
+    }
+
+    return out;
   }
 
   function doDream() {
     var today = Arcade.dailySeed();
     if (S.dreamDay === today) return;
-    var d = new Date();
-    if (d.getHours() < SLEEP_TO) return;   // no dream until he's actually woken up
+    if (new Date().getHours() < SLEEP_TO) return;  // not awake yet
     S.dreamDay = today;
-    var r = Arcade.seededRandom("dream:" + today + S.born);
-    showCard("💭", DREAMS[Math.floor(r() * DREAMS.length)], "last night");
+
+    var pool = DREAMS.concat(trait().id === "dreamy" ? DREAMY_EXTRA : []);
+    var r = Arcade.seededRandom("dream:" + today + ":" + S.born);
+    var dream = pool[Math.floor(r() * pool.length)];
+
+    if (dream.boost) {
+      S.boostDay = today;
+      S.boostTier = dream.boost;
+    }
+    showCard("💭", dream.txt, dream.boost ? "he keeps looking at the water" : "last night");
   }
 
   function checkEvolution() {
     var st = stage();
     if (st <= S.stageSeen) return;
     S.stageSeen = st;
-    save();
     var info = STAGES[st];
+    journal(S.name + " became a " + info.name + ".");
+    var gift = giveKeepsake();
+    save();
     $("evotitle").textContent = "What?";
     $("evoimg").src = info.file;
     $("evoimg").alt = info.name;
-    $("evobody").textContent = S.name + " evolved into " + info.name + "!";
+    $("evobody").textContent = S.name + " evolved into " + info.name + "!" +
+      (gift ? "\n\nHe gave you " + gift.name + "." : "");
     $("evo").classList.add("on");
     melody([523, 659, 784, 1047], 170);
   }
 
   $("evogo").addEventListener("click", function () {
     $("evo").classList.remove("on");
+    lastSpriteKey = "";
     paintSprite();
+    paintReadouts();
   });
 
-  // ---- actions ----------------------------------------------------------------
+  // ---- care-days ------------------------------------------------------------
 
-  function markCareDay() {
+  // A care-day needs *two different* kinds of care in one day. v1 banked one
+  // for any single tap, which made evolution an attendance sheet.
+  function markCare(kind) {
     var today = Arcade.dailySeed();
-    if (S.lastCareDay !== today) {
+    if (S.actDay !== today) { S.actDay = today; S.actKinds = []; }
+    if (S.actKinds.indexOf(kind) === -1) S.actKinds.push(kind);
+    S.lastCareAt = Date.now();
+    if (S.actKinds.length >= 2 && S.lastCareDay !== today) {
       S.lastCareDay = today;
       S.careDays += 1;
+      return true;
     }
+    return false;
   }
 
-  var wheelPick = null;
+  function careLine() {
+    var today = Arcade.dailySeed();
+    if (S.lastCareDay === today) return "Day banked. " + S.careDays + " care-days so far.";
+    var got = S.actDay === today ? S.actKinds.length : 0;
+    return got === 0
+      ? "Two different kinds of care today banks a day towards growing up."
+      : "One more kind of care today banks the day. (" + S.actKinds.join(", ") + ")";
+  }
 
-  function openWheel(title, items, favId, onPick) {
+  // ---- picker sheet ------------------------------------------------------------
+
+  // items: { ico, name, sub, heart, disabled, data }
+  function openWheel(title, items, wide, onPick) {
     $("wheeltitle").textContent = title;
     var grid = $("wheelgrid");
+    grid.className = "wheel-grid" + (wide ? " wide" : "");
     grid.innerHTML = "";
     items.forEach(function (it) {
       var b = document.createElement("button");
       b.className = "pick";
-      var hits = S.favHits[it.id] || 0;
-      b.innerHTML = '<span class="ico"></span><span class="nm"></span>';
-      b.querySelector(".ico").textContent = it.ico;
-      b.querySelector(".nm").textContent = it.name;
-      // The heart only appears once you've clearly noticed the favourite.
-      if (it.id === favId && hits >= 5) {
+      b.disabled = !!it.disabled;
+
+      var ico = document.createElement("span");
+      ico.className = "ico";
+      ico.textContent = it.ico;
+      b.appendChild(ico);
+
+      var wrap = document.createElement("span");
+      wrap.className = "txt";
+      var nm = document.createElement("span");
+      nm.className = "nm";
+      nm.textContent = it.name;
+      wrap.appendChild(nm);
+      if (it.sub) {
+        var sub = document.createElement("span");
+        sub.className = "sub";
+        sub.textContent = " " + it.sub;
+        wrap.appendChild(document.createElement("br"));
+        wrap.appendChild(sub);
+      }
+      b.appendChild(wrap);
+
+      if (it.heart) {
         var h = document.createElement("span");
         h.className = "heart";
         h.textContent = "♥";
         b.appendChild(h);
       }
+
       b.addEventListener("click", function () {
+        if (it.disabled) return;
         $("wheelwrap").classList.remove("on");
-        onPick(it);
+        onPick(it.data);
       });
       grid.appendChild(b);
     });
@@ -1118,19 +1732,35 @@
     if (e.target === $("wheelwrap")) $("wheelwrap").classList.remove("on");
   });
 
+  // ---- feed ------------------------------------------------------------------
+
   $("a-feed").addEventListener("click", function () {
     var fav = favourites();
-    openWheel("What's for dinner?", FOODS, fav.food, function (food) {
+    var items = FOODS.map(function (f) {
+      return {
+        ico: f.ico, name: f.name, data: f,
+        // Two correct guesses and he stops being subtle about it.
+        heart: f.id === fav.food && (S.favHits[f.id] || 0) >= 2
+      };
+    });
+    openWheel("What's for dinner?", items, false, function (food) {
       var ap = appetite();
       var isFav = food.id === fav.food;
       var gain = (ap === 2 ? 6 : ap === 1 ? 3 : 1) + (isFav ? 3 : 0);
       S.drops += gain;
       S.fedAt = Date.now();
-      S.favHits[food.id] = (S.favHits[food.id] || 0) + (isFav ? 1 : 0);
-      markCareDay();
+      if (isFav) S.favHits[food.id] = (S.favHits[food.id] || 0) + 1;
+      var banked = markCare("fed");
 
       if (isFav) {
-        react("He went WILD for the " + food.name.toLowerCase() + ".", "wiggle");
+        var firstTime = !S.favSeen.food;
+        S.favSeen.food = true;
+        if (firstTime) {
+          journal("You worked out that he loves " + food.name.toLowerCase() + ".");
+          showCard(food.ico, "Oh — he *loves* " + food.name.toLowerCase() + ".",
+            "you'll want to remember that");
+        }
+        react(trait().feedFav, "wiggle");
         melody([523, 659, 880], 90);
       } else if (ap === 2) {
         react("He ate it in one go.", "happy");
@@ -1142,99 +1772,186 @@
         react("He nibbles politely. Not really hungry.", null);
         blip(392, 0.16, "sine");
       }
+      // Let the reaction above be read first — this is a second beat, not a
+      // replacement for it.
+      if (banked) setTimeout(function () { react("That's a good day.", null); }, 2800);
       save();
       paintReadouts();
       checkEvolution();
     });
   });
 
+  // ---- play / tuck --------------------------------------------------------------
+
   $("a-play").addEventListener("click", function () {
+    if (asleep()) return doTuck();
     var fav = favourites();
-    openWheel("What shall we do?", PLAYS, fav.play, function (p) {
+    var items = PLAYS.map(function (p) {
+      return {
+        ico: p.ico, name: p.name, data: p,
+        heart: p.id === fav.play && (S.favHits[p.id] || 0) >= 2
+      };
+    });
+    openWheel("What shall we do?", items, false, function (p) {
       var isFav = p.id === fav.play;
-      var gain = isFav ? 5 : 2;
+      var gain = (isFav ? 5 : 2) + (trait().id === "silly" ? 2 : 0);
       S.drops += gain;
-      S.favHits[p.id] = (S.favHits[p.id] || 0) + (isFav ? 1 : 0);
-      markCareDay();
+      S.lastPlayAt = Date.now();
+      if (isFav) S.favHits[p.id] = (S.favHits[p.id] || 0) + 1;
+      var banked = markCare("played");
+
       if (isFav) {
-        react("He could do this all day.", "wiggle");
+        var firstTime = !S.favSeen.play;
+        S.favSeen.play = true;
+        if (firstTime) {
+          journal(p.name + " turns out to be his favourite thing in the world.");
+          showCard(p.ico, p.name + " is his favourite thing in the world.",
+            "you found it out yourself");
+        }
+        react(trait().play, "wiggle");
         melody([659, 784, 988], 90);
       } else {
         react("That was fun.", "happy");
         blip(587, 0.18, "sine");
       }
+      // Let the reaction above be read first — this is a second beat, not a
+      // replacement for it.
+      if (banked) setTimeout(function () { react("That's a good day.", null); }, 2800);
       save();
       paintReadouts();
       checkEvolution();
     });
   });
 
-  function unlockedTiers() {
-    var st = stage();
-    return TIERS.filter(function (t) { return st >= t.stage && S.dives >= t.dives; });
+  function doTuck() {
+    if (S.tuckNight === nightKey()) return;
+    S.tuckNight = nightKey();
+    var gain = trait().id === "gentle" ? 4 : 2;
+    S.drops += gain;
+    var banked = markCare("tucked");
+    journal("You tucked him in.");
+    save();
+    blip(392, 0.4, "sine", 0.08);
+    setTimeout(function () { blip(330, 0.5, "sine", 0.07); }, 300);
+    showCard("🛌", "He doesn't wake up. He shifts a bit, and settles.",
+      "+" + gain + " 💧" + (banked ? " · day banked" : ""));
+    paintReadouts();
+    checkEvolution();
   }
 
-  function drawFind(rnd) {
-    var tiers = unlockedTiers();
-    // Deeper tiers are rarer: weight each tier by its position, favouring depth
-    // only slightly so the Shallows never stop producing.
-    var tier = tiers[Math.floor(rnd() * tiers.length)];
-    var pool = FINDS.filter(function (f) { return f.tier === tier.id; });
-    return { find: pickWeighted(pool, rnd), tier: tier };
+  // ---- dive ------------------------------------------------------------------
+
+  function tierUnlocked(t) {
+    return stage() >= t.stage && S.dives >= t.dives;
+  }
+
+  function tierBlockReason(t) {
+    if (stage() < t.stage) return "needs " + STAGES[t.stage].name;
+    if (S.dives < t.dives) return "needs " + t.dives + " dives (" + S.dives + ")";
+    if (appetite() > t.app) return t.app === 0 ? "he must be fed first" : "he's too hungry";
+    return null;
+  }
+
+  function diveMs(t) {
+    return trait().id === "bold" ? Math.round(t.ms * 0.85) : t.ms;
   }
 
   $("a-dive").addEventListener("click", function () {
-    S.dives += 1;
-    var rnd = Arcade.seededRandom("dive:" + S.dives + ":" + Date.now());
-    var res = drawFind(rnd);
-    var isNew = S.found.indexOf(res.find.id) === -1;
-    if (isNew) S.found.push(res.find.id);
-    S.drops += res.find.drops;
-    markCareDay();
+    if (S.dive) {
+      if (diveLeft() > 0) return;
+      return surface();
+    }
+    var items = TIERS.map(function (t) {
+      var reason = tierBlockReason(t);
+      var name = t.name.charAt(0).toUpperCase() + t.name.slice(1);
+      return {
+        ico: reason && !tierUnlocked(t) ? "🔒" : "🌊",
+        name: name,
+        sub: reason ? reason : "down for " + fmtDur(diveMs(t)),
+        disabled: !!reason,
+        data: t
+      };
+    });
+    openWheel("How deep?", items, true, function (t) {
+      S.dive = { startAt: Date.now(), ms: diveMs(t), tier: t.id };
+      S.dives += 1;
+      save();
+      blip(330, 0.35, "sine");
+      react(S.name + " went under.", null);
+      lastSpriteKey = "";
+      paintSprite();
+      paintReadouts();
+    });
+  });
+
+  function surface() {
+    var d = S.dive;
+    var t = byId(TIERS, d.tier);
+    var rnd = Arcade.seededRandom("dive:" + d.startAt + ":" + S.born);
+    var pool = FINDS.filter(function (f) { return f.tier === t.id; });
+    var find = pickWeighted(pool, rnd);
+
+    // A dream that pointed at this depth re-rolls and keeps the rarer result.
+    if (S.boostDay === Arcade.dailySeed() && S.boostTier === t.id) {
+      var alt = pickWeighted(pool, rnd);
+      if (alt.w < find.w) find = alt;
+    }
+
+    S.dive = null;
+    award(find, t, "dive");
+    lastSpriteKey = "";
+    paintSprite();
+  }
+
+  // Shared by dives and lines. Duplicates still pay, at a third rate, so a
+  // tier never becomes worthless once you've cleared it.
+  function award(find, tier, how, bonus) {
+    var isNew = S.found.indexOf(find.id) === -1;
+    if (isNew) S.found.push(find.id);
+    var gain = isNew ? find.drops : Math.max(1, Math.floor(find.drops / 3));
+    if (trait().id === "greedy") gain += 1;
+    S.drops += gain;
+    gain += bonus || 0;   // a line folds its own haul into the one card
+    markCare(how === "dive" ? "dived" : "fished");
+
+    var gift = null;
+    if (isNew && S.tierFirsts.indexOf(tier.id) === -1) {
+      S.tierFirsts.push(tier.id);
+      gift = giveKeepsake();
+    }
+    if (isNew) journal("Found a " + find.name.toLowerCase() + " in " + tier.name + ".");
+
     save();
     blip(330, 0.3, "sine");
     setTimeout(function () { blip(523, 0.25, "triangle"); }, 260);
-    showCard(res.find.ico,
-      S.name + " dove into " + res.tier.name + " and came back with a " + res.find.name.toLowerCase() + ".",
-      (isNew ? "NEW! " : "") + "+" + res.find.drops + " 💧");
+
+    showCard(find.ico,
+      how === "dive"
+        ? S.name + " came up out of " + tier.name + " with a " + find.name.toLowerCase() + "."
+        : "The line pulled tight. A " + find.name.toLowerCase() + ", up from " + tier.name + ".",
+      (isNew ? "NEW! " : "") + "+" + gain + " 💧");
+
+    if (gift) showCard(gift.ico, "He wants you to have " + gift.name + ".", gift.note);
     react("Splash!", "happy");
     paintReadouts();
     checkEvolution();
-  });
+  }
+
+  // ---- cast ------------------------------------------------------------------
 
   $("a-cast").addEventListener("click", function () {
     if (S.line) {
-      var left = S.line.castAt + S.line.ms - Date.now();
-      if (left > 0) return;
-      // Longer lines fish deeper: bias the draw by giving long lines extra rolls.
-      var rolls = S.line.ms >= 8 * HOUR ? 3 : (S.line.ms >= 2 * HOUR ? 2 : 1);
-      var rnd = Arcade.seededRandom("line:" + S.line.castAt);
-      var best = null;
-      for (var i = 0; i < rolls; i++) {
-        var res = drawFind(rnd);
-        if (!best || res.find.drops > best.find.drops) best = res;
-      }
-      var isNew = S.found.indexOf(best.find.id) === -1;
-      if (isNew) S.found.push(best.find.id);
-      S.drops += best.find.drops;
-      S.line = null;
-      markCareDay();
-      save();
-      melody([523, 784], 110);
-      showCard(best.find.ico,
-        "The line pulled tight. A " + best.find.name.toLowerCase() + ", up from " + best.tier.name + ".",
-        (isNew ? "NEW! " : "") + "+" + best.find.drops + " 💧");
-      paintReadouts();
-      checkEvolution();
-      return;
+      if (lineLeft() > 0) return;
+      return reel();
     }
-
-    openWheel("How long a line?", LINES.map(function (l) {
-      return { id: l.id, ico: "🎣", name: l.label };
-    }), null, function (choice) {
-      var def = null;
-      LINES.forEach(function (l) { if (l.id === choice.id) def = l; });
-      S.line = { castAt: Date.now(), ms: def.ms };
+    var items = LINES.map(function (l) {
+      return {
+        ico: "🎣", name: l.label, sub: l.sub + " · " + l.drops + " 💧",
+        data: l
+      };
+    });
+    openWheel("How long a line?", items, true, function (l) {
+      S.line = { castAt: Date.now(), ms: l.ms, kind: l.id };
       save();
       blip(440, 0.2, "sine");
       react("Line's in the water.", null);
@@ -1242,11 +1959,114 @@
     });
   });
 
-  // ---- pond sheet (shop + collection) --------------------------------------
+  function reel() {
+    var def = byId(LINES, S.line.kind) || LINES[0];
+    var rnd = Arcade.seededRandom("line:" + S.line.castAt + ":" + S.born);
+    var gain = def.drops + (trait().id === "greedy" ? 1 : 0);
+    S.drops += gain;
+    var gotFind = rnd() < def.find;
+    S.line = null;
+    markCare("fished");
+    save();
+
+    if (!gotFind) {
+      melody([523, 784], 110);
+      showCard("💧", "A good haul off the line. Nothing living, mind.", "+" + gain + " 💧");
+      paintReadouts();
+      checkEvolution();
+      return;
+    }
+
+    // Shallow-weighted tier draw across everything currently unlocked.
+    var open = TIERS.filter(tierUnlocked);
+    var weighted = open.map(function (t, i) { return { t: t, w: LINE_TIER_W[i] }; });
+    var tier = pickWeighted(weighted, rnd).t;
+    var pool = FINDS.filter(function (f) { return f.tier === tier.id; });
+    melody([523, 784], 110);
+    award(pickWeighted(pool, rnd), tier, "line", gain);
+  }
+
+  // ---- pond sheet --------------------------------------------------------------
 
   function paintSheet() {
-    $("dropline").textContent = "You have " + S.drops + " dew drops.";
+    var st = STAGES[stage()];
+    var tr = trait();
 
+    $("whoname").textContent = S.name;
+    $("whosub").textContent = st.name + " · day " + ageDays() + " · " + S.careDays + " care-days · " + mood();
+    $("whotrait").innerHTML = "";
+    if (S.careDays >= 3) {
+      var b = document.createElement("b");
+      b.textContent = tr.name + ". ";
+      $("whotrait").appendChild(b);
+      $("whotrait").appendChild(document.createTextNode(tr.desc));
+    } else {
+      $("whotrait").textContent = "You're still working out who he is.";
+    }
+
+    $("todayline").textContent = careLine();
+
+    var fav = favourites();
+    var likes = [];
+    likes.push(S.favSeen.food
+      ? "Food: " + byId(FOODS, fav.food).name.toLowerCase()
+      : "Food: you haven't found it yet.");
+    likes.push(S.favSeen.play
+      ? "Games: " + byId(PLAYS, fav.play).name.toLowerCase()
+      : "Games: you haven't found it yet.");
+    $("likesline").textContent = likes.join(" · ");
+
+    // Keepsakes
+    $("keephint").textContent = S.keepsakes.length
+      ? S.keepsakes.length + " of " + KEEPSAKES.length + " — things he gave you. They're not for spending."
+      : "Nothing yet. He'll get round to it.";
+    var kl = $("keeplist");
+    kl.innerHTML = "";
+    S.keepsakes.slice().reverse().forEach(function (rec) {
+      var k = byId(KEEPSAKES, rec.id);
+      if (!k) return;
+      var row = document.createElement("div");
+      row.className = "keep-row";
+      var ico = document.createElement("span");
+      ico.className = "ico";
+      ico.textContent = k.ico;
+      var txt = document.createElement("span");
+      txt.className = "txt";
+      txt.appendChild(document.createTextNode(k.name));
+      var em = document.createElement("em");
+      em.textContent = " — " + k.note;
+      txt.appendChild(em);
+      var when = document.createElement("span");
+      when.className = "when";
+      when.textContent = "given " + whenStr(rec.t);
+      txt.appendChild(when);
+      row.appendChild(ico);
+      row.appendChild(txt);
+      kl.appendChild(row);
+    });
+
+    // Collection
+    var open = TIERS.filter(tierUnlocked);
+    $("collhint").textContent = S.found.length + " of " + FINDS.length + " found · " +
+      S.dives + " dives · open: " + open.map(function (t) { return t.name; }).join(", ");
+    var grid = $("collgrid");
+    grid.innerHTML = "";
+    FINDS.forEach(function (f) {
+      var slot = document.createElement("div");
+      var has = S.found.indexOf(f.id) !== -1;
+      slot.className = "slot" + (has ? "" : " empty");
+      var top = document.createElement("div");
+      top.textContent = has ? f.ico : "?";
+      var lbl = document.createElement("div");
+      lbl.className = "lbl";
+      lbl.textContent = has ? f.name : "";
+      slot.appendChild(top);
+      slot.appendChild(lbl);
+      grid.appendChild(slot);
+    });
+
+    // Shop
+    $("dropline").textContent = "You have " + S.drops + " dew drops.";
     var shop = $("shoplist");
     shop.innerHTML = "";
     DECOR.forEach(function (d) {
@@ -1267,6 +2087,7 @@
         if (S.drops < d.cost || S.decor.indexOf(d.id) !== -1) return;
         S.drops -= d.cost;
         S.decor.push(d.id);
+        journal("You put " + d.name.toLowerCase() + " in the pond.");
         save();
         blip(784, 0.22, "triangle");
         paintDecor();
@@ -1279,24 +2100,19 @@
       shop.appendChild(row);
     });
 
-    var tiers = unlockedTiers();
-    $("collhint").textContent = S.found.length + " of " + FINDS.length + " found · " +
-      S.dives + " dives · open: " + tiers.map(function (t) { return t.name; }).join(", ");
-
-    var grid = $("collgrid");
-    grid.innerHTML = "";
-    FINDS.forEach(function (f) {
-      var slot = document.createElement("div");
-      var has = S.found.indexOf(f.id) !== -1;
-      slot.className = "slot" + (has ? "" : " empty");
-      var top = document.createElement("div");
-      top.textContent = has ? f.ico : "?";
-      var lbl = document.createElement("div");
-      lbl.className = "lbl";
-      lbl.textContent = has ? f.name : "";
-      slot.appendChild(top);
-      slot.appendChild(lbl);
-      grid.appendChild(slot);
+    // Journal
+    $("jrnhint").textContent = S.journal.length ? "" : "Nothing worth writing down yet.";
+    var jl = $("jrnlist");
+    jl.innerHTML = "";
+    S.journal.forEach(function (e) {
+      var row = document.createElement("div");
+      row.className = "jrn";
+      var when = document.createElement("span");
+      when.className = "when";
+      when.textContent = whenStr(e.t);
+      row.appendChild(when);
+      row.appendChild(document.createTextNode(e.txt));
+      jl.appendChild(row);
     });
   }
 
@@ -1309,7 +2125,7 @@
     $("sheetwrap").classList.remove("on");
   });
 
-  // ---- mute ------------------------------------------------------------------
+  // ---- mute --------------------------------------------------------------------
 
   function paintMute() {
     $("mute").innerHTML = S.muted ? "&#128263;" : "&#128266;";
@@ -1330,6 +2146,10 @@
       S.name = v || "Totodile";
       S.born = Date.now();
       S.fedAt = Date.now();
+      // He hasn't slept a night here yet, so he has nothing to have dreamed.
+      // Burn today's dream; the first one arrives tomorrow morning.
+      S.dreamDay = Arcade.dailySeed();
+      journal(S.name + " moved into the pond.");
       save();
       $("naming").classList.remove("on");
       $("namego").removeEventListener("click", go);
@@ -1340,33 +2160,70 @@
   // ---- main loop ------------------------------------------------------------------
 
   function tick() {
-    paintScene();
+    var p = phase();
+    if (p !== lastPhase) {
+      lastPhase = p;
+      paintScene();
+      paintWeather();
+    }
     paintSprite();
     paintReadouts();
   }
 
-  function begin() {
-    paintMute();
-    paintScene();
-    paintWeather();
-    paintDecor();
-    paintSprite();
-    paintReadouts();
-
-    if (asleep()) {
-      react("He's fast asleep.", null);
-    } else {
-      doDrift();
-      doDream();
+  // Run the whole "you just opened the pond" sequence. Called on boot AND on
+  // return to a backgrounded tab — which is the most common way back in on a
+  // phone, and which v1 never handled at all, so the core loop silently never
+  // ran for anyone who didn't hard-reload.
+  function openSequence() {
+    if (S.redug) {
+      S.redug = false;
+      showCard("🌊", "The pond turned out to be deeper than anyone thought. " +
+        "Everything he'd collected has settled back into the silt.",
+        "the depths are worth exploring again");
     }
-
+    doDrift();
+    if (!asleep()) doDream();
     S.lastSeen = Date.now();
     save();
     checkEvolution();
+  }
+
+  function begin() {
+    paintMute();
+    lastPhase = phase();
+    paintScene();
+    paintWeather();
+    paintDecor();
+    lastSpriteKey = "";
+    paintSprite();
+    paintReadouts();
+
+    if (asleep()) react("He's fast asleep.", null);
+
+    openSequence();
+    paintDecor();      // drift may have left a trace
+    paintReadouts();
 
     setInterval(tick, 1000);
-    // Weather and stars only need repainting when the phase could have changed.
-    setInterval(paintWeather, 5 * 60000);
+
+    document.addEventListener("visibilitychange", function () {
+      if (document.hidden) {
+        // Measure away-time from when you actually left, not the last open.
+        S.lastSeen = Date.now();
+        save();
+      } else {
+        // A quick tab flick isn't an absence. Only re-run the open sequence
+        // once you've genuinely been away, or every glance costs a drift card.
+        if (Date.now() - S.lastSeen >= 2 * MIN) {
+          openSequence();
+          paintDecor();
+        } else {
+          S.lastSeen = Date.now();
+        }
+        lastPhase = "";
+        tick();
+      }
+    });
   }
 
   Arcade.backButton();
