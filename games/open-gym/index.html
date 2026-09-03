@@ -103,6 +103,7 @@
   #controls button.active { outline: 3px solid #ffd23f; }
 
   #turncounter { font-size: 0.85rem; color: var(--fg-dim); }
+  #forecast { font-size: 0.8rem; color: var(--fg-dim); }
 
   #overlay {
     display: none;
@@ -146,6 +147,7 @@
   <button id="endturnbtn" class="btn">End Turn ▶</button>
 </div>
 <div id="turncounter"></div>
+<div id="forecast"></div>
 
 <div id="overlay">
   <h2 id="overlay-headline"></h2>
@@ -821,12 +823,35 @@
     return { moves: moves, captures: captures, merges: merges };
   }
 
+  function forecastText() {
+    var circuits = computeCircuits("player");
+    var total = 0, foldRisk = false;
+    circuits.forEach(function (c) {
+      var gym = c.gyms[0];
+      if (!gym) return;
+      var income = c.blocks.length;
+      var load = c.blocks.reduce(function (s, b) { return s + (b.unit ? LOAD[b.unit.tier] : 0); }, 0);
+      var drag = c.blocks.some(function (b) {
+        return neighborsOf(b.q, b.r).some(function (n) {
+          var nb = state.blocks[key(n.q, n.r)];
+          return nb && !nb.owner && nb.state === "lapsed";
+        });
+      }) ? DRAG_PENALTY : 0;
+      var delta = income - load - drag;
+      total += delta;
+      if (gym.momentum + delta < 0) foldRisk = true;
+    });
+    var sign = total >= 0 ? "+" : "";
+    return "Forecast: " + sign + total + " Momentum next turn" + (foldRisk ? " ⚠️ Fold risk" : "");
+  }
+
   function render() {
     if (!state) return;
     document.getElementById("levellabel").textContent = "Level " + state.levelId + " / " + LEVELS.length;
     var lvl = LEVELS[levelIndex];
     document.getElementById("teach").textContent = lvl.title + " — " + lvl.teach;
     document.getElementById("turncounter").textContent = "Turn " + state.turn;
+    document.getElementById("forecast").textContent = forecastText();
     document.getElementById("prevlevel").disabled = levelIndex === 0;
     document.getElementById("nextlevel").disabled = levelIndex >= maxLevel && levelIndex >= LEVELS.length - 1 ? levelIndex >= LEVELS.length - 1 : levelIndex >= maxLevel;
 
