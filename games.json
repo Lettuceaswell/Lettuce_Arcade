@@ -29,5 +29,11 @@
     "title": "Zorro Runner",
     "blurb": "Tap to jump-slash, hold to swing on the canopy. One touch, endless road.",
     "emoji": "🦊"
+  },
+  {
+    "slug": "open-gym",
+    "title": "Open Gym",
+    "blurb": "Sign the whole neighborhood before the rival chain does.",
+    "emoji": "🏋️"
   }
 ]

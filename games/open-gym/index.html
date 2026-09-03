@@ -1,0 +1,220 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Open Gym — Lettuce Arcade</title>
+<meta name="theme-color" content="#0b4d49">
+<link rel="stylesheet" href="/shared/arcade.css">
+<style>
+  body {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    min-height: 100vh;
+    text-align: center;
+    padding:
+      calc(64px + var(--safe-top))
+      calc(12px + var(--safe-right))
+      calc(40px + var(--safe-bottom))
+      calc(12px + var(--safe-left));
+  }
+
+  h1 { font-size: 1.35rem; letter-spacing: 0.02em; }
+
+  #status {
+    height: 1.4rem;
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: var(--fg-dim);
+  }
+
+  .board {
+    position: relative;
+  }
+
+  .hex {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: var(--hex-w);
+    height: var(--hex-h);
+    clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%);
+    background: var(--hex-sedentary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: calc(var(--hex-w) * 0.34);
+    line-height: 1;
+    transition: transform 120ms ease, box-shadow 120ms ease;
+  }
+
+  .hex.owner-player { background: var(--hex-player); }
+  .hex.owner-rival { background: var(--hex-rival); }
+  .hex.owner-lapsed { background: var(--hex-lapsed); }
+
+  .hex.selected {
+    box-shadow: 0 0 0 3px #ffe066 inset;
+    transform: scale(0.94);
+  }
+
+  #legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    justify-content: center;
+    font-size: 0.8rem;
+    color: var(--fg-dim);
+    max-width: 320px;
+  }
+
+  #legend span {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+  }
+
+  #legend i {
+    display: inline-block;
+    width: 12px;
+    height: 12px;
+    border-radius: 3px;
+  }
+
+  .swatch-player { background: var(--hex-player); }
+  .swatch-rival { background: var(--hex-rival); }
+  .swatch-sedentary { background: var(--hex-sedentary); }
+  .swatch-lapsed { background: var(--hex-lapsed); }
+</style>
+</head>
+<body style="--hex-player:#4adec5; --hex-rival:#ff6b6b; --hex-sedentary:#2a6f6a; --hex-lapsed:#a8632c;">
+<h1>🏋️ Open Gym</h1>
+
+<div id="status" aria-live="polite"></div>
+
+<div class="board" id="board"></div>
+
+<div id="legend">
+  <span><i class="swatch-player"></i>Your Circuit</span>
+  <span><i class="swatch-rival"></i>Rival</span>
+  <span><i class="swatch-sedentary"></i>Sedentary</span>
+  <span><i class="swatch-lapsed"></i>Lapsed</span>
+</div>
+
+<script src="/shared/arcade.js"></script>
+<script>
+  Arcade.backButton();
+
+  // ---- placeholder map ---------------------------------------------------
+  // Hex-grid render only (GDD build order step 1). No Circuits, Momentum, or
+  // Rival logic yet — this is a hand-drawn hexagon of radius 3 so there's
+  // something to tap and look at while the render pipeline gets built.
+  // Real levels arrive later via a JSON loader (build order step 9).
+  var RADIUS = 3;
+
+  function buildDemoMap() {
+    var blocks = [];
+    for (var q = -RADIUS; q <= RADIUS; q++) {
+      var rMin = Math.max(-RADIUS, -q - RADIUS);
+      var rMax = Math.min(RADIUS, -q + RADIUS);
+      for (var r = rMin; r <= rMax; r++) {
+        var owner = "sedentary";
+        var label = "";
+        if (q === 0 && r === 0) { owner = "player"; label = "🏋️"; }
+        else if (q === RADIUS && r === -RADIUS) { owner = "rival"; label = "🏢"; }
+        else if (q === -1 && r === 2) { owner = "lapsed"; }
+        blocks.push({ q: q, r: r, owner: owner, label: label });
+      }
+    }
+    return blocks;
+  }
+
+  var blocks = buildDemoMap();
+  var boardEl = document.getElementById("board");
+  var statusEl = document.getElementById("status");
+  var statusTimer = null;
+  var selected = null;
+  var SIZE = 34; // hex "radius", recomputed to fit viewport in layout()
+
+  function setStatus(text) {
+    statusEl.textContent = text;
+    if (statusTimer) clearTimeout(statusTimer);
+    if (text) statusTimer = setTimeout(function () { statusEl.textContent = ""; }, 2200);
+  }
+
+  // pointy-top axial -> pixel center, per the standard hex-grid formulas
+  function hexCenter(q, r, size) {
+    return {
+      x: size * Math.sqrt(3) * (q + r / 2),
+      y: size * 1.5 * r
+    };
+  }
+
+  function layout() {
+    var hexW = Math.sqrt(3) * SIZE;
+    var hexH = 2 * SIZE;
+    var minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    var centers = blocks.map(function (b) {
+      var c = hexCenter(b.q, b.r, SIZE);
+      var left = c.x - hexW / 2, top = c.y - hexH / 2;
+      minX = Math.min(minX, left); minY = Math.min(minY, top);
+      maxX = Math.max(maxX, left + hexW); maxY = Math.max(maxY, top + hexH);
+      return { block: b, left: left, top: top };
+    });
+
+    boardEl.style.setProperty("--hex-w", hexW + "px");
+    boardEl.style.setProperty("--hex-h", hexH + "px");
+    boardEl.style.width = (maxX - minX) + "px";
+    boardEl.style.height = (maxY - minY) + "px";
+
+    centers.forEach(function (c) {
+      c.block.el.style.transform =
+        "translate3d(" + (c.left - minX) + "px," + (c.top - minY) + "px,0)";
+    });
+  }
+
+  function fitSize() {
+    // Board spans roughly (2*RADIUS+1) hexes wide at sqrt(3)*size per hex.
+    var maxBoardWidth = Math.min(window.innerWidth - 24, 420);
+    var cols = 2 * RADIUS + 1;
+    var size = Math.floor(maxBoardWidth / (cols * Math.sqrt(3)));
+    SIZE = Math.max(24, size); // floor keeps tap targets close to the 44px rule
+  }
+
+  function render() {
+    while (boardEl.firstChild) boardEl.removeChild(boardEl.firstChild);
+    blocks.forEach(function (b) {
+      var el = document.createElement("div");
+      el.className = "hex owner-" + b.owner;
+      el.textContent = b.label || "";
+      el.addEventListener("pointerdown", function () { selectBlock(b); });
+      boardEl.appendChild(el);
+      b.el = el;
+    });
+    fitSize();
+    layout();
+  }
+
+  function selectBlock(b) {
+    if (selected && selected.el) selected.el.classList.remove("selected");
+    selected = b;
+    b.el.classList.add("selected");
+    setStatus("Block (" + b.q + ", " + b.r + ") · " + b.owner);
+  }
+
+  var resizeTimer = null;
+  window.addEventListener("resize", function () {
+    if (resizeTimer) clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(function () { fitSize(); layout(); }, 120);
+  });
+
+  function start() {
+    render();
+  }
+
+  Arcade.boot(start);
+</script>
+</body>
+</html>
