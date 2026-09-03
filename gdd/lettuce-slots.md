@@ -2,7 +2,7 @@
 
 - **Slug:** `games/lettuce-slots/`
 - **Emoji:** 🥬
-- **Status:** designed — ready to build
+- **Status:** shipped
 
 ## One-line pitch
 Three reels, one button. When the first two land on the same thing, the
