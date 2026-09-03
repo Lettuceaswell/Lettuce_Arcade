@@ -23,5 +23,11 @@
     "title": "Keto Krush",
     "blurb": "A match-3 about meat, cheese, bread, and knowing which is which.",
     "emoji": "🍖"
+  },
+  {
+    "slug": "daily-letters",
+    "title": "Daily Letters",
+    "blurb": "Same 19 letters for everyone. Fewest left over wins. Your family checks the words.",
+    "emoji": "🔤"
   }
 ]

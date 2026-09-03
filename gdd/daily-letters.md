@@ -2,7 +2,8 @@
 
 - **Slug:** `games/daily-letters/`
 - **Emoji:** 🔤
-- **Status:** designed — ready to build (no blocking dependencies)
+- **Status:** shipped (v18) — honor system, Commit ceremony, one Reopen,
+  canvas share card
 
 ## One-line pitch
 A shared daily tile rack — everyone in the family gets the same letters,
@@ -86,9 +87,12 @@ the words are on you.
 
 ## Grid & placement
 
-- Fixed **9×9 board**, cells sized to fill portrait width on a small phone
-  (~38px each, ~342px board width) — no panning, no zooming, the whole
-  board is visible at once above the rack.
+- Fixed **8×8 board**, cells sized to fill portrait width — ~44px each on
+  a 375px-wide iPhone, which is the smallest that clears the 44px
+  tap-target rule in `CLAUDE.md` (nine columns would come in under it).
+  No panning, no zooming, the whole board is visible at once above the
+  rack. 64 cells is plenty for 19 tiles; a 9-letter word is the only
+  thing the board can't hold, and that's a rare loss.
 - **Tap-to-place, not drag.** Tap a tile in the rack to select it (it
   lifts visually), then tap an empty grid cell to place it there. Tap a
   placed tile to pick it back up — it returns to the rack — then place it
@@ -119,9 +123,18 @@ Commit is the game's one real decision and its only payoff moment.
   carries the score it would lock in: **"Commit · 2 left"**. When the
   rack empties it changes to **"Commit · Clean rack"** and pulses.
 - Tapping Commit opens a one-line confirm sheet — "Lock in 2 left for
-  today?" — because commit is **final for the day**. This is deliberate:
-  the choice between locking in a 1-left board now or grinding for 0 is
-  where the tension lives (see Scoring). No uncommit.
+  today? You can reopen once." — because commit **locks the board**. The
+  choice between locking in a 1-left board now or grinding for 0 is where
+  the tension lives (see Scoring).
+- **One Reopen per day** is the safety hatch. The share card carries a
+  small "Reopen board" link. Tapping it returns to play with the board
+  exactly as committed; the second Commit's confirm sheet reads "Lock in
+  1 left? This one's final." and the link is gone after that. One
+  mulligan covers the mis-tap and the spotted-it-a-minute-later case
+  without dissolving the lock-in decision — the second press is the real
+  one.
+- Streaks count from the *first* commit of the day, so reopening never
+  risks a streak. The card always reflects the latest commit.
 - On confirm, the **ceremony** plays, and it's built as a reveal even
   though the player already knows the score:
   1. The rack and buttons slide away; the board recentres.
@@ -178,11 +191,12 @@ the payout — it's in three places the design puts pressure on:
    is the maximum-uncertainty interval, the same spot the third reel
    occupies in Lettuce Slots. The header counter and the Commit label
    both tick down in real time so the player *feels* each drop.
-2. **Lock in or keep going.** Commit being final turns "1 left" into a
-   decision: bank it, or risk an evening of shuffling for a clean rack
-   you might not find. Loss aversion on the streak (a missed commit
+2. **Lock in or keep going.** Commit locking the board turns "1 left"
+   into a decision: bank it, or risk an evening of shuffling for a clean
+   rack you might not find. Loss aversion on the streak (a missed commit
    resets it) pushes people to bank; the clean-rack chime and confetti
-   pull them to push on.
+   pull them to push on. The single Reopen softens the first press but
+   makes the second one carry full weight.
 3. **The reveal delay.** Even a known score gets a ~1s drumroll before
    it stamps in. Slot machines pay out coins one at a time for the same
    reason.
@@ -266,7 +280,7 @@ what's on screen after Commit is worth screenshotting and easy to send.
    │ · · O · A · · · ·           │
    │ · · N E S T · · ·           │
    │ · · E · · · · · ·           │
-   │ · · · · · · · · ·           │   <- 9x9 board, ~342px wide
+   │ · · · · · · · · ·           │   <- 8x8 board, full width
    │ · · · · · · · · ·           │
    │ · · · · · · · · ·           │
    │ · · · · · · · · ·           │
@@ -316,6 +330,8 @@ Via `Arcade.save` / `Arcade.load`, namespaced per game automatically.
 - `placed` — `{ letter, row, col }[]` for tiles currently on the board.
 - `committed` — `false`, or the committed result `{ left, words, longest,
   groups }` so the share card can be rebuilt without recomputing.
+- `reopened` — `true` once the day's single Reopen has been used, so the
+  second commit is final and the link doesn't come back.
 
 `profile` — persists across days:
 
@@ -345,36 +361,37 @@ Via `Arcade.save` / `Arcade.load`, namespaced per game automatically.
 
 ## Build checklist
 
-- [ ] `games/daily-letters/index.html`, self-contained, imports only
+- [x] `games/daily-letters/index.html`, self-contained, imports only
       `shared/arcade.css` and `shared/arcade.js`.
-- [ ] `Arcade.boot()` before any gameplay or audio; `Arcade.backButton()`.
-- [ ] First-boot name prompt + How to play sheet (rules, honor system).
-- [ ] Tile draw: seeded, weighted, no Q, 6 vowels / 13 consonants of 19.
-- [ ] Tap-to-place / tap-to-lift, any cell, no refusals.
-- [ ] Live header: tiles left, groups pill (when > 1), streak.
-- [ ] Runs extraction (rows + columns, 2+ letters) → live runs list.
-- [ ] Commit button with live label, confirm sheet, final-for-day lock.
-- [ ] Ceremony: flip-in, runs type-out, score stamp, chime, confetti on
+- [x] `Arcade.boot()` before any gameplay or audio; `Arcade.backButton()`.
+- [x] First-boot name prompt + How to play sheet (rules, honor system).
+- [x] Tile draw: seeded, weighted, no Q, 6 vowels / 13 consonants of 19.
+- [x] Tap-to-place / tap-to-lift, any cell, no refusals.
+- [x] Live header: tiles left, groups pill (when > 1), streak.
+- [x] Runs extraction (rows + columns, 2+ letters) → live runs list.
+- [x] Commit button with live label, confirm sheet, board lock, one
+      Reopen per day (second commit final).
+- [x] Ceremony: flip-in, runs type-out, score stamp, chime, confetti on
       clean rack, `prefers-reduced-motion` path.
-- [ ] Share card layout that fits one portrait viewport.
-- [ ] Canvas render → `navigator.share` with file; hide button when
+- [x] Share card layout that fits one portrait viewport.
+- [x] Canvas render → `navigator.share` with file; hide button when
       unsupported.
-- [ ] Copy-text share with `<textarea>` fallback.
-- [ ] Streak bookkeeping (commit + clean), reset on a missed day.
-- [ ] `games.json` entry (`slug`, `title`, `blurb`, `emoji`).
-- [ ] Bump `Arcade.VERSION`.
+- [x] Copy-text share with `<textarea>` fallback.
+- [x] Streak bookkeeping (commit + clean), reset on a missed day.
+- [x] `games.json` entry (`slug`, `title`, `blurb`, `emoji`).
+- [x] Bump `Arcade.VERSION`.
 
 ## Tuning knobs
 
 1. **Tile count (19) and vowel target (6/19).** The two numbers that
    decide whether most days feel solvable or most days strand tiles.
-2. **Board size (9×9).** Bigger gives more room but pushes cell size down
-   or the board off-screen on an older phone.
-3. **Commit finality.** Shipped as final-for-day because that's where the
-   tension comes from. If the family finds it punishing (kids
-   mis-tapping, someone committing at 3 left and then spotting the fix),
-   the fallback is "re-commit allowed, best of day kept" — softer, but it
-   dissolves the lock-in decision.
+2. **Board size (8×8).** Nine columns would give room for 9-letter words
+   but drops cells under 44px on a 375px phone. Ten is right out.
+3. **Reopen allowance (1).** Shipped as one reopen per day: enough to
+   cover a mis-tap or a spotted-it-a-minute-later fix, few enough that
+   the second commit still carries weight. If even that feels punishing
+   in playtest, the softer fallback is unlimited reopens with "best of
+   day kept" — but that dissolves the lock-in decision entirely.
 4. **Rare-letter weighting (J/X/Z).** Currently low but nonzero — raise
    for more "fun constraint" days, lower toward zero if it lands as
    "unfair" more than "fun."
