@@ -1,6 +1,6 @@
-# BLOCK BY BLOCK — Game Design Document
+# OPEN GYM — Game Design Document
 
-*(Working title. Alternates: Open Gym, The Circuit, Foot Traffic.)*
+*(Working title. Alternates: Block by Block, The Circuit, Foot Traffic.)*
 
 **Genre:** Single-player turn-based territory strategy
 **Platform:** HTML/JS, browser, family arcade site
