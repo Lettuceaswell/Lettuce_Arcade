@@ -22,6 +22,14 @@
     padding: 24px 16px calc(24px + var(--safe-bottom));
   }
 
+  .header-icon {
+    display: block;
+    width: 72px;
+    height: 72px;
+    margin: 0 auto 12px;
+    border-radius: 16px;
+  }
+
   h1 {
     font-size: 2rem;
     margin-bottom: 24px;
@@ -77,6 +85,7 @@
 </head>
 <body>
 <main>
+  <img class="header-icon" src="/icon-180.png" alt="" width="72" height="72">
   <h1>Lettuce Arcade</h1>
   <ul class="tile-list" id="tile-list" aria-live="polite"></ul>
 </main>
