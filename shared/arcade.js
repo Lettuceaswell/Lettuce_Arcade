@@ -64,7 +64,9 @@
   // else. opts:
   //   title        - shown at the top of the sheet; defaults to the <title>
   //                  up to the " — ".
-  //   rules        - array of strings, one per line, for "How to play"; or
+  //   rules        - array of strings, one per line, for "How to play". A
+  //                  line starting "# " is a section heading (a game with
+  //                  two modes gets two sections); or
   //   help         - a function that opens the game's own rules screen.
   //   describeSave - function returning one line naming what a reset wipes,
   //                  in the game's own words ("Totodile · 23 care-days …").
@@ -89,6 +91,8 @@
       ".arc-box p{color:var(--fg-dim);font-size:1rem;text-align:center}" +
       ".arc-box ul{text-align:left;color:var(--fg);padding-left:1.2em;font-size:1rem}" +
       ".arc-box li{margin:8px 0}" +
+      ".arc-box h3{text-align:left;font-size:1.05rem;margin:14px 0 2px;color:#ffe066;letter-spacing:0.04em;text-transform:uppercase}" +
+      ".arc-box h3:first-of-type{margin-top:0}" +
       ".arc-box .btn{width:100%;min-height:60px;font-size:1.15rem;font-weight:800}" +
       ".arc-box .btn.quiet{background:var(--bg-elevated)}" +
       ".arc-box .btn.danger{background:#ff8a7a;color:#2b0f0a}" +
@@ -138,9 +142,20 @@
     }
 
     function showRules() {
-      var ul = el("ul");
-      (opts.rules || []).forEach(function (t) { ul.appendChild(el("li", null, t)); });
-      fill([el("h2", null, "How to play"), ul, el("div", "spacer"), button("Back", "btn", showMain)]);
+      var kids = [el("h2", null, "How to play")];
+      var ul = null;
+      (opts.rules || []).forEach(function (t) {
+        if (String(t).indexOf("# ") === 0) {
+          kids.push(el("h3", null, String(t).slice(2)));
+          ul = null;
+          return;
+        }
+        if (!ul) { ul = el("ul"); kids.push(ul); }
+        ul.appendChild(el("li", null, t));
+      });
+      kids.push(el("div", "spacer"));
+      kids.push(button("Back", "btn", showMain));
+      fill(kids);
     }
 
     function showReset() {
@@ -192,6 +207,164 @@
       if (k.indexOf(prefix) === 0 && k !== keep) delete memoryFallback[k];
     });
     location.reload();
+  };
+
+  // ---- share ----------------------------------------------------------
+  //
+  // One share path for every end card. payload: { text, title, file }.
+  // Tries the native share sheet (with the image when one is given and the
+  // platform takes files), then the clipboard, then the old execCommand
+  // copy. Resolves to one of "shared" | "cancelled" | "copied" | "failed";
+  // it never rejects, so a game can wire it straight to a button.
+
+  Arcade.share = function (payload) {
+    payload = payload || {};
+    var text = payload.text || "";
+    var title = payload.title || "";
+
+    function copy() {
+      return new Promise(function (resolve) {
+        if (!text) { resolve("failed"); return; }
+        function legacy() {
+          try {
+            var ta = document.createElement("textarea");
+            ta.value = text;
+            ta.setAttribute("readonly", "");
+            ta.style.position = "fixed"; ta.style.opacity = "0";
+            document.body.appendChild(ta);
+            ta.select();
+            var ok = document.execCommand("copy");
+            document.body.removeChild(ta);
+            resolve(ok ? "copied" : "failed");
+          } catch (e) { resolve("failed"); }
+        }
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(text).then(function () { resolve("copied"); }, legacy);
+        } else legacy();
+      });
+    }
+
+    function native(data) {
+      return navigator.share(data).then(function () { return "shared"; }, function (err) {
+        if (err && err.name === "AbortError") return "cancelled";
+        return null; // let the caller fall through
+      });
+    }
+
+    var chain = Promise.resolve(null);
+    if (payload.file && navigator.share && navigator.canShare) {
+      var withFile = { files: [payload.file] };
+      if (title) withFile.title = title;
+      var ok = false;
+      try { ok = navigator.canShare(withFile); } catch (e) { ok = false; }
+      if (ok) chain = chain.then(function () { return native(withFile); });
+    }
+    chain = chain.then(function (r) {
+      if (r) return r;
+      if (navigator.share && text) {
+        var data = { text: text };
+        if (title) data.title = title;
+        return native(data);
+      }
+      return null;
+    });
+    return chain.then(function (r) { return r || copy(); });
+  };
+
+  // Wires a button to Arcade.share. build() returns the payload (called on
+  // each tap, so it sees the latest run); hintEl gets a one-line result.
+  Arcade.shareButton = function (btn, hintEl, build) {
+    var label = btn.textContent;
+    btn.addEventListener("click", function () {
+      var payload;
+      try { payload = build(); } catch (e) { payload = null; }
+      if (!payload) { if (hintEl) hintEl.textContent = "Screenshot the card to share it"; return; }
+      btn.disabled = true;
+      Arcade.share(payload).then(function (r) {
+        btn.disabled = false;
+        if (r === "copied") {
+          btn.textContent = "Copied";
+          setTimeout(function () { btn.textContent = label; }, 1500);
+          if (hintEl) hintEl.textContent = "Copied — paste it in the chat";
+        } else if (r === "failed") {
+          if (hintEl) hintEl.textContent = "Screenshot the card to share it";
+        } else if (hintEl) {
+          hintEl.textContent = "";
+        }
+      });
+    });
+    return btn;
+  };
+
+  // ---- celebration ------------------------------------------------------
+  //
+  // The same new-best moment in every game: a stamp animation for the
+  // headline (add the class "arc-stamp" to any element) and a confetti fall.
+  // Both are no-ops under prefers-reduced-motion.
+
+  var celebrateCss = null;
+  function ensureCelebrateCss() {
+    if (celebrateCss) return;
+    celebrateCss = document.createElement("style");
+    celebrateCss.textContent =
+      "@keyframes arc-stamp{0%{transform:scale(2);opacity:0}60%{transform:scale(.95);opacity:1}100%{transform:none;opacity:1}}" +
+      ".arc-stamp{animation:arc-stamp .45s cubic-bezier(.2,.9,.3,1.2) both}" +
+      ".arc-confetti{position:fixed;top:-14px;width:8px;height:14px;border-radius:2px;z-index:9500;pointer-events:none;animation:arc-fall 2.8s linear forwards}" +
+      "@keyframes arc-fall{to{transform:translateY(110vh) rotate(720deg);opacity:.85}}" +
+      "@media (prefers-reduced-motion:reduce){.arc-stamp,.arc-confetti{animation:none!important}}";
+    document.head.appendChild(celebrateCss);
+  }
+
+  Arcade.reducedMotion = function () {
+    return !!(window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches);
+  };
+
+  Arcade.confetti = function (colors) {
+    if (Arcade.reducedMotion()) return;
+    ensureCelebrateCss();
+    colors = colors || ["#4adec5", "#f6e7c1", "#ffd166", "#ef476f", "#ffffff"];
+    for (var k = 0; k < 60; k++) {
+      var p = document.createElement("div");
+      p.className = "arc-confetti";
+      p.style.left = (Math.random() * 100) + "vw";
+      p.style.background = colors[k % colors.length];
+      p.style.animationDelay = (Math.random() * 0.8) + "s";
+      p.style.animationDuration = (2.2 + Math.random() * 1.2) + "s";
+      document.body.appendChild(p);
+      (function (el) { setTimeout(function () { el.remove(); }, 4500); })(p);
+    }
+  };
+
+  Arcade.stampIn = function (el) {
+    ensureCelebrateCss();
+    el.classList.remove("arc-stamp");
+    void el.offsetWidth;
+    el.classList.add("arc-stamp");
+  };
+
+  // Short date for the corner of a card: "Sep 4".
+  Arcade.cardDate = function () {
+    try { return new Date().toLocaleDateString(undefined, { month: "short", day: "numeric" }); }
+    catch (e) { return Arcade.dailySeed(); }
+  };
+
+  // ---- brag line ------------------------------------------------------
+  //
+  // One line per game for the arcade index's trophy shelf ("Best 91",
+  // "🔥 4-day streak"). Saved under the game's own namespace, so the game's
+  // save reset wipes it too. The index reads every game's line by slug.
+
+  Arcade.brag = function (text) {
+    Arcade.save("brag", text ? String(text) : "");
+  };
+
+  Arcade.bragFor = function (slug) {
+    var k = "arcade:" + slug + ":brag";
+    try {
+      var raw = localStorage.getItem(k);
+      if (raw !== null) return String(JSON.parse(raw) || "");
+    } catch (e) { /* fall through */ }
+    return Object.prototype.hasOwnProperty.call(memoryFallback, k) ? String(memoryFallback[k] || "") : "";
   };
 
   // ---- boot / audio unlock --------------------------------------------------

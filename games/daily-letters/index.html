@@ -209,6 +209,18 @@
   .card-stats, .card-streak { font-size: 0.95rem; color: var(--fg-dim); }
   .card-streak { font-size: 0.9rem; }
 
+  /* The last seven dailies, oldest first, today on the right. */
+  .card-week { display: flex; align-items: center; gap: 6px; font-size: 0.85rem; color: var(--fg-dim); margin-top: 2px; }
+  .card-week .lbl { margin-right: 4px; }
+  .card-week .d {
+    min-width: 26px; height: 26px; padding: 0 4px; border-radius: 6px;
+    display: inline-flex; align-items: center; justify-content: center;
+    background: rgba(255, 255, 255, 0.07); color: var(--fg); font-weight: 700; font-size: 0.85rem;
+  }
+  .card-week .d.clean { background: rgba(74, 222, 197, 0.25); color: var(--accent); }
+  .card-week .d.none { color: rgba(255, 255, 255, 0.25); font-weight: 400; }
+  .card-week .d.today { box-shadow: 0 0 0 2px var(--accent); }
+
   @keyframes flipIn { 0% { transform: rotateY(90deg); opacity: 0; } 100% { transform: none; opacity: 1; } }
   .ccell.filled.anim { animation: flipIn 0.28s ease-out both; }
   @keyframes fadeUp { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
@@ -276,6 +288,7 @@
     <div class="card-score" id="cScore"></div>
     <div class="card-stats" id="cStats"></div>
     <div class="card-streak" id="cStreak"></div>
+    <div class="card-week" id="cWeek" hidden></div>
   </div>
   <div class="actions">
     <button class="btn" id="shareBtn" hidden>Share</button>
@@ -414,7 +427,21 @@
   profile.seenHowToPlay = !!profile.seenHowToPlay;
   profile.mode = profile.mode === "free" ? "free" : "daily";
   profile.freeCount = profile.freeCount | 0;
+  // date key -> tiles left, for the week strip on the card. Pruned to 14.
+  if (!profile.history || typeof profile.history !== "object") profile.history = {};
   function persistProfile() { Arcade.save("profile", profile); }
+
+  function updateBrag() {
+    var s = currentStreak();
+    if (s.days > 0) {
+      Arcade.brag("🔥 " + s.days + "-day streak" + (s.clean > 0 ? " · " + s.clean + " clean" : ""));
+    } else if (Object.prototype.hasOwnProperty.call(profile.history, today)) {
+      var left = profile.history[today];
+      Arcade.brag("Today: " + (left === 0 ? "✨ clean rack" : left + " left"));
+    } else {
+      Arcade.brag("");
+    }
+  }
 
   // ---- mode + board state ------------------------------------------------
   // Two independent boards live in storage: "state" is today's daily
@@ -875,7 +902,11 @@
         days: base.days + 1,
         clean: a.left === 0 ? base.clean + 1 : 0
       };
+      profile.history[today] = a.left;
+      var keys = Object.keys(profile.history).sort();
+      while (keys.length > 14) delete profile.history[keys.shift()];
       persistProfile();
+      updateBrag();
     }
     state.committed = { left: a.left, placed: a.placed, words: a.words, longest: a.longest, groups: a.groups, at: Date.now() };
     persist();
@@ -892,6 +923,29 @@
     if (!isDaily()) return "";
     var s = currentStreak();
     return s.days > 0 ? "🔥 " + s.days + "-day streak" + (s.clean > 0 ? " · " + s.clean + " clean" : "") : "";
+  }
+
+  // The last seven days ending today: { key, left } with left === null for
+  // a day with no commit. Only worth showing once there's a second day in it.
+  function weekDays() {
+    var out = [], d = new Date();
+    d.setDate(d.getDate() - 6);
+    for (var i = 0; i < 7; i++) {
+      var k = dateKey(d);
+      out.push({ key: k, left: Object.prototype.hasOwnProperty.call(profile.history, k) ? profile.history[k] : null });
+      d.setDate(d.getDate() + 1);
+    }
+    return out;
+  }
+  function weekWorthShowing() {
+    if (!isDaily()) return false;
+    var n = 0;
+    weekDays().forEach(function (x) { if (x.left !== null) n++; });
+    return n >= 2;
+  }
+  function weekGlyph(x) { return x.left === null ? "·" : (x.left === 0 ? "✨" : String(x.left)); }
+  function weekText() {
+    return weekDays().map(weekGlyph).join(" ");
   }
 
   function buildCard(animate) {
@@ -950,12 +1004,30 @@
     cStreak.textContent = streakLine();
     cStreak.hidden = !cStreak.textContent;
 
+    var cWeek = $("cWeek");
+    cWeek.innerHTML = "";
+    cWeek.className = "card-week";
+    cWeek.hidden = !weekWorthShowing();
+    if (!cWeek.hidden) {
+      var lbl = document.createElement("span");
+      lbl.className = "lbl";
+      lbl.textContent = "this week";
+      cWeek.appendChild(lbl);
+      weekDays().forEach(function (x) {
+        var d = document.createElement("span");
+        d.className = "d" + (x.left === null ? " none" : x.left === 0 ? " clean" : "") + (x.key === today ? " today" : "");
+        d.textContent = weekGlyph(x);
+        cWeek.appendChild(d);
+      });
+    }
+
     if (doAnim) {
       cScore.classList.add("anim-stamp"); cScore.style.animationDelay = runsEnd + "ms";
       cStats.classList.add("anim-fade"); cStats.style.animationDelay = (runsEnd + 250) + "ms";
       cStreak.classList.add("anim-fade"); cStreak.style.animationDelay = (runsEnd + 350) + "ms";
+      cWeek.classList.add("anim-fade"); cWeek.style.animationDelay = (runsEnd + 450) + "ms";
     } else {
-      cScore.style.animationDelay = ""; cStats.style.animationDelay = ""; cStreak.style.animationDelay = "";
+      cScore.style.animationDelay = ""; cStats.style.animationDelay = ""; cStreak.style.animationDelay = ""; cWeek.style.animationDelay = "";
     }
 
     $("newLinkCard").hidden = isDaily();
@@ -1016,6 +1088,9 @@
     var a = analyze(), box = bbox(), lines = [], rr, cc, row;
     lines.push("Daily Letters — " + modeLabel() + " — " + displayName());
     lines.push((a.left === 0 ? "CLEAN RACK" : a.left + " left") + " · " + a.words + (a.words === 1 ? " word" : " words") + (a.longest ? " · longest " + a.longest : ""));
+    var streak = streakLine();
+    if (streak) lines.push(streak);
+    if (weekWorthShowing()) lines.push("this week: " + weekText());
     lines.push("");
     for (rr = box.r0; rr <= box.r1; rr++) {
       row = [];
@@ -1058,9 +1133,10 @@
     var runsText = a.runs.length ? a.runs.join(" · ") : "no runs";
     var runLines = wrapText(runsText, W - pad * 2, 17);
     var streak = streakLine();
+    var week = weekWorthShowing() ? weekDays() : null;
 
     var y = 0;
-    var H = pad + 26 + 12 + boardH + 14 + runLines.length * 22 + 16 + 48 + 26 + (streak ? 24 : 0) + pad + 18;
+    var H = pad + 26 + 12 + boardH + 14 + runLines.length * 22 + 16 + 48 + 26 + (streak ? 24 : 0) + (week ? 40 : 0) + pad + 18;
     var cv = document.createElement("canvas");
     cv.width = W * S; cv.height = H * S;
     var g = cv.getContext("2d");
@@ -1116,6 +1192,33 @@
       y += 24;
       g.font = "500 14px " + font;
       g.fillText(streak, W / 2, y);
+    }
+    if (week) {
+      // Seven small squares, oldest on the left, today ringed.
+      y += 18;
+      var sq = 26, gap = 6, lblW = 70;
+      var total = lblW + 7 * sq + 6 * gap;
+      var x0 = (W - total) / 2;
+      g.textAlign = "left"; g.textBaseline = "middle";
+      g.fillStyle = "#a5f3ef";
+      g.font = "500 13px " + font;
+      g.fillText("this week", x0, y + sq / 2);
+      week.forEach(function (d, i) {
+        var x = x0 + lblW + i * (sq + gap);
+        g.fillStyle = d.left === 0 ? "rgba(74,222,197,0.25)" : "rgba(255,255,255,0.07)";
+        roundRect(g, x, y, sq, sq, 6); g.fill();
+        if (d.key === today) {
+          g.strokeStyle = "#4adec5"; g.lineWidth = 2;
+          roundRect(g, x + 1, y + 1, sq - 2, sq - 2, 5); g.stroke();
+        }
+        g.fillStyle = d.left === null ? "rgba(255,255,255,0.25)" : d.left === 0 ? "#4adec5" : "#d2f9f7";
+        g.font = (d.left === null ? "400" : "700") + " 13px " + font;
+        g.textAlign = "center";
+        g.fillText(weekGlyph(d), x + sq / 2, y + sq / 2 + 1);
+        g.textAlign = "left";
+      });
+      y += sq;
+      g.textAlign = "center"; g.textBaseline = "alphabetic";
     }
     g.fillStyle = "rgba(210,249,247,0.35)";
     g.font = "500 11px " + font;
@@ -1178,6 +1281,7 @@
 
   function start() {
     loadBoard();
+    updateBrag();
     showActiveView(false);
     if (!profile.seenHowToPlay) openHowto();
   }

@@ -116,6 +116,7 @@
   }
 
   .topbar .day { font-weight: 700; color: var(--fg); }
+  .topbar .day .banked { color: #9dffb0; margin-left: 2px; }
   .topbar .mood { font-style: italic; }
 
   .mute {
@@ -138,24 +139,32 @@
     transform: translateX(-50%);
     z-index: 2;
     text-align: center;
+    /* He walks, he doesn't teleport: a drift trace or a surfacing dive can
+       move the slot, and it eases back to centre afterwards. */
+    transition: left 1.4s ease-in-out, bottom 1.4s ease-in-out;
   }
 
   .creature-slot.hidden { display: none; }
+  .creature-slot.snap { transition: none; }
 
+  /* --grow runs 1.0 → 1.25 across the care-days to the next evolution, so
+     daily care is visible on the sprite itself and evolving is a crescendo. */
   .creature {
     display: block;
-    width: 168px;
-    height: 168px;
+    --base: 168px;
+    width: calc(var(--base) * var(--grow, 1));
+    height: calc(var(--base) * var(--grow, 1));
     /* 80x80 source upscaled — keep the sprite edges hard, not smeared. */
     image-rendering: pixelated;
     image-rendering: -moz-crisp-edges;
     -ms-interpolation-mode: nearest-neighbor;
     animation: bob 3.4s ease-in-out infinite;
     transform-origin: 50% 100%;
+    transition: width 1.2s ease, height 1.2s ease;
   }
 
-  .creature.big { width: 198px; height: 198px; }
-  .creature.huge { width: 228px; height: 228px; }
+  .creature.big { --base: 198px; }
+  .creature.huge { --base: 228px; }
 
   @keyframes bob {
     0%, 100% { transform: translateY(0) scaleY(1); }
@@ -517,6 +526,25 @@
   .who .trait { margin-top: 8px; font-size: 0.92rem; }
   .who .trait b { color: #ffd166; }
 
+  /* The escape from one-tap FEED/PLAY: offer him something that isn't his
+     favourite. Lives here, next to what he likes, so it's findable. */
+  .likeacts { display: flex; gap: 8px; margin-top: 8px; }
+  .likeacts button {
+    flex: 1;
+    min-height: 44px;
+    border: none;
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.08);
+    color: var(--fg);
+    font-size: 0.85rem;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .likeacts button:active { background: rgba(255, 255, 255, 0.16); }
+  .likeacts:empty { display: none; }
+
+  .evo .meta { font-size: 0.95rem; color: #2f6a63; font-weight: 600; }
+
   .grid {
     display: grid;
     grid-template-columns: repeat(4, 1fr);
@@ -719,6 +747,7 @@
 
       <h2>What he likes</h2>
       <div class="hint" id="likesline"></div>
+      <div class="likeacts" id="likeacts"></div>
 
       <h2>Keepsakes</h2>
       <div class="hint" id="keephint"></div>
@@ -751,6 +780,7 @@
     <h2 id="evotitle"></h2>
     <img id="evoimg" src="totodile.png" alt="">
     <p id="evobody"></p>
+    <div class="meta" id="evometa"></div>
     <button class="btn" id="evogo">Wow</button>
 </div>
 
@@ -876,35 +906,74 @@
   ];
 
   // Drift events, bucketed by hours away. `trace` leaves something behind.
+  // The 6-24h pool is what a daily player sees every morning, so it and the
+  // 1-6h pool are the deepest. Every bucket has at least eight lines.
   var DRIFT = {
     t0: [
       { art: "💤", txt: "He hasn't moved. Not one inch." },
       { art: "👀", txt: "He was watching the door." },
-      { art: "🫧", txt: "He blew one bubble, saw you, and stopped." }
+      { art: "🫧", txt: "He blew one bubble, saw you, and stopped." },
+      { art: "🪨", txt: "He's sitting on the same rock. He may not have noticed you left." },
+      { art: "👂", txt: "He heard you coming from a long way off. He's pretending he didn't." },
+      { art: "🐾", txt: "He walked to the edge, looked at the door, and walked back. Once." },
+      { art: "🍃", txt: "A leaf landed on his head. He has decided to keep it." },
+      { art: "😐", txt: "He has been staring at a reed. The reed has been staring back." },
+      { art: "🌊", txt: "He made one ripple, watched it reach the bank, and was satisfied." }
     ],
     t1: [
       { art: "🔷", txt: "He found a piece of green glass and propped it where the light hits.", drops: 2, trace: "glass" },
       { art: "🌿", txt: "He has weed on his head and seems proud of it." },
       { art: "💤", txt: "He fell asleep in the reeds and woke up when you did." },
       { art: "💦", txt: "The whole bank is soaked. No explanation offered." },
-      { art: "🐟", txt: "He tried to catch a fish. The fish is fine.", drops: 1 }
+      { art: "🐟", txt: "He tried to catch a fish. The fish is fine.", drops: 1 },
+      { art: "🪷", txt: "He's been sitting on the lily pad. It's not really built for that.", drops: 1 },
+      { art: "🐸", txt: "A frog told him something. He looks like he's still thinking about it." },
+      { art: "🐌", txt: "He followed a snail across the whole bank. Slowly.", drops: 1, trace: "snail" },
+      { art: "🌧", txt: "He stood in the rain with his mouth open. He seems to think it worked." },
+      { art: "🥱", txt: "He yawned so wide he fell over. He's fine." },
+      { art: "🪵", txt: "He has been chewing the same stick for hours. It is much shorter now.", drops: 1 },
+      { art: "🎶", txt: "He was humming. He stopped when he saw you. Then he started again." },
+      { art: "🔍", txt: "He found something shiny in the mud and put it where you'd see it.", drops: 2, trace: "shiny" }
     ],
     t6: [
       { art: "🪷", txt: "He's rearranged the pond. It's worse now." },
       { art: "🐌", txt: "There's a snail here now. They appear to have an understanding.", drops: 3, trace: "snail" },
       { art: "🍽️", txt: "He caught something by himself and left half of it for you.", drops: 4 },
       { art: "🌀", txt: "He has been spinning. You can see the marks.", drops: 2 },
-      { art: "🪺", txt: "He built a little nest out of reeds. It is not for anything.", drops: 3, trace: "nest" }
+      { art: "🪺", txt: "He built a little nest out of reeds. It is not for anything.", drops: 3, trace: "nest" },
+      { art: "🏠", txt: "He dug a hollow in the bank and sat in it. It is exactly his size.", drops: 2 },
+      { art: "🦆", txt: "A duck came by. They had words. The duck left.", drops: 3 },
+      { art: "🫧", txt: "He spent the afternoon making bubbles and popping them himself.", drops: 2 },
+      { art: "🥾", txt: "He dragged something heavy up the bank and left it by the door for you.", drops: 4 },
+      { art: "👣", txt: "There are footprints all round the pond. All of them his.", drops: 3, trace: "tracks" },
+      { art: "🌇", txt: "He watched the light change across the whole pond. He didn't move once.", drops: 2 },
+      { art: "🐠", txt: "He caught a fish, looked at it for a while, and let it go.", drops: 3 },
+      { art: "🔷", txt: "He's lined up every piece of glass he owns. There are three.", drops: 3, trace: "glass" },
+      { art: "🪺", txt: "The nest is bigger. He's been adding to it.", drops: 2, trace: "nest" }
     ],
     t24: [
       { art: "✨", txt: "He's built a pile of everything shiny he could find.", drops: 6, trace: "shiny" },
       { art: "🛌", txt: "He's been sleeping on your side of the pond.", drops: 4 },
       { art: "👣", txt: "Muddy tracks lead out and come back. Twice.", drops: 5, trace: "tracks" },
-      { art: "🌾", txt: "He has redecorated. It is not an improvement.", drops: 4 }
+      { art: "🌾", txt: "He has redecorated. It is not an improvement.", drops: 4 },
+      { art: "🌅", txt: "He was up before the sun both mornings. Watching for you.", drops: 5 },
+      { art: "🫙", txt: "He's filled a hollow with pebbles. Sorted by size, roughly.", drops: 5 },
+      { art: "🎨", txt: "He's arranged the reeds into a shape. It might be you.", drops: 4 },
+      { art: "🐢", txt: "A turtle stayed for a day. They didn't talk. It was nice.", drops: 4 },
+      { art: "🪷", txt: "He's carried every lily pad to your side of the pond.", drops: 6 },
+      { art: "🔔", txt: "He heard something and rushed to the edge. It wasn't you. He waited anyway.", drops: 4 },
+      { art: "✨", txt: "The shiny pile is taller. He checks it every morning.", drops: 5, trace: "shiny" },
+      { art: "💤", txt: "He slept with his head on the bank, pointed at the door.", drops: 5 }
     ],
     t72: [
       { art: "💚", txt: "He waited by the edge a lot. He's fine — he's just glad you're back.", drops: 10 },
-      { art: "🎁", txt: "He's been saving things for you. All of them, apparently.", drops: 12 }
+      { art: "🎁", txt: "He's been saving things for you. All of them, apparently.", drops: 12 },
+      { art: "🌿", txt: "He's kept the path to the water clear. In case you came.", drops: 10 },
+      { art: "🪨", txt: "He's built a cairn at the edge. One stone for each day, you think.", drops: 11 },
+      { art: "👀", txt: "He stopped watching the door yesterday. He started again when he heard you.", drops: 10 },
+      { art: "🐚", txt: "He's collected shells for you. Enough to fill both hands.", drops: 12 },
+      { art: "🌧", txt: "It rained for two of the days. He didn't go under. He wanted to be seen.", drops: 10 },
+      { art: "💚", txt: "He didn't sulk. He just did his rounds, and now he's done them faster.", drops: 10 }
     ],
     // Used whenever you look in on him mid-sleep, at any away-length. A night
     // visit is content, so it gets its own quiet pool instead of a lockout.
@@ -912,7 +981,13 @@
       { art: "🌙", txt: "He's curled up exactly where you left him." },
       { art: "💤", txt: "He's dreaming about something. His feet are moving." },
       { art: "⭐", txt: "The pond is very still, and he is very small." },
-      { art: "🫧", txt: "He surfaced once in his sleep and went straight back down." }
+      { art: "🫧", txt: "He surfaced once in his sleep and went straight back down." },
+      { art: "🌙", txt: "He's turned to face the moon. Or the door. Hard to tell." },
+      { art: "💤", txt: "He's snoring. Very quietly. Just a little." },
+      { art: "🫧", txt: "One bubble. Every few minutes. Like a clock." },
+      { art: "⭐", txt: "The stars are out and so is one of his feet." },
+      { art: "🌫", txt: "The mist is sitting on the water. He's under it, somewhere, warm." },
+      { art: "🐾", txt: "He shifted, sighed, and settled deeper. He knows you're there." }
     ]
   };
 
@@ -951,8 +1026,10 @@
     { id: "night", label: "Overnight",   sub: "8 hours",     ms: 8 * HOUR, drops: 45, find: 0.60 }
   ];
 
-  // Rolled once from `born`, never re-rolled, never announced at birth. Each
-  // carries a voice and exactly one small mechanical tilt.
+  // Rolled once from `born`, never re-rolled, and revealed as a card at three
+  // care-days. A trait is a voice only: the six mechanical tilts (Bold dived
+  // faster, Greedy +1, and so on) were imperceptible and are gone. Dreamy
+  // keeps his three extra dreams because those are words, not numbers.
   var TRAITS = [
     { id: "bold",   name: "Bold",   desc: "He goes first and asks later.",
       feedFav: "He took it straight out of your hand.", play: "He went first. He always goes first." },
@@ -1002,6 +1079,7 @@
       boostTier: "",
       tuckNight: "",
       stageSeen: 0,
+      traitShown: false,
       favHits: {},
       favSeen: {},
       redug: false,
@@ -1059,7 +1137,12 @@
   }
   S.v = SAVE_V;
 
-  function save() { Arcade.save("state", S); }
+  function save() {
+    Arcade.save("state", S);
+    if (S.born) {
+      Arcade.brag(S.name + " · day " + ageDays() + " · " + S.careDays + " care-day" + (S.careDays === 1 ? "" : "s"));
+    }
+  }
 
   // ---- helpers -----------------------------------------------------------
 
@@ -1094,6 +1177,22 @@
     if (S.careDays >= EVO_AT[1]) return 2;
     if (S.careDays >= EVO_AT[0]) return 1;
     return 0;
+  }
+
+  // 1.0 at the start of a stage, 1.25 on the eve of evolving. Feraligatr
+  // is as big as he gets.
+  function growth() {
+    var st = stage();
+    if (st >= 2) return 1;
+    var from = st === 0 ? 0 : EVO_AT[0], to = EVO_AT[st];
+    return 1 + 0.25 * clamp((S.careDays - from) / (to - from), 0, 1);
+  }
+
+  // "9/14 to Croconaw", or nothing once he's fully grown.
+  function toNextLine() {
+    var st = stage();
+    if (st >= 2) return "";
+    return S.careDays + "/" + EVO_AT[st] + " to " + STAGES[st + 1].name;
   }
 
   function trait() {
@@ -1360,16 +1459,18 @@
     var st = STAGES[stage()];
     var diving = !!S.dive;
     var sleeping = asleep();
-    var key = [st.id, sleeping ? 1 : 0, diving ? 1 : 0, animCls, S.name].join("|");
+    var grow = growth().toFixed(3);
+    var key = [st.id, sleeping ? 1 : 0, diving ? 1 : 0, animCls, S.name, grow].join("|");
     if (key === lastSpriteKey) return;   // never restart a running animation
     lastSpriteKey = key;
 
-    $("creatureslot").className = "creature-slot" + (diving ? " hidden" : "");
+    $("creatureslot").classList.toggle("hidden", diving);
     $("divespot").className = "divespot" + (diving ? " on" : "");
 
     if (diving) return;
     if (sprite.getAttribute("src") !== st.file) sprite.src = st.file;
     sprite.alt = S.name + " the " + st.name;
+    sprite.style.setProperty("--grow", grow);
     sprite.className = "creature " + st.cls + (sleeping ? " asleep" : "") + (animCls ? " " + animCls : "");
     $("zzz").style.display = sleeping ? "block" : "none";
     $("nametag").textContent = S.name;
@@ -1388,6 +1489,37 @@
       if (animTimer) clearTimeout(animTimer);
       animTimer = setTimeout(function () { animCls = ""; paintSprite(); }, 2600);
     }
+  }
+
+  // Moves him somewhere in the scene for a while, then eases him home. `snap`
+  // puts him there instantly (he was underwater, nobody saw him walk).
+  var nudgeTimer = null;
+  function nudgeSprite(left, bottom, holdMs, snap) {
+    var slot = $("creatureslot");
+    if (nudgeTimer) clearTimeout(nudgeTimer);
+    if (snap) {
+      slot.classList.add("snap");
+      slot.style.left = left + "%";
+      slot.style.bottom = bottom + "%";
+      void slot.offsetWidth;
+      slot.classList.remove("snap");
+    } else {
+      slot.style.left = left + "%";
+      slot.style.bottom = bottom + "%";
+    }
+    nudgeTimer = setTimeout(function () {
+      slot.style.left = "";
+      slot.style.bottom = "";
+    }, holdMs);
+  }
+
+  // Beside a trace, on whichever side keeps him on screen.
+  function standBesideTrace(id) {
+    var t = byId(TRACES, id);
+    if (!t) return;
+    var left = clamp(t.x + (t.x < 50 ? 16 : -16), 22, 78);
+    var bottom = clamp(100 - t.y - 4, 20, 50);
+    nudgeSprite(left, bottom, 14000, false);
   }
 
   function lineLeft() { return S.line ? S.line.castAt + S.line.ms - Date.now() : 0; }
@@ -1427,7 +1559,15 @@
     var d = new Date();
     $("clock").textContent = weatherIcon() + " " +
       String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0");
-    $("daycount").textContent = "day " + ageDays();
+    var dayEl = $("daycount");
+    dayEl.textContent = "day " + ageDays();
+    if (S.lastCareDay === Arcade.dailySeed()) {
+      var tick = document.createElement("span");
+      tick.className = "banked";
+      tick.textContent = "✓";
+      tick.setAttribute("aria-label", "care-day banked");
+      dayEl.appendChild(tick);
+    }
     $("moodline").textContent = mood();
 
     if (S.dive) {
@@ -1556,9 +1696,12 @@
     }
 
     var gained = ev.drops || 0;
-    if (gained && trait().id === "shy") gained += 1;
     if (gained) S.drops += gained;
-    if (ev.trace) addTrace(ev.trace);
+    if (ev.trace) {
+      addTrace(ev.trace);
+      // He's standing next to whatever he did, so you can find it.
+      if (!asleep() && !S.dive) standBesideTrace(ev.trace);
+    }
 
     var sub = gained ? "+" + gained + " 💧" : "";
     var gift = null;
@@ -1626,7 +1769,13 @@
     if (new Date().getHours() < SLEEP_TO) return;  // not awake yet
     S.dreamDay = today;
 
-    var pool = DREAMS.concat(trait().id === "dreamy" ? DREAMY_EXTRA : []);
+    // A boost dream only ever points at a depth he can actually reach, so no
+    // dream is a dud in the first two weeks.
+    var pool = DREAMS.concat(trait().id === "dreamy" ? DREAMY_EXTRA : []).filter(function (d) {
+      if (!d.boost) return true;
+      var t = byId(TIERS, d.boost);
+      return t && tierUnlocked(t);
+    });
     var r = Arcade.seededRandom("dream:" + today + ":" + S.born);
     var dream = pool[Math.floor(r() * pool.length)];
 
@@ -1637,7 +1786,21 @@
     showCard("💭", dream.txt, dream.boost ? "he keeps looking at the water" : "last night");
   }
 
+  // At three care-days you've earned his name for what he is. Until now the
+  // trait sat silently in the Pond sheet; this is the first week's story, so
+  // it lands as a card.
+  function checkTraitReveal() {
+    if (S.traitShown || S.careDays < 3) return;
+    S.traitShown = true;
+    var tr = trait();
+    journal("You worked out that he's " + tr.name.toLowerCase() + ".");
+    save();
+    showCard("💚", "Three days in, and you know him now. He's " + tr.name + ". " + tr.desc,
+      "it's in the Pond sheet from here on");
+  }
+
   function checkEvolution() {
+    checkTraitReveal();
     var st = stage();
     if (st <= S.stageSeen) return;
     S.stageSeen = st;
@@ -1650,6 +1813,7 @@
     $("evoimg").alt = info.name;
     $("evobody").textContent = S.name + " evolved into " + info.name + "!" +
       (gift ? "\n\nHe gave you " + gift.name + "." : "");
+    $("evometa").textContent = S.name + " · day " + ageDays() + " · " + S.careDays + " care-days";
     $("evo").classList.add("on");
     melody([523, 659, 784, 1047], 170);
   }
@@ -1680,11 +1844,13 @@
 
   function careLine() {
     var today = Arcade.dailySeed();
-    if (S.lastCareDay === today) return "Day banked. " + S.careDays + " care-days so far.";
+    var next = toNextLine();
+    var tail = next ? " · " + next : "";
+    if (S.lastCareDay === today) return "✓ Day banked. " + S.careDays + " care-days so far" + tail + ".";
     var got = S.actDay === today ? S.actKinds.length : 0;
-    return got === 0
-      ? "Two different kinds of care today banks a day towards growing up."
-      : "One more kind of care today banks the day. (" + S.actKinds.join(", ") + ")";
+    return (got === 0
+      ? "Two different kinds of care today banks a day towards growing up"
+      : "One more kind of care today banks the day (" + S.actKinds.join(", ") + ")") + tail + ".";
   }
 
   // ---- picker sheet ------------------------------------------------------------
@@ -1743,7 +1909,48 @@
 
   // ---- feed ------------------------------------------------------------------
 
-  $("a-feed").addEventListener("click", function () {
+  function feedWith(food) {
+    var fav = favourites();
+    var ap = appetite();
+    var isFav = food.id === fav.food;
+    // A full gator only nibbles, and nibbling pays nothing: drops come from
+    // timing, not tapping. The favourite bonus rides on a paid meal only.
+    var gain = ap === 2 ? 6 : ap === 1 ? 3 : 0;
+    if (gain && isFav) gain += 3;
+    S.drops += gain;
+    S.fedAt = Date.now();
+    if (isFav) S.favHits[food.id] = (S.favHits[food.id] || 0) + 1;
+    var banked = markCare("fed");
+
+    if (isFav) {
+      var firstTime = !S.favSeen.food;
+      S.favSeen.food = true;
+      if (firstTime) {
+        journal("You worked out that he loves " + food.name.toLowerCase() + ".");
+        showCard(food.ico, "Oh — he *loves* " + food.name.toLowerCase() + ".",
+          "from now on FEED gives him " + food.name.toLowerCase() + " straight away");
+      }
+      react(trait().feedFav, "wiggle");
+      melody([523, 659, 880], 90);
+    } else if (ap === 2) {
+      react("He ate it in one go.", "happy");
+      blip(660, 0.2, "sine");
+    } else if (ap === 1) {
+      react("He's happy with that.", "happy");
+      blip(587, 0.18, "sine");
+    } else {
+      react("He nibbles politely. Not really hungry.", null);
+      blip(392, 0.16, "sine");
+    }
+    // Let the reaction above be read first — this is a second beat, not a
+    // replacement for it.
+    if (banked) setTimeout(function () { react("That's a good day.", null); }, 2800);
+    save();
+    paintReadouts();
+    checkEvolution();
+  }
+
+  function openFeedWheel() {
     var fav = favourites();
     var items = FOODS.map(function (f) {
       return {
@@ -1752,51 +1959,57 @@
         heart: f.id === fav.food && (S.favHits[f.id] || 0) >= 2
       };
     });
-    openWheel("What's for dinner?", items, false, function (food) {
-      var ap = appetite();
-      var isFav = food.id === fav.food;
-      // A full gator only nibbles, and nibbling pays nothing: drops come from
-      // timing, not tapping. The favourite bonus rides on a paid meal only.
-      var gain = ap === 2 ? 6 : ap === 1 ? 3 : 0;
-      if (gain && isFav) gain += 3;
-      S.drops += gain;
-      S.fedAt = Date.now();
-      if (isFav) S.favHits[food.id] = (S.favHits[food.id] || 0) + 1;
-      var banked = markCare("fed");
+    openWheel("What's for dinner?", items, false, feedWith);
+  }
 
-      if (isFav) {
-        var firstTime = !S.favSeen.food;
-        S.favSeen.food = true;
-        if (firstTime) {
-          journal("You worked out that he loves " + food.name.toLowerCase() + ".");
-          showCard(food.ico, "Oh — he *loves* " + food.name.toLowerCase() + ".",
-            "you'll want to remember that");
-        }
-        react(trait().feedFav, "wiggle");
-        melody([523, 659, 880], 90);
-      } else if (ap === 2) {
-        react("He ate it in one go.", "happy");
-        blip(660, 0.2, "sine");
-      } else if (ap === 1) {
-        react("He's happy with that.", "happy");
-        blip(587, 0.18, "sine");
-      } else {
-        react("He nibbles politely. Not really hungry.", null);
-        blip(392, 0.16, "sine");
-      }
-      // Let the reaction above be read first — this is a second beat, not a
-      // replacement for it.
-      if (banked) setTimeout(function () { react("That's a good day.", null); }, 2800);
-      save();
-      paintReadouts();
-      checkEvolution();
-    });
+  // Once the favourite is known, FEED is one tap: he gets it. The wheel is
+  // still there for anyone who wants to offer something else, in the Pond
+  // sheet beside "What he likes".
+  $("a-feed").addEventListener("click", function () {
+    if (S.favSeen.food) feedWith(byId(FOODS, favourites().food));
+    else openFeedWheel();
   });
 
   // ---- play / tuck --------------------------------------------------------------
 
-  $("a-play").addEventListener("click", function () {
-    if (asleep()) return doTuck();
+  function playWith(p) {
+    var fav = favourites();
+    var isFav = p.id === fav.play;
+    // Play pays once he's rested: two hours since the last paid game. He
+    // still plays, and it still counts as care; it just doesn't pay.
+    var rested = !S.lastPlayAt || Date.now() - S.lastPlayAt >= 2 * HOUR;
+    var gain = rested ? (isFav ? 5 : 2) : 0;
+    S.drops += gain;
+    if (rested) S.lastPlayAt = Date.now();
+    if (isFav) S.favHits[p.id] = (S.favHits[p.id] || 0) + 1;
+    var banked = markCare("played");
+
+    if (isFav) {
+      var firstTime = !S.favSeen.play;
+      S.favSeen.play = true;
+      if (firstTime) {
+        journal(p.name + " turns out to be his favourite thing in the world.");
+        showCard(p.ico, p.name + " is his favourite thing in the world.",
+          "from now on PLAY goes straight to " + p.name.toLowerCase());
+      }
+      react(trait().play, "wiggle");
+      melody([659, 784, 988], 90);
+    } else if (!rested) {
+      react("He's still puffed from last time. Fun, though.", "happy");
+      blip(523, 0.16, "sine");
+    } else {
+      react("That was fun.", "happy");
+      blip(587, 0.18, "sine");
+    }
+    // Let the reaction above be read first — this is a second beat, not a
+    // replacement for it.
+    if (banked) setTimeout(function () { react("That's a good day.", null); }, 2800);
+    save();
+    paintReadouts();
+    checkEvolution();
+  }
+
+  function openPlayWheel() {
     var fav = favourites();
     var items = PLAYS.map(function (p) {
       return {
@@ -1804,47 +2017,19 @@
         heart: p.id === fav.play && (S.favHits[p.id] || 0) >= 2
       };
     });
-    openWheel("What shall we do?", items, false, function (p) {
-      var isFav = p.id === fav.play;
-      // Play pays once he's rested: two hours since the last paid game. He
-      // still plays, and it still counts as care; it just doesn't pay.
-      var rested = !S.lastPlayAt || Date.now() - S.lastPlayAt >= 2 * HOUR;
-      var gain = rested ? (isFav ? 5 : 2) + (trait().id === "silly" ? 2 : 0) : 0;
-      S.drops += gain;
-      if (rested) S.lastPlayAt = Date.now();
-      if (isFav) S.favHits[p.id] = (S.favHits[p.id] || 0) + 1;
-      var banked = markCare("played");
+    openWheel("What shall we do?", items, false, playWith);
+  }
 
-      if (isFav) {
-        var firstTime = !S.favSeen.play;
-        S.favSeen.play = true;
-        if (firstTime) {
-          journal(p.name + " turns out to be his favourite thing in the world.");
-          showCard(p.ico, p.name + " is his favourite thing in the world.",
-            "you found it out yourself");
-        }
-        react(trait().play, "wiggle");
-        melody([659, 784, 988], 90);
-      } else if (!rested) {
-        react("He's still puffed from last time. Fun, though.", "happy");
-        blip(523, 0.16, "sine");
-      } else {
-        react("That was fun.", "happy");
-        blip(587, 0.18, "sine");
-      }
-      // Let the reaction above be read first — this is a second beat, not a
-      // replacement for it.
-      if (banked) setTimeout(function () { react("That's a good day.", null); }, 2800);
-      save();
-      paintReadouts();
-      checkEvolution();
-    });
+  $("a-play").addEventListener("click", function () {
+    if (asleep()) return doTuck();
+    if (S.favSeen.play) playWith(byId(PLAYS, favourites().play));
+    else openPlayWheel();
   });
 
   function doTuck() {
     if (S.tuckNight === nightKey()) return;
     S.tuckNight = nightKey();
-    var gain = trait().id === "gentle" ? 4 : 2;
+    var gain = 2;
     S.drops += gain;
     var banked = markCare("tucked");
     journal("You tucked him in.");
@@ -1870,9 +2055,7 @@
     return null;
   }
 
-  function diveMs(t) {
-    return trait().id === "bold" ? Math.round(t.ms * 0.85) : t.ms;
-  }
+  function diveMs(t) { return t.ms; }
 
   $("a-dive").addEventListener("click", function () {
     if (S.dive) {
@@ -1919,6 +2102,8 @@
     award(find, t, "dive");
     lastSpriteKey = "";
     paintSprite();
+    // He comes up where the bubbles were, then paddles back to his spot.
+    nudgeSprite(50, 30, 3500, true);
   }
 
   // Shared by dives and lines. Duplicates still pay, at a third rate, so a
@@ -1927,7 +2112,6 @@
     var isNew = S.found.indexOf(find.id) === -1;
     if (isNew) S.found.push(find.id);
     var gain = isNew ? find.drops : Math.max(1, Math.floor(find.drops / 3));
-    if (trait().id === "greedy") gain += 1;
     S.drops += gain;
     gain += bonus || 0;   // a line folds its own haul into the one card
     markCare(how === "dive" ? "dived" : "fished");
@@ -1980,7 +2164,7 @@
   function reel() {
     var def = byId(LINES, S.line.kind) || LINES[0];
     var rnd = Arcade.seededRandom("line:" + S.line.castAt + ":" + S.born);
-    var gain = def.drops + (trait().id === "greedy" ? 1 : 0);
+    var gain = def.drops;
     S.drops += gain;
     var gotFind = rnd() < def.find;
     S.line = null;
@@ -2033,6 +2217,20 @@
       ? "Games: " + byId(PLAYS, fav.play).name.toLowerCase()
       : "Games: you haven't found it yet.");
     $("likesline").textContent = likes.join(" · ");
+
+    var acts = $("likeacts");
+    acts.innerHTML = "";
+    function escapeBtn(label, open) {
+      var b = document.createElement("button");
+      b.textContent = label;
+      b.addEventListener("click", function () {
+        $("sheetwrap").classList.remove("on");
+        open();
+      });
+      acts.appendChild(b);
+    }
+    if (S.favSeen.food && !asleep() && !S.dive) escapeBtn("Offer something else", openFeedWheel);
+    if (S.favSeen.play && !asleep() && !S.dive) escapeBtn("Play something else", openPlayWheel);
 
     // Keepsakes
     $("keephint").textContent = S.keepsakes.length
@@ -2255,6 +2453,7 @@
       "The pond runs on the real clock. Close it and he keeps living. Open it to see what you missed.",
       "FEED when he's hungry. A full gator only nibbles, and nibbling pays nothing.",
       "PLAY once he's had a rest, about two hours between games.",
+      "Once you've found his favourite food or game, FEED and PLAY give it to him in one tap. The Pond sheet can offer something else.",
       "DIVE sends him down for real minutes or hours. He surfaces with a find for the collection.",
       "CAST a line and come back later. The line pays dew drops; the dive pays the collection.",
       "Two different care actions in a day bank a care-day. Care-days make him grow.",

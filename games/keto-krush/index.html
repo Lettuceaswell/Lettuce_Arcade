@@ -1165,8 +1165,23 @@
   }
 
   var cardBeat = false; // whether the card on screen is a new best
+  var cardRecs = { move: false, combo: false, frenzies: false };
+
+  // "Out of moves · 120 short of your best": the near miss is the hook.
+  function whyLine(beat) {
+    if (beat) return "🎉 New best!";
+    var how = movesLeft <= 0 ? "Out of moves" : "Board locked";
+    if (highScore > score) how += " · " + (highScore - score).toLocaleString() + " short of your best";
+    return how;
+  }
+
+  function saveBrag() {
+    Arcade.brag(highScore > 0 ? "Best " + highScore.toLocaleString() : "");
+  }
 
   function buildCard(beat, recs) {
+    cardRecs = recs;
+    saveBrag();
     cardBeat = beat;
     $("card-date").textContent = new Date().toLocaleDateString(undefined, { month: "short", day: "numeric" });
     buildArc();
@@ -1183,7 +1198,7 @@
     });
 
     var why = $("card-why");
-    why.textContent = beat ? "🎉 New best!" : (movesLeft <= 0 ? "Out of moves" : "Board locked");
+    why.textContent = whyLine(beat);
     why.className = "card-why" + (beat ? " best" : "");
     cardScoreEl.textContent = "0";
 
@@ -1278,7 +1293,10 @@
       (function (el, stamp) {
         at(t, function () {
           el.classList.add("in");
-          if (stamp) { if (cardBeat) frenzyInSound(); else ketosisInSound(); }
+          if (stamp) {
+            if (cardBeat) { frenzyInSound(); Arcade.confetti(["#ffd23f", "#4ade80", "#38bdf8", "#c084fc", "#ffffff"]); }
+            else ketosisInSound();
+          }
         });
       })(el, stamp);
       t += stamp ? 400 : 140;
@@ -1322,17 +1340,155 @@
       + " · " + runTitle();
   }
 
-  $("share").addEventListener("click", function () {
-    var text = shareText();
-    function copied() { cardHintEl.textContent = "Copied — paste it in the chat"; }
-    function fallback() { cardHintEl.textContent = "Screenshot the card to share it"; }
-    if (navigator.share) {
-      navigator.share({ text: text }).catch(function () { /* user cancelled */ });
-    } else if (navigator.clipboard && navigator.clipboard.writeText) {
-      navigator.clipboard.writeText(text).then(copied, fallback);
-    } else {
-      fallback();
+  // The card as a PNG for the share sheet: the same pictures the card
+  // teaches with (arc, tier bar, plate), drawn at 2x for a phone screen.
+  function roundRect(g, x, y, w, h, rad) {
+    g.beginPath();
+    g.moveTo(x + rad, y);
+    g.arcTo(x + w, y, x + w, y + h, rad);
+    g.arcTo(x + w, y + h, x, y + h, rad);
+    g.arcTo(x, y + h, x, y, rad);
+    g.arcTo(x, y, x + w, y, rad);
+    g.closePath();
+  }
+
+  function renderCanvas() {
+    var S = 2, W = 420, pad = 20, inner = W - pad * 2;
+    var ARC_H = 64, ROW = 22;
+    var H = pad + 18 + 14 + ARC_H + 22 + ROW + 50 + 8 + 12 + ROW + ROW + 8 + 3 * ROW + 12 + 34 + ROW + pad + 12;
+    var cv = document.createElement("canvas");
+    cv.width = W * S; cv.height = H * S;
+    var g = cv.getContext("2d");
+    g.scale(S, S);
+    g.fillStyle = "#052926";
+    g.fillRect(0, 0, W, H);
+    var font = "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif";
+
+    // Header row.
+    var y = pad + 14;
+    g.textBaseline = "alphabetic";
+    g.textAlign = "left"; g.fillStyle = "#d2f9f7"; g.font = "700 15px " + font;
+    g.fillText("🍖 Keto Krush", pad, y);
+    g.textAlign = "right"; g.fillStyle = "#a5f3ef"; g.font = "500 15px " + font;
+    g.fillText(Arcade.cardDate(), W - pad, y);
+
+    // The run arc, one bar per move.
+    y += 18;
+    g.fillStyle = "rgba(0,0,0,0.28)";
+    roundRect(g, pad, y, inner, ARC_H, 8); g.fill();
+    var h = run.history, n = Math.max(h.length, 1);
+    var bw = inner / n, gapPx = n <= 60 ? bw * 0.22 : 0;
+    for (var i = 0; i < h.length; i++) {
+      var bh = Math.max(2, h[i].k / 100 * ARC_H);
+      g.fillStyle = TIER_COLORS[h[i].s];
+      g.fillRect(pad + i * bw + gapPx / 2, y + ARC_H - bh, Math.max(1, bw - gapPx), bh);
     }
+    if (run.worstCarb.move >= 0) {
+      g.textAlign = "center"; g.font = "14px " + font; g.fillStyle = "#fff";
+      g.fillText("🍩", pad + (run.worstCarb.move + 0.5) * bw, y - 3);
+    }
+    y += ARC_H + 22;
+
+    // Why + score.
+    g.textAlign = "center";
+    g.fillStyle = cardBeat ? "#4adec5" : "#a5f3ef";
+    g.font = (cardBeat ? "700" : "500") + " 14px " + font;
+    g.fillText(whyLine(cardBeat), W / 2, y);
+    y += 44;
+    g.fillStyle = "#d2f9f7"; g.font = "900 44px " + font;
+    g.fillText(score.toLocaleString(), W / 2, y);
+    y += 14;
+
+    // Tier bar: where the points came from.
+    var total = 0;
+    ["crash", "normal", "keto", "deep", "frenzy"].forEach(function (t) { total += run.byTier[t]; });
+    g.fillStyle = "rgba(0,0,0,0.28)";
+    roundRect(g, pad, y, inner, 8, 4); g.fill();
+    if (total > 0) {
+      g.save();
+      roundRect(g, pad, y, inner, 8, 4); g.clip();
+      var x = pad;
+      ["crash", "normal", "keto", "deep", "frenzy"].forEach(function (t) {
+        var w = run.byTier[t] / total * inner;
+        if (!w) return;
+        g.fillStyle = TIER_COLORS[t];
+        g.fillRect(x, y, w, 8);
+        x += w;
+      });
+      g.restore();
+    }
+    y += 8 + 12 + 14;
+
+    // Moves.
+    var earned = movesTaken - MOVE_BUDGET;
+    g.fillStyle = "#a5f3ef"; g.font = "500 15px " + font;
+    g.fillText(movesTaken + (movesTaken === 1 ? " move" : " moves") + (earned > 0 ? " · " + MOVE_BUDGET + " + " + earned + " earned" : ""), W / 2, y);
+    y += ROW;
+
+    // Plate: protein against carbs.
+    var eaten = run.protein + run.carb;
+    var pct = eaten ? Math.round(run.protein / eaten * 100) : 0;
+    g.font = "500 14px " + font;
+    g.textAlign = "left"; g.fillText("🍖🧀 " + pct + "%", pad, y);
+    g.textAlign = "right"; g.fillText((100 - pct) + "% 🍕🥐🍪", W - pad, y);
+    var barX = pad + 90, barW = inner - 180;
+    g.fillStyle = "#18aca4";
+    roundRect(g, barX, y - 11, barW, 10, 5); g.fill();
+    if (pct > 0) {
+      g.save(); roundRect(g, barX, y - 11, barW, 10, 5); g.clip();
+      g.fillStyle = "#b8433a"; g.fillRect(barX, y - 11, barW * pct / 100, 10);
+      g.restore();
+    }
+    y += ROW + 8;
+
+    // Highlights.
+    var rows = [
+      ["Biggest move", run.bestMove.toLocaleString(), cardRecs.move],
+      ["Longest cascade", "x" + Math.max(run.maxCombo, 1), cardRecs.combo],
+      ["Fat-adapted", frenzyGlyphs(run.frenzies), cardRecs.frenzies]
+    ];
+    rows.forEach(function (r) {
+      g.textAlign = "left"; g.fillStyle = "#a5f3ef"; g.font = "500 15px " + font;
+      g.fillText(r[0], pad, y);
+      g.textAlign = "right"; g.fillStyle = "#d2f9f7"; g.font = "700 15px " + font;
+      g.fillText(r[1] + (r[2] ? "  🏆" : ""), W - pad, y);
+      y += ROW;
+    });
+
+    // Title + foot.
+    y += 12 + 22;
+    g.textAlign = "center"; g.fillStyle = "#ffd23f"; g.font = "900 24px " + font;
+    g.fillText(runTitle(), W / 2, y);
+    y += ROW;
+    g.fillStyle = "rgba(165,243,239,0.75)"; g.font = "500 12px " + font;
+    g.fillText("Best " + highScore.toLocaleString() + " · lifetime " + cleared.toLocaleString() + " tiles · " + frenzies.toLocaleString() + " fat-adapted", W / 2, y);
+    g.fillStyle = "rgba(210,249,247,0.35)"; g.font = "500 11px " + font;
+    g.fillText("lettuce arcade", W / 2, H - 12);
+    return cv;
+  }
+
+  // Share taps render the PNG first; Arcade.share falls back to the text
+  // when the platform can't take a file, and to the clipboard after that.
+  $("share").addEventListener("click", function () {
+    var btn = $("share");
+    var text = shareText();
+    btn.disabled = true;
+    function go(file) {
+      Arcade.share({ text: text, title: "Keto Krush", file: file }).then(function (r) {
+        btn.disabled = false;
+        if (r === "copied") cardHintEl.textContent = "Copied — paste it in the chat";
+        else if (r === "failed") cardHintEl.textContent = "Screenshot the card to share it";
+        else cardHintEl.textContent = "";
+      });
+    }
+    var cv = null;
+    try { cv = renderCanvas(); } catch (e) { cv = null; }
+    if (!cv || !cv.toBlob || !window.File) { go(null); return; }
+    cv.toBlob(function (blob) {
+      var file = null;
+      try { if (blob) file = new File([blob], "keto-krush.png", { type: "image/png" }); } catch (e) { file = null; }
+      go(file);
+    }, "image/png");
   });
 
   $("seeboard").addEventListener("click", function () {
@@ -1639,6 +1795,7 @@
   // ---- boot ------------------------------------------------------------
   function start() {
     renderMute();
+    saveBrag();
     computeLayout();
     generateBoard();
     renderStats();

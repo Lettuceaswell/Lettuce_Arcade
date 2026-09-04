@@ -153,12 +153,19 @@
     margin-top: 2px;
   }
 
+  /* The trophy shelf: each game's own one-line brag, then the play count. */
   .tile-plays {
     font-size: 0.85rem;
     color: var(--fg-dim);
     opacity: 0.85;
     margin-top: 4px;
   }
+  .tile-plays .brag {
+    color: #ffd54a;
+    font-weight: 700;
+    opacity: 1;
+  }
+  .tile-plays .sep { opacity: 0.5; margin: 0 5px; }
 
   .empty, .error {
     text-align: center;
@@ -268,10 +275,25 @@
         blurb.textContent = game.blurb || "";
         text.appendChild(title);
         text.appendChild(blurb);
-        if (row.plays > 0) {
+        var brag = Arcade.bragFor(game.slug);
+        if (row.plays > 0 || brag) {
           var plays = document.createElement("div");
           plays.className = "tile-plays";
-          plays.textContent = playsText(row.plays);
+          if (brag) {
+            var b = document.createElement("span");
+            b.className = "brag";
+            b.textContent = brag;
+            plays.appendChild(b);
+          }
+          if (row.plays > 0) {
+            if (brag) {
+              var sep = document.createElement("span");
+              sep.className = "sep";
+              sep.textContent = "·";
+              plays.appendChild(sep);
+            }
+            plays.appendChild(document.createTextNode(playsText(row.plays)));
+          }
           text.appendChild(plays);
         }
 

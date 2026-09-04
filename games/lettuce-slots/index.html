@@ -178,6 +178,26 @@
   .box .btn { width: 100%; min-height: 64px; font-size: 1.25rem; font-weight: 800; }
   .box .btn.quiet { background: var(--bg-elevated); }
 
+  /* The end card proper: a bordered panel inside the sheet so a screenshot
+     has an edge, a date, and a footer that says where it came from. */
+  .box .panel {
+    width: 100%;
+    background: #052926;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 18px;
+    padding: 14px 16px 12px;
+    display: flex; flex-direction: column; align-items: center; gap: 8px;
+  }
+  .box .panel-top { width: 100%; display: flex; justify-content: space-between; font-size: 0.9rem; color: var(--fg-dim); }
+  .box .panel-top .game { color: var(--fg); font-weight: 700; }
+  .box .why { font-size: 0.9rem; color: var(--fg-dim); margin-bottom: -4px; }
+  .box .why.best { color: #ffe066; font-weight: 700; }
+  .box .strip { font-size: 1.25rem; line-height: 1.3; letter-spacing: 0.04em; word-break: break-all; }
+  .box .foot { font-size: 0.72rem; color: var(--fg-dim); opacity: 0.75; }
+  .box .hint { font-size: 0.8rem; color: var(--fg-dim); min-height: 1.1em; }
+  .box .row { display: flex; gap: 8px; width: 100%; }
+  .box .row .btn { flex: 1; min-height: 56px; font-size: 1.1rem; padding-left: 8px; padding-right: 8px; }
+
   @media (prefers-reduced-motion: reduce) {
     .payout.pop { animation: none; opacity: 1; }
   }
@@ -236,13 +256,20 @@
     "The 🐰 eats the bowl. SERVE keeps it.",
     SPINS + " spins. Whatever's left at the end is served."
   ];
-  // The whole rulebook, behind the ☰ menu, for whoever asks.
+  // The whole rulebook, behind the ☰ menu, for whoever asks. Two modes, two
+  // sections: the pill at the top of the screen switches between them.
   var HELP = [
-    "Spin: just spin. One point a spin, fifty for a match, five hundred for 🥬🥬🥬. Points add up forever.",
-    "Run: " + SPINS + " spins. Every spin adds more to the bowl than the last.",
-    "SERVE keeps the bowl. The 🐰 on the third reel eats it.",
+    "# Spin",
+    "The toy. Just spin — nothing is at stake and nothing ends.",
+    "One point a spin, fifty for a match, five hundred for 🥬🥬🥬.",
+    "Points add up forever. No bunny in this mode.",
+    "# Run",
+    "The game. " + SPINS + " spins, then it's over.",
+    "Every spin adds more to the bowl than the last: +1, +2, +3…",
+    "SERVE keeps the bowl and starts the count again at +1.",
+    "The 🐰 on the third reel eats whatever's in the bowl.",
     "A MATCH doubles the bowl. 🥬🥬🥬 triples it and adds 50.",
-    "Whatever's in the bowl at the end is served. Serve more than anyone."
+    "Whatever's still in the bowl after the last spin is served. Serve more than anyone."
   ];
   // First run only: the status line teaches for the first three leaves of a
   // streak, then stops for good (or after ten spins, whichever comes first).
@@ -341,6 +368,7 @@
     run = {
       seed: newSeedString(),
       spin: 0, bowl: 0, streak: 0, served: 0, biggest: 0, bunnies: 0, jackpots: 0,
+      hist: [], // one letter per event, for the end card's strip: l b m j s
       coach: Arcade.load("coached", false) !== true
     };
     rng = Arcade.seededRandom(run.seed);
@@ -355,6 +383,7 @@
     if (r.bunnies == null) r.bunnies = r.snails; // v2 runs called it a snail
     ["spin", "bowl", "streak", "served", "biggest", "bunnies", "jackpots"].forEach(function (k) { r[k] = num(r[k]); });
     r.coach = r.coach === true;
+    if (!Array.isArray(r.hist)) r.hist = [];
     if (r.spin >= SPINS || r.spin < 0) { Arcade.save("run", null); return null; }
     rng = Arcade.seededRandom(r.seed);
     for (var i = 0; i < r.spin * 3; i++) rng(); // replay the draws already spent
@@ -546,12 +575,15 @@
       setStatus(tension ? "so close — one off" : "", tension ? "near" : "");
     }
     saveStats();
+    if (outcome !== "miss") saveBrag();
     spinning = false;
     render();
   }
 
   function resolve(r1, r2, r3, outcome, tension) {
     run.spin += 1;
+
+    run.hist.push(outcome === "bust" ? "b" : outcome === "jackpot" ? "j" : outcome === "match" ? "m" : "l");
 
     if (outcome === "bust") {
       var lost = run.bowl;
@@ -602,6 +634,7 @@
       // Last call: whatever is still in the bowl is served.
       if (run.bowl > 0) {
         run.served += run.bowl;
+        run.hist.push("s");
         setStatus("last call — served " + run.bowl, "serve");
         serveSound(run.bowl);
         run.bowl = 0;
@@ -623,6 +656,7 @@
     if (spinning || phase !== "play" || ui !== "run" || !run || run.bowl <= 0) return;
     var amount = run.bowl;
     run.served += amount;
+    run.hist.push("s");
     run.bowl = 0;
     run.streak = 0;
     clearRings();
@@ -635,9 +669,11 @@
   function finishRun() {
     var result = {
       served: run.served, tier: tierFor(run.served).name,
-      biggest: run.biggest, bunnies: run.bunnies, jackpots: run.jackpots
+      biggest: run.biggest, bunnies: run.bunnies, jackpots: run.jackpots,
+      hist: run.hist.slice(), prevBest: best, beat: run.served > best && run.served > 0
     };
-    if (result.served > best) { best = result.served; Arcade.save("best", best); }
+    if (result.beat) { best = result.served; Arcade.save("best", best); }
+    saveBrag();
     run = null;
     rng = null;
     Arcade.save("run", null);
@@ -689,44 +725,69 @@
     openCard(kids);
   }
 
+  // The run as a strip of at most 16 glyphs. Each slot shows the most
+  // notable thing that happened in its slice of the run: a jackpot beats a
+  // serve beats a bunny beats a match beats a plain leaf.
+  var GLYPH = { l: "🟩", b: "🐰", m: "✨", j: "🥬", s: "🥗" };
+  var RANK = { l: 0, m: 1, b: 2, s: 3, j: 4 };
+  function stripFor(hist) {
+    var n = hist.length;
+    if (!n) return "";
+    var buckets = Math.min(n, 16), out = "";
+    for (var b = 0; b < buckets; b++) {
+      var from = Math.floor(b * n / buckets), to = Math.floor((b + 1) * n / buckets);
+      var top = hist[from];
+      for (var i = from + 1; i < to; i++) if ((RANK[hist[i]] || 0) > (RANK[top] || 0)) top = hist[i];
+      out += GLYPH[top] || "🟩";
+    }
+    return out;
+  }
+
   function resultLine(r) {
-    var line = "🥬 Lettuce Slots · " + r.served + " served · " + r.tier +
-      " · biggest bowl " + r.biggest + " · 🐰 " + r.bunnies;
+    var line = "🥬 Lettuce Slots · " + r.served + " served · " + r.tier + "\n" +
+      stripFor(r.hist) + "\n" +
+      "biggest bowl " + r.biggest + " · 🐰 " + r.bunnies;
     if (r.jackpots > 0) line += " · 🥬 ×" + r.jackpots;
+    line += r.beat ? " · new best!" : " · best " + best;
     return line;
   }
 
-  function copyText(text, btn) {
-    function done() { btn.textContent = "Copied"; setTimeout(function () { btn.textContent = "Copy result"; }, 1500); }
-    function fail() {
-      try {
-        var ta = document.createElement("textarea");
-        ta.value = text;
-        ta.setAttribute("readonly", "");
-        ta.style.position = "fixed"; ta.style.opacity = "0";
-        document.body.appendChild(ta);
-        ta.select();
-        document.execCommand("copy");
-        document.body.removeChild(ta);
-        done();
-      } catch (e) { btn.textContent = "Couldn't copy"; }
-    }
-    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(done, fail);
-    else fail();
+  function saveBrag() {
+    if (best > 0) Arcade.brag("Best run " + best + " · " + tierFor(best).name);
+    else if (points > 0) Arcade.brag(points.toLocaleString() + " pts" + (jackpots > 0 ? " · " + plural(jackpots, "jackpot") : ""));
+    else Arcade.brag("");
   }
 
   function showEndCard(r) {
-    var kids = [
-      el("h2", null, "Run over"),
-      el("div", "big", r.served + " served"),
-      el("div", "tier", "🥗 " + r.tier),
-      el("p", null, "biggest bowl " + r.biggest + " · 🐰 " + r.bunnies + (r.jackpots > 0 ? " · 🥬 jackpot ×" + r.jackpots : "")),
-      el("p", null, r.served >= best && r.served > 0 ? "a new best" : "your best " + best)
-    ];
-    var copyBtn = button("Copy result", "btn quiet", function () { copyText(resultLine(r), copyBtn); });
-    kids.push(copyBtn);
-    kids.push(button("Play again", "btn", function () { showStartCard(false); }));
-    openCard(kids);
+    var why = el("div", "why" + (r.beat ? " best" : ""),
+      r.beat ? "🎉 New best!" : (best > r.served ? (best - r.served) + " short of your best" : "Run over"));
+    var big = el("div", "big", r.served + " served");
+    var panel = el("div", "panel");
+    var top = el("div", "panel-top");
+    top.appendChild(el("span", "game", "🥬 Lettuce Slots"));
+    top.appendChild(el("span", null, Arcade.cardDate()));
+    panel.appendChild(top);
+    panel.appendChild(why);
+    panel.appendChild(big);
+    panel.appendChild(el("div", "tier", "🥗 " + r.tier));
+    panel.appendChild(el("div", "strip", stripFor(r.hist)));
+    panel.appendChild(el("p", null, "biggest bowl " + r.biggest + " · 🐰 " + r.bunnies + (r.jackpots > 0 ? " · 🥬 jackpot ×" + r.jackpots : "")));
+    panel.appendChild(el("p", null, r.beat && r.prevBest > 0 ? "previous best " + r.prevBest : "your best " + best));
+    panel.appendChild(el("div", "foot", "lettuce arcade"));
+
+    var hint = el("div", "hint");
+    var row = el("div", "row");
+    var shareBtn = el("button", "btn quiet", "Share");
+    Arcade.shareButton(shareBtn, hint, function () { return { text: resultLine(r), title: "Lettuce Slots" }; });
+    row.appendChild(shareBtn);
+    row.appendChild(button("Play again", "btn", function () { showStartCard(false); }));
+
+    openCard([panel, row, hint]);
+    if (r.beat) {
+      Arcade.stampIn(big);
+      Arcade.confetti(["#ffe066", "#4adec5", "#eafffb", "#ff8a7a", "#ffffff"]);
+      jackpotSound();
+    }
     // Idle reels behind the card.
     reelEls[0].textContent = SYMBOLS[LETTUCE];
     reelEls[1].textContent = SYMBOLS[LETTUCE];
@@ -803,6 +864,7 @@
   // ---- boot -------------------------------------------------------------
   function start() {
     renderMute();
+    saveBrag();
     // First boot opens on the toy. After that, wherever you left it.
     setUi(Arcade.load("uiMode", "spin") === "run" ? "run" : "spin");
   }

@@ -8,24 +8,102 @@
 <link rel="stylesheet" href="/shared/arcade.css">
 <style>
   body { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; text-align: center; gap: 18px; }
-  #timer { font-size: 1.3rem; color: var(--fg-dim); }
-  #score { font-size: 3rem; font-weight: 800; }
+  #timer { font-size: 1.3rem; color: var(--fg-dim); min-height: 1.6rem; }
+  #score { font-size: 3rem; font-weight: 800; font-variant-numeric: tabular-nums; line-height: 1; }
   #best { font-size: 1rem; color: var(--fg-dim); }
   #tap { width: 220px; height: 220px; border-radius: 50%; font-size: 1.5rem; font-weight: 700; }
+  #tap.armed { box-shadow: 0 0 0 0 rgba(74, 222, 197, 0.7); animation: armed 1.4s ease-out infinite; }
+  @keyframes armed {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(74, 222, 197, 0.7); }
+    50% { box-shadow: 0 0 0 14px rgba(74, 222, 197, 0); }
+  }
+
+  /* Every 25 taps the number swells. Cheap, and it marks the pace. */
+  @keyframes milestone {
+    0% { transform: scale(1); color: var(--fg); }
+    35% { transform: scale(1.45); color: #ffe066; }
+    100% { transform: scale(1); color: var(--fg); }
+  }
+  #score.milestone { animation: milestone 500ms ease-out; }
+
+  /* ---- end card: one screen, no scrolling, screenshot-ready ---- */
+  #overlay {
+    position: fixed; inset: 0; z-index: 9000;
+    display: none; align-items: center; justify-content: center;
+    padding: calc(12px + var(--safe-top)) 12px calc(12px + var(--safe-bottom));
+    background: rgba(3, 26, 24, 0.86);
+    overflow-y: auto;
+    opacity: 0; transition: opacity 250ms ease;
+  }
+  #overlay.show { display: flex; }
+  #overlay.in { opacity: 1; }
+  .card {
+    width: 100%; max-width: 340px; margin: auto;
+    background: #052926;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 18px;
+    padding: 14px 16px 12px;
+    display: flex; flex-direction: column; align-items: stretch; gap: 10px;
+    text-align: center;
+    transform: translateY(24px);
+    transition: transform 320ms cubic-bezier(0.2, 0.9, 0.3, 1.1);
+  }
+  #overlay.in .card { transform: none; }
+  .card-top { display: flex; justify-content: space-between; align-items: baseline; font-size: 0.9rem; color: var(--fg-dim); }
+  .card-top .game { color: var(--fg); font-weight: 700; }
+  .card-why { font-size: 0.9rem; color: var(--fg-dim); margin-bottom: -6px; }
+  .card-why.best { color: var(--accent); font-weight: 700; }
+  .card-score { font-size: 3.4rem; font-weight: 900; line-height: 1; letter-spacing: 0.02em; font-variant-numeric: tabular-nums; }
+  .card-score small { display: block; font-size: 1rem; font-weight: 700; color: var(--fg-dim); letter-spacing: 0.08em; margin-top: 4px; }
+  .card-line { font-size: 0.95rem; color: var(--fg-dim); }
+  .card-line b { color: var(--fg); }
+
+  /* The 15 seconds as 15 bars: how many taps landed in each one. */
+  .pace { display: flex; align-items: flex-end; gap: 3px; height: 44px; padding: 0 4px; }
+  .pace span { flex: 1; background: var(--accent); border-radius: 2px 2px 0 0; min-height: 2px; opacity: 0.9; }
+  .pace span.peak { background: #ffe066; }
+
+  .card-foot { font-size: 0.72rem; color: var(--fg-dim); opacity: 0.75; }
+  .card-actions { display: flex; gap: 8px; margin-top: 2px; }
+  .card-actions .btn { flex: 1; padding-left: 8px; padding-right: 8px; }
+  .card-hint { font-size: 0.8rem; color: var(--fg-dim); min-height: 1.1em; }
+
+  @media (prefers-reduced-motion: reduce) {
+    #tap.armed, #score.milestone { animation: none; }
+    #overlay, .card { transition: none; }
+  }
 </style>
 </head>
 <body>
 <div id="timer">15s</div>
 <div id="score">0</div>
-<button id="tap" class="btn">TAP!</button>
+<button id="tap" class="btn armed">TAP!</button>
 <div id="best"></div>
+
+<div id="overlay" role="dialog" aria-label="Time's up">
+  <div class="card">
+    <div class="card-top"><span class="game">🕹️ Tap Race</span><span id="card-date"></span></div>
+    <div class="card-why" id="card-why"></div>
+    <div class="card-score" id="card-score">0<small>TAPS</small></div>
+    <div class="pace" id="pace" aria-hidden="true"></div>
+    <div class="card-line" id="card-pace"></div>
+    <div class="card-line" id="card-best"></div>
+    <div class="card-foot">lettuce arcade</div>
+    <div class="card-actions">
+      <button id="share" class="btn">Share</button>
+      <button id="again" class="btn">Play again</button>
+    </div>
+    <div class="card-hint" id="card-hint"></div>
+  </div>
+</div>
+
 <script src="/shared/arcade.js"></script>
 <script>
   Arcade.backButton();
   Arcade.menuButton({
     rules: [
       "Tap the big button as fast as you can.",
-      "Fifteen seconds. Every tap is a point.",
+      "The clock starts on your first tap. Fifteen seconds. Every tap is a point.",
       "Beat your best."
     ],
     describeSave: function () { return "Your best Tap Race score."; }
@@ -35,16 +113,53 @@
   var scoreEl = document.getElementById("score");
   var bestEl = document.getElementById("best");
   var tapBtn = document.getElementById("tap");
+  var overlayEl = document.getElementById("overlay");
 
   var DURATION = 15;
+  var MILESTONE = 25;
   var taps = 0;
-  var timeLeft = DURATION;
-  var running = false;
+  var perSecond = [];   // taps landed in each second of the run
+  var running = false;  // clock ticking
+  var armed = false;    // waiting for the first tap
+  var startedAt = 0;
   var intervalId = null;
+  var best = Number(Arcade.load("best", 0)) || 0;
+  var lastResult = null;
+
+  function $(id) { return document.getElementById(id); }
 
   function showBest() {
-    var best = Arcade.load("best", 0);
-    bestEl.textContent = "Best: " + best;
+    bestEl.textContent = best > 0 ? "Best: " + best : "";
+    Arcade.brag(best > 0 ? "Best " + best : "");
+  }
+
+  function arm() {
+    taps = 0;
+    perSecond = [];
+    for (var i = 0; i < DURATION; i++) perSecond.push(0);
+    running = false;
+    armed = true;
+    scoreEl.textContent = "0";
+    timerEl.textContent = "Tap to start the clock";
+    tapBtn.disabled = false;
+    tapBtn.classList.add("armed");
+    showBest();
+  }
+
+  function startClock() {
+    armed = false;
+    running = true;
+    startedAt = Date.now();
+    tapBtn.classList.remove("armed");
+    timerEl.textContent = DURATION + "s";
+    intervalId = setInterval(tick, 100);
+  }
+
+  function tick() {
+    var elapsed = (Date.now() - startedAt) / 1000;
+    var left = Math.max(0, Math.ceil(DURATION - elapsed));
+    timerEl.textContent = left + "s";
+    if (elapsed >= DURATION) endGame();
   }
 
   function endGame() {
@@ -52,31 +167,94 @@
     clearInterval(intervalId);
     tapBtn.disabled = true;
     timerEl.textContent = "Time's up!";
-    var best = Arcade.load("best", 0);
-    if (taps > best) {
-      Arcade.save("best", taps);
+    var beat = taps > best;
+    var prevBest = best;
+    if (beat) {
+      best = taps;
+      Arcade.save("best", best);
     }
     showBest();
+    lastResult = { taps: taps, beat: beat, prevBest: prevBest, perSecond: perSecond.slice() };
+    buildCard(lastResult);
+    showCard();
   }
 
-  function tick() {
-    timeLeft -= 1;
-    timerEl.textContent = timeLeft + "s";
-    if (timeLeft <= 0) endGame();
-  }
+  // ---- end card ----------------------------------------------------------
+  function buildCard(r) {
+    $("card-date").textContent = Arcade.cardDate();
+    var why = $("card-why");
+    if (r.beat && r.taps > 0) why.textContent = "🎉 New best!";
+    else if (best > r.taps) why.textContent = (best - r.taps) + " short of your best";
+    else why.textContent = "Time's up";
+    why.className = "card-why" + (r.beat && r.taps > 0 ? " best" : "");
 
-  function start() {
-    showBest();
-    tapBtn.addEventListener("pointerdown", function () {
-      if (!running) return;
-      taps += 1;
-      scoreEl.textContent = taps;
+    $("card-score").innerHTML = r.taps + "<small>" + (r.taps === 1 ? "TAP" : "TAPS") + "</small>";
+
+    var pace = $("pace");
+    pace.innerHTML = "";
+    var peak = 0;
+    r.perSecond.forEach(function (n) { if (n > peak) peak = n; });
+    r.perSecond.forEach(function (n) {
+      var bar = document.createElement("span");
+      bar.style.height = (peak ? Math.max(4, n / peak * 100) : 4) + "%";
+      if (n === peak && peak > 0) bar.className = "peak";
+      pace.appendChild(bar);
     });
-    running = true;
-    intervalId = setInterval(tick, 1000);
+
+    var rate = (r.taps / DURATION).toFixed(1);
+    $("card-pace").innerHTML = "<b>" + rate + "</b> taps a second · best second <b>" + peak + "</b>";
+    $("card-best").innerHTML = r.beat && r.prevBest > 0
+      ? "previous best <b>" + r.prevBest + "</b>"
+      : "your best <b>" + best + "</b>";
+    $("card-hint").textContent = "";
   }
 
-  Arcade.boot(start);
+  function showCard() {
+    overlayEl.classList.add("show");
+    void overlayEl.offsetWidth;
+    overlayEl.classList.add("in");
+    if (lastResult.beat && lastResult.taps > 0) {
+      Arcade.stampIn($("card-score"));
+      Arcade.confetti();
+    }
+  }
+
+  function hideCard() {
+    overlayEl.classList.remove("in", "show");
+  }
+
+  function shareText(r) {
+    var line = "🕹️ Tap Race · " + r.taps + " taps in " + DURATION + "s · " + (r.taps / DURATION).toFixed(1) + "/s";
+    line += r.beat ? " · new best!" : " · best " + best;
+    return line;
+  }
+
+  Arcade.shareButton($("share"), $("card-hint"), function () {
+    return lastResult ? { text: shareText(lastResult), title: "Tap Race" } : null;
+  });
+
+  $("again").addEventListener("click", function () {
+    hideCard();
+    arm();
+  });
+
+  // ---- input -------------------------------------------------------------
+  tapBtn.addEventListener("pointerdown", function (e) {
+    e.preventDefault();
+    if (armed) startClock();
+    if (!running) return;
+    taps += 1;
+    var sec = Math.min(DURATION - 1, Math.floor((Date.now() - startedAt) / 1000));
+    perSecond[sec] += 1;
+    scoreEl.textContent = taps;
+    if (taps % MILESTONE === 0) {
+      scoreEl.classList.remove("milestone");
+      void scoreEl.offsetWidth;
+      scoreEl.classList.add("milestone");
+    }
+  });
+
+  Arcade.boot(arm);
 </script>
 </body>
 </html>
