@@ -422,6 +422,11 @@
       "Four in a row leaves a special tile. Sweep it into a later clear to detonate it.",
       "25 moves. Climbing the meter earns more."
     ],
+    // No menu mid-cascade: restartRun would tear the board out from under
+    // the animation. Once the run is over the card is up and busy is true,
+    // but restarting from there is exactly what "Play again" does.
+    canOpen: function () { return !busy || runOver; },
+    actions: [{ label: "New board", confirm: "This board is gone. Your best stays.", onClick: function () { restartRun(); } }],
     describeSave: function () { return "High score, best combo, cleared boards and your stats in Keto Krush."; }
   });
 
@@ -487,6 +492,7 @@
   var statsEl = document.getElementById("stats");
   var muteBtn = document.getElementById("mute");
   var runoverEl = document.getElementById("runover");
+  var boardLocked = false; // the run ended on a locked board, not an empty move budget
   var movesEl = document.getElementById("moves");
   var overlayEl = document.getElementById("overlay");
   var cardEl = document.getElementById("card");
@@ -1169,8 +1175,8 @@
 
   // "Out of moves · 120 short of your best": the near miss is the hook.
   function whyLine(beat) {
-    if (beat) return "🎉 New best!";
-    var how = movesLeft <= 0 ? "Out of moves" : "Board locked";
+    var how = boardLocked ? "No moves left" : "Out of moves";
+    if (beat) return "🎉 New best!" + (boardLocked ? " · " + how : "");
     if (highScore > score) how += " · " + (highScore - score).toLocaleString() + " short of your best";
     return how;
   }
@@ -1696,9 +1702,15 @@
             Arcade.save("cleared", cleared);
             Arcade.save("frenzies", frenzies);
             renderStats();
-            if (movesLeft <= 0 || !hasAnyMove()) {
+            if (movesLeft <= 0) {
               busy = false;
               endRun();
+            } else if (!hasAnyMove()) {
+              // The board locked with moves in hand. Say so on the board
+              // before the card takes over, or the run just seems to stop.
+              boardLocked = true;
+              setStatus("No moves left");
+              setTimeout(function () { busy = false; endRun(); }, reducedMotion ? 0 : 1000);
             } else {
               busy = false;
               scheduleHint();
@@ -1778,6 +1790,7 @@
     finishCeremony();
     hideCard();
     runOver = false;
+    boardLocked = false;
     runoverEl.classList.remove("show");
     score = 0;
     comboStep = 0;

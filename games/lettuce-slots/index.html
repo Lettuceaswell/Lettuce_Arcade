@@ -834,6 +834,14 @@
   Arcade.menuButton({
     rules: HELP,
     canOpen: function () { return !spinning; },
+    // Bailing is free: a run only counts once it's served, so nothing here
+    // can touch the best. Drops straight onto a fresh start card.
+    actions: [{ label: "New run", confirm: "This run is gone. Your best stays.", onClick: function () {
+      run = null;
+      rng = null;
+      Arcade.save("run", null);
+      if (ui !== "run") setUi("run"); else enterRun();
+    } }],
     describeSave: function () {
       return points.toLocaleString() + " lifetime pts · " + plural(jackpots, "jackpot") +
         " · best run " + best + (run ? " · the run in progress" : "") + ".";

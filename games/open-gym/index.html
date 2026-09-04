@@ -167,6 +167,13 @@
       "Put two members of the same tier together to merge them up a tier.",
       "A branch costs 15, defends everything next to it at 2, and never moves."
     ],
+    // Mid-level bail. Until now the only way to restart was to lose first.
+    actions: [{ label: "Restart level", confirm: "This level starts over from turn 1.", onClick: function () {
+      document.getElementById("overlay").classList.remove("show");
+      hidePanel();
+      loadLevel(levelIndex);
+      buildBoard(); render();
+    } }],
     describeSave: function () { return "Every level you've unlocked and your progress in Open Gym."; }
   });
 

@@ -18,4 +18,4 @@
 
 
 
-(no changes noted yet)
+* can we do a little top right corner button for each game - doesn't open the game, but rather opens a page of "lifetime stats" per game. each game would be different, so we need to think through what would be appropriate per game, but one example would be [Lettuce Slots - total number of bunnies]
