@@ -167,20 +167,22 @@
   }
   .tile-plays .sep { opacity: 0.5; margin: 0 5px; }
 
-  /* Beta games: unfinished, playable by anyone, hidden behind one small
-     button so the main list stays the family's list. */
+  /* Beta games: unfinished, playable by anyone, tucked behind one quiet
+     button in the bottom-left corner, below the lettuce, so it reads as a
+     footnote rather than an invitation. */
   .beta-row {
     display: flex;
-    justify-content: center;
-    margin-top: 24px;
+    justify-content: flex-start;
+    margin-top: 28px;
   }
   .beta-btn {
     background: transparent;
     border: 2px dashed var(--accent-dim);
     color: var(--fg-dim);
-    font-size: 0.9rem;
+    font-size: 0.85rem;
     font-weight: 600;
-    padding: 10px 16px;
+    padding: 10px 14px;
+    opacity: 0.7;
   }
   .beta-btn:active {
     background: var(--accent-dim);
@@ -219,14 +221,14 @@
     <button class="btn sort-btn" id="sort-btn" type="button" aria-live="polite"><span>Sort:</span><span class="sort-label"></span></button>
   </div>
   <ul class="tile-list" id="tile-list" aria-live="polite"></ul>
+  <button class="lettuce" id="lettuce" aria-label="Lettuce"><img src="/lettuce-192.png" alt="" width="48" height="48"></button>
   <div class="beta-row" id="beta-row" hidden>
-    <button class="btn beta-btn" id="beta-btn" type="button" aria-expanded="false" aria-controls="beta-section"></button>
+    <button class="btn beta-btn" id="beta-btn" type="button" aria-expanded="false" aria-controls="beta-section">Betas</button>
   </div>
   <section class="beta-section" id="beta-section" hidden>
     <p class="beta-note">Unfinished games. Anyone can play, nothing counts.</p>
     <ul class="tile-list" id="beta-list"></ul>
   </section>
-  <button class="lettuce" id="lettuce" aria-label="Lettuce"><img src="/lettuce-192.png" alt="" width="48" height="48"></button>
 </main>
 <script src="/shared/arcade.js"></script>
 <script>
@@ -386,8 +388,7 @@
       betaRow.hidden = betaGames.length === 0;
       betaSection.hidden = !betaOpen || betaGames.length === 0;
       betaBtn.setAttribute("aria-expanded", betaOpen ? "true" : "false");
-      betaBtn.textContent = (betaOpen ? "Hide beta games" : "Beta games") +
-        " (" + betaGames.length + ")";
+      betaBtn.textContent = betaOpen ? "Hide betas" : "Betas";
     }
 
     betaBtn.addEventListener("click", function () {
