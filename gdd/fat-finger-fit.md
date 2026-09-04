@@ -5,6 +5,8 @@ Supersedes v1.0 and change-doc v1.1 entirely. This is the only document the buil
 
 **v2.1 (2026-09-04, first beta):** one slider on screen at a time; slider labels are emoji, not words; the LBS gauge is now **MASS**; a **New run** action lives in the shared menu behind a confirmation. Decisions 18–21 below.
 
+**v2.2 (2026-09-04, polished beta):** a run in progress **is** saved and resumed (reversing the §15 deletion: a text arriving on day 6 shouldn't cost the run). Mute button per arcade convention. The MASS dial reads as a rim marker, not a centre needle, so the number stays clean. Decision 22.
+
 **Title:** *Fat Finger Fit*. Lock it before the first family install — iOS snapshots the app name at Add-to-Home-Screen time and won't update it without a delete-and-re-add.
 **Platform:** browser, phone-first, part of the family arcade. Plain HTML/CSS/vanilla JS. No build step, no framework, no server, no accounts.
 **Run length:** 8 days, ~4 minutes.
@@ -55,6 +57,7 @@ Do not redesign these.
 | 19 | Sliders are labelled with **emoji only**: 🥩 protein, 🍞 carbs, 🧈 fat, 🏋️ training. The words appear once, in How to Play. |
 | 20 | The weight gauge is called **MASS**, never LBS or weight. |
 | 21 | **New run** is in the shared menu (☰), behind a confirmation. The End Card's RUN IT BACK stays instant. |
+| 22 | **The run in progress is saved** after every lock and resumed on reopen. New run and the End Card clear it. Nothing else is persisted except the best score and the mute preference. |
 
 ---
 
@@ -403,7 +406,7 @@ One card at day 8, screenshot-shaped, portrait ~4:5:
 | Third gauge / residual number | Naming that quantity is the one thing that turns this into a bad game |
 | Daily mode / seeds | Free play. Removes a date library and a class of timezone bugs |
 | Failure state | Every run finishes. Removes all run-ended UI |
-| Save / resume | 4-minute run. Nothing to save |
+| ~~Save / resume~~ | Restored in v2.2. A phone lock or a text mid-run was costing the run |
 | Numeric slider readouts | Position only |
 | Settings of any kind | One length, one game. Every setting is a design decision someone failed to make |
 | Tutorial sequence | Replaced by one screen and one run |

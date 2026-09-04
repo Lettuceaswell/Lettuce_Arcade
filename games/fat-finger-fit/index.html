@@ -7,60 +7,87 @@
 <meta name="theme-color" content="#083734">
 <link rel="stylesheet" href="/shared/arcade.css">
 <style>
-  /* SKELETON. Layout and mechanics only — no polish, no blob, no count-up. */
   html, body { height: 100%; overflow: hidden; }
   body {
     display: flex; flex-direction: column;
     height: 100vh; height: 100dvh;
     padding: calc(8px + var(--safe-top)) 14px calc(10px + var(--safe-bottom));
-    gap: 6px;
+    gap: 4px;
     -webkit-user-select: none; user-select: none;
   }
+  #mute {
+    position: fixed;
+    top: calc(8px + var(--safe-top));
+    right: calc(60px + var(--safe-right)); /* the shared ☰ menu sits at 8px */
+    min-height: 44px; min-width: 44px;
+    font-size: 1.2rem;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 9999;
+  }
 
-  /* header: day + running score */
-  /* sits between the shared back button (ends ~127px) and menu button (starts ~323px) */
-  #head { display: flex; justify-content: space-between; align-items: center; min-height: 48px; padding: 0 60px 0 120px; font-weight: 800; font-variant-numeric: tabular-nums; }
-  #day { font-size: 1rem; letter-spacing: 0.06em; color: var(--fg-dim); }
-  #score { font-size: 1.3rem; }
+  /* ---- header: sits under the shared buttons row ---- */
+  #head { margin-top: 48px; display: flex; justify-content: space-between; align-items: baseline; font-weight: 800; font-variant-numeric: tabular-nums; min-height: 28px; }
+  #day { font-size: 0.95rem; letter-spacing: 0.08em; color: var(--fg-dim); }
+  #score { font-size: 1.45rem; transform-origin: right center; transition: transform 160ms ease-out; }
+  #score.bump { transform: scale(1.15); }
 
-  /* blob + gauges (~36%) */
-  #body { flex: 36 1 0; min-height: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; }
-  #blob { width: 72px; height: 60px; border-radius: 50% 50% 45% 45%; background: var(--accent-dim); opacity: 0.7; transition: transform 400ms; }
-  #gauges { display: flex; gap: 36px; }
-  .gauge { display: flex; flex-direction: column; align-items: center; gap: 4px; }
-  .ring { width: 78px; height: 78px; border-radius: 50%; display: flex; align-items: center; justify-content: center; position: relative; }
-  .ring::after { content: ""; position: absolute; inset: 8px; border-radius: 50%; background: var(--bg); }
-  .ring b { position: relative; z-index: 1; font-size: 1.15rem; font-variant-numeric: tabular-nums; }
-  .ring.grey { filter: saturate(0); }
-  .glabel { font-size: 0.72rem; letter-spacing: 0.12em; color: var(--fg-dim); font-weight: 700; }
+  /* ---- blob + dials (~36%) ---- */
+  #body { flex: 36 1 0; min-height: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; }
+  #blob { width: 34%; max-width: 150px; min-height: 0; flex: 1 1 0; }
+  #blob svg { width: 100%; height: 100%; overflow: visible; }
+  .bod, .pose { transition: transform 700ms cubic-bezier(0.2, 0.9, 0.3, 1.15), opacity 500ms; transform-origin: 60px 62px; }
+  #dials { display: flex; gap: 28px; }
+  .dial { width: 96px; display: flex; flex-direction: column; align-items: center; }
+  .dial svg { width: 96px; height: 96px; display: block; }
+  .dial .num { font-size: 1.2rem; font-weight: 800; font-variant-numeric: tabular-nums; margin-top: -63px; height: 30px; line-height: 30px; position: relative; }
+  .dial .lab { font-size: 0.68rem; letter-spacing: 0.14em; color: var(--fg-dim); font-weight: 700; margin-top: 30px; }
+  .dial .track { fill: none; stroke: rgba(255,255,255,0.10); stroke-width: 9; stroke-linecap: round; }
+  .dial .fill { fill: none; stroke: var(--fg); stroke-width: 9; stroke-linecap: round; }
+  #dial-muscle .fill, #cdial-muscle .fill { stroke: var(--accent); }
+  #dial-muscle.grey .fill { stroke: #8fa5a3; }
+  .dial .needle { stroke: var(--fg); stroke-width: 4; stroke-linecap: round; }
+  .dial .notch { stroke: rgba(255,255,255,0.45); stroke-width: 2; }
+  @keyframes flicker { 0%, 100% { opacity: 1; } 20% { opacity: 0.15; } 40% { opacity: 1; } 60% { opacity: 0.25; } 80% { opacity: 1; } }
+  #dial-muscle.flicker .fill { animation: flicker 700ms steps(1, end); }
 
-  /* energy bar (~16%) */
-  #energy { flex: 16 1 0; min-height: 0; display: flex; flex-direction: column; justify-content: center; gap: 4px; }
-  #energy .glabel { text-align: left; }
-  #bar { position: relative; height: 34px; background: rgba(0,0,0,0.35); border-radius: 6px; overflow: hidden; }
-  #bar .seg { position: absolute; top: 0; bottom: 0; left: 0; width: 0; transition: opacity 120ms; }
-  #bar .seg.pending { opacity: 0.45; }
-  #bar .seg.T { background: repeating-linear-gradient(135deg, #3A3F4B 0 5px, #565b6a 5px 8px); }
-  #bar .seg.warm { background: #f0b054; opacity: 0.35; } /* overshoot past the tick, warmer amber */
-  /* Resolution: the bar snaps to truth with an overshoot-and-settle (~350ms). */
-  #bar.snap .seg { transition: left 350ms cubic-bezier(0.2, 0.9, 0.3, 1.35), width 350ms cubic-bezier(0.2, 0.9, 0.3, 1.35), opacity 120ms; }
-  #bar.snap #window { transition: left 350ms cubic-bezier(0.2, 0.9, 0.3, 1.35), width 350ms cubic-bezier(0.2, 0.9, 0.3, 1.35), opacity 200ms; }
-  /* The estimate window: soft zone with bracket ends, only ever at the tip. */
-  #window { position: absolute; top: 0; bottom: 0; background: rgba(210, 249, 247, 0.22); border-left: 2px solid var(--fg); border-right: 2px solid var(--fg); box-sizing: border-box; opacity: 0; }
+  /* ---- energy bar (~16%): the hero ---- */
+  #energy { flex: 16 1 0; min-height: 0; display: flex; flex-direction: column; justify-content: center; gap: 5px; }
+  .glabel { font-size: 0.68rem; letter-spacing: 0.14em; color: var(--fg-dim); font-weight: 700; text-align: left; }
+  #bar {
+    position: relative; height: 42px; border-radius: 9px; overflow: hidden;
+    background: #041c1a;
+    box-shadow: inset 0 2px 6px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.06);
+  }
+  #bar .seg { position: absolute; top: 0; bottom: 0; left: 0; width: 0; transition: opacity 150ms; }
+  #bar .seg.P { background: linear-gradient(180deg, #3aa58f, #2E8B7A 55%, #237263); }
+  #bar .seg.C { background: linear-gradient(180deg, #f2b64a, #E0A030 55%, #b8801f); }
+  #bar .seg.F { background: linear-gradient(180deg, #9d80d6, #8A6BC1 55%, #6c519e); }
+  #bar .seg.T { background: repeating-linear-gradient(135deg, #2b2f38 0 5px, #4a505e 5px 9px); box-shadow: inset 2px 0 0 rgba(255,255,255,0.35); }
+  #bar .seg.warm { background: linear-gradient(180deg, rgba(255,190,90,0.55), rgba(255,140,60,0.35)); mix-blend-mode: screen; }
+  #bar .seg.pending { opacity: 0.5; }
+  #bar.snap .seg { transition: left 380ms cubic-bezier(0.2, 0.9, 0.3, 1.35), width 380ms cubic-bezier(0.2, 0.9, 0.3, 1.35), opacity 150ms; }
+  #bar.snap #window { transition: left 380ms cubic-bezier(0.2, 0.9, 0.3, 1.35), width 380ms cubic-bezier(0.2, 0.9, 0.3, 1.35), opacity 250ms; }
+  #window {
+    position: absolute; top: 0; bottom: 0; box-sizing: border-box; opacity: 0;
+    background: rgba(210, 249, 247, 0.20);
+    box-shadow: inset 0 0 0 2px rgba(210,249,247,0.9), 0 0 14px rgba(210,249,247,0.45);
+    transition: opacity 200ms;
+  }
   #window.on { opacity: 1; }
-  /* Ghost of the previous lock's window width, so the widening is comparable (§18.1). */
-  #ghost { position: absolute; top: 3px; bottom: 3px; border-left: 1px dashed rgba(210,249,247,0.45); border-right: 1px dashed rgba(210,249,247,0.45); box-sizing: border-box; opacity: 0; }
+  @keyframes pulse { 0% { box-shadow: inset 0 0 0 2px rgba(210,249,247,0.9), 0 0 4px rgba(210,249,247,0.3); } 50% { box-shadow: inset 0 0 0 2px #fff, 0 0 22px rgba(210,249,247,0.9); } 100% { box-shadow: inset 0 0 0 2px rgba(210,249,247,0.9), 0 0 14px rgba(210,249,247,0.45); } }
+  #window.pulse { animation: pulse 420ms ease-out; }
+  #ghost { position: absolute; top: 4px; bottom: 4px; box-sizing: border-box; border-left: 1px dashed rgba(210,249,247,0.5); border-right: 1px dashed rgba(210,249,247,0.5); opacity: 0; transition: opacity 200ms; }
   #ghost.on { opacity: 1; }
-  #tick { position: absolute; top: -2px; bottom: -2px; left: 50%; width: 3px; margin-left: -1.5px; background: var(--fg); }
+  #tick { position: absolute; top: -2px; bottom: -2px; left: 50%; width: 3px; margin-left: -1.5px; background: var(--fg); box-shadow: 0 0 6px rgba(210,249,247,0.8); }
   #tickmark { text-align: center; font-size: 0.7rem; line-height: 1; color: var(--fg-dim); }
-  @media (prefers-reduced-motion: reduce) { #bar.snap .seg, #bar.snap #window { transition: none; } }
+  #bar.thud { animation: thud 300ms ease-out; }
+  @keyframes thud { 0% { transform: translateY(0); } 30% { transform: translateY(3px); } 100% { transform: translateY(0); } }
 
-  /* sliders (~36%): only the live one is on screen. The strip above it
-     shows which lock you're on and which are done. */
-  #sliders { flex: 36 1 0; min-height: 0; display: flex; flex-direction: column; justify-content: center; gap: 18px; }
-  #locks { display: flex; justify-content: center; gap: 22px; font-size: 1.5rem; line-height: 1; }
-  #locks span { position: relative; opacity: 0.3; transition: opacity 150ms, transform 150ms; }
-  #locks span.live { opacity: 1; transform: scale(1.25); }
+  /* ---- sliders (~36%): only the live one is on screen ---- */
+  #sliders { flex: 36 1 0; min-height: 0; display: flex; flex-direction: column; justify-content: center; gap: 16px; }
+  #locks { display: flex; justify-content: center; gap: 24px; font-size: 1.5rem; line-height: 1; }
+  #locks span { position: relative; opacity: 0.28; transition: opacity 150ms, transform 150ms; }
+  #locks span.live { opacity: 1; transform: scale(1.3); }
   #locks span.locked { opacity: 0.55; }
   #locks span.locked::after { content: "✓"; position: absolute; right: -10px; bottom: -6px; font-size: 0.7rem; font-weight: 900; color: var(--accent); }
   .row { display: none; align-items: center; gap: 14px; min-height: 60px; }
@@ -72,29 +99,67 @@
   .row input[type=range]::-moz-range-track { height: 8px; border-radius: 4px; background: rgba(210,249,247,0.25); }
   .row input[type=range]::-moz-range-thumb { width: 44px; height: 44px; border-radius: 50%; background: var(--accent); border: 3px solid var(--bg); }
 
-  /* commit (~12%) */
+  /* ---- commit (~12%) ---- */
   #foot { flex: 12 1 0; min-height: 56px; display: flex; align-items: center; }
   #commit { width: 100%; min-height: 56px; font-size: 1.1rem; font-weight: 900; letter-spacing: 0.25em; }
 
-  /* end card — bones only */
-  #overlay { position: fixed; inset: 0; z-index: 9000; display: none; align-items: center; justify-content: center; background: rgba(3, 26, 24, 0.9); padding: 12px; }
+  /* ---- 1M flash ---- */
+  #flash { position: fixed; inset: 0; z-index: 9800; background: #fff; opacity: 0; pointer-events: none; }
+  #flash.go { animation: flash 420ms ease-out; }
+  @keyframes flash { 0% { opacity: 0.95; } 100% { opacity: 0; } }
+
+  /* ---- end card: one screen, screenshot-shaped ---- */
+  #overlay {
+    position: fixed; inset: 0; z-index: 9000; display: none; align-items: center; justify-content: center;
+    padding: calc(12px + var(--safe-top)) 12px calc(12px + var(--safe-bottom));
+    background: rgba(3, 26, 24, 0.88); overflow-y: auto; opacity: 0; transition: opacity 250ms ease;
+  }
   #overlay.show { display: flex; }
-  .card { width: 100%; max-width: 320px; background: #052926; border: 1px solid rgba(255,255,255,0.08); border-radius: 18px; padding: 16px; display: flex; flex-direction: column; gap: 10px; align-items: stretch; }
-  .card .final { font-size: 3rem; font-weight: 900; line-height: 1; }
-  .card .line { color: var(--fg-dim); font-size: 0.95rem; font-variant-numeric: tabular-nums; }
-  .card .line b { color: var(--fg); }
-  .spark { display: flex; align-items: flex-end; gap: 4px; height: 48px; padding: 0 8px; }
-  .spark span { flex: 1; background: var(--accent); border-radius: 2px 2px 0 0; min-height: 2px; }
+  #overlay.in { opacity: 1; }
+  .card {
+    width: 100%; max-width: 340px; margin: auto; background: #052926;
+    border: 1px solid rgba(255,255,255,0.08); border-radius: 18px; padding: 14px 16px 12px;
+    display: flex; flex-direction: column; align-items: stretch; gap: 8px; text-align: center;
+    transform: translateY(24px); transition: transform 320ms cubic-bezier(0.2, 0.9, 0.3, 1.1);
+  }
+  #overlay.in .card { transform: none; }
+  .card-top { display: flex; justify-content: space-between; align-items: baseline; font-size: 0.9rem; color: var(--fg-dim); }
+  .card-top .game { color: var(--fg); font-weight: 700; }
+  #card-blob { height: 84px; display: flex; justify-content: center; }
+  #card-blob svg { height: 100%; width: auto; overflow: visible; }
+  #card-dials { display: flex; justify-content: center; gap: 28px; }
+  .cascade { display: flex; flex-direction: column; gap: 2px; min-height: 66px; justify-content: flex-end; }
+  .cascade .step { font-size: 0.95rem; color: var(--fg-dim); font-variant-numeric: tabular-nums; opacity: 0; transition: opacity 200ms; }
+  .cascade .step.on { opacity: 1; }
+  .cascade .step b { color: var(--fg); }
+  .card-final { font-size: 3.2rem; font-weight: 900; line-height: 1; letter-spacing: 0.02em; font-variant-numeric: tabular-nums; min-height: 3.2rem; }
+  .card-final.win { color: #ffe066; }
+  .card-final small { display: block; font-size: 0.8rem; font-weight: 700; color: var(--fg-dim); letter-spacing: 0.12em; margin-top: 4px; }
+  #spark { height: 64px; }
+  #spark svg { width: 100%; height: 100%; display: block; }
+  .card-line { font-size: 0.9rem; color: var(--fg-dim); }
+  .card-line b { color: var(--fg); }
+  .card-foot { font-size: 0.72rem; color: var(--fg-dim); opacity: 0.75; }
+  .card-actions { display: flex; gap: 8px; margin-top: 2px; }
+  .card-actions .btn { flex: 1; padding-left: 8px; padding-right: 8px; }
+  .card-hint { font-size: 0.8rem; color: var(--fg-dim); min-height: 1.1em; }
+
+  @media (prefers-reduced-motion: reduce) {
+    #bar.snap .seg, #bar.snap #window, .bod, .pose, #score, #overlay, .card { transition: none; }
+    #window.pulse, #bar.thud, #dial-muscle.flicker .fill, #flash.go { animation: none; }
+  }
 </style>
 </head>
 <body>
+<button id="mute" class="btn" aria-label="Mute sound">🔊</button>
+
 <div id="head"><span id="day">DAY 1 / 8</span><span id="score">0</span></div>
 
 <div id="body">
   <div id="blob"></div>
-  <div id="gauges">
-    <div class="gauge"><div class="ring" id="ring-lbs"><b id="lbs">100%</b></div><div class="glabel">MASS</div></div>
-    <div class="gauge"><div class="ring" id="ring-muscle"><b id="muscle">0%</b></div><div class="glabel">MUSCLE</div></div>
+  <div id="dials">
+    <div class="dial" id="dial-mass"><svg viewBox="0 0 96 96"></svg><div class="num">100%</div><div class="lab">MASS</div></div>
+    <div class="dial" id="dial-muscle"><svg viewBox="0 0 96 96"></svg><div class="num">0%</div><div class="lab">MUSCLE</div></div>
   </div>
 </div>
 
@@ -117,15 +182,30 @@
 
 <div id="foot"><button id="commit" class="btn">COMMIT</button></div>
 
+<div id="flash"></div>
+
 <div id="overlay" role="dialog" aria-label="Run over">
   <div class="card">
-    <div class="line">💪 Fat Finger Fit · day 8</div>
-    <div class="line"><b id="c-lbs"></b> MASS · <b id="c-muscle"></b> MUSCLE</div>
-    <div class="line" id="c-cascade"></div>
-    <div class="final" id="c-final"></div>
-    <div class="spark" id="spark" aria-hidden="true"></div>
-    <div class="line" id="c-best"></div>
-    <button id="again" class="btn">RUN IT BACK</button>
+    <div class="card-top"><span class="game">💪 Fat Finger Fit</span><span id="card-date"></span></div>
+    <div id="card-blob"></div>
+    <div id="card-dials">
+      <div class="dial" id="cdial-mass"><svg viewBox="0 0 96 96"></svg><div class="num"></div><div class="lab">MASS</div></div>
+      <div class="dial" id="cdial-muscle"><svg viewBox="0 0 96 96"></svg><div class="num"></div><div class="lab">MUSCLE</div></div>
+    </div>
+    <div class="cascade">
+      <div class="step" id="cs-run"></div>
+      <div class="step" id="cs-build"></div>
+      <div class="step" id="cs-prec"></div>
+    </div>
+    <div class="card-final" id="card-final"></div>
+    <div id="spark" aria-hidden="true"></div>
+    <div class="card-line" id="card-best"></div>
+    <div class="card-foot">lettuce arcade</div>
+    <div class="card-actions">
+      <button id="share" class="btn">Share</button>
+      <button id="again" class="btn">RUN IT BACK</button>
+    </div>
+    <div class="card-hint" id="card-hint"></div>
   </div>
 </div>
 
@@ -137,14 +217,14 @@
     rules: [
       "Eight days. Four sliders a day: 🥩 protein, 🍞 carbs, 🧈 fat, 🏋️ training. You lock them one at a time, in that order, and you can't go back.",
       "Eating fills the bar. Training empties it.",
-      "The tick in the middle is maintenance. Land right of it and you gain weight, left of it and you lose it.",
+      "The tick in the middle is maintenance. Land right of it and you gain mass, left of it and you lose it.",
       "Muscle needs training, protein, and a surplus. All three.",
       "Win: end day 8 with both dials at 100%.",
       "Your blob starts at 50 lbs, which is not a realistic weight for anything, and that's fine.",
       "Your thumb is not precise. Every lock lands somewhere inside the window it shows you, not on the line. The more you've locked, the wider the window gets."
     ],
     actions: [{ label: "New run", confirm: "This run is gone. Your best score stays.", onClick: function () { newRun(); } }],
-    describeSave: function () { return "Your best Fat Finger Fit score."; }
+    describeSave: function () { return "Your best score, and the run you're in the middle of."; }
   });
 
   var T = FFF.TUNE, ORDER = FFF.ORDER;
@@ -155,93 +235,266 @@
   });
   Array.prototype.forEach.call(document.querySelectorAll("#locks span"), function (l) { locks[l.dataset.key] = l; });
 
-  var state, lockIdx, nominal, delivered, halves, best;
+  var state, lockIdx, nominal, delivered, halves, best, busy = false, lastResult = null;
   best = Number(Arcade.load("best", 0)) || 0;
-  var runsDone = Number(Arcade.load("runs", 0)) || 0;
-  var wins = Number(Arcade.load("wins", 0)) || 0;
-  function saveBrag() {
-    var bestWon = !!Arcade.load("bestWon", false);
-    Arcade.brag(best > 0 ? "Best " + FFF.fmt(best, bestWon) : "");
-    Arcade.stats(runsDone > 0 ? [
-      ["Best score", FFF.fmt(best, bestWon)],
-      ["Runs finished", runsDone],
-      ["Wins", wins]
-    ] : null);
-  }
-  saveBrag();
+  var shown = { mass: 100, muscle: 0, score: 0 };   // what the dials/score currently display
 
-  // ---- run / day lifecycle ---------------------------------------------
+  // ---- sound --------------------------------------------------------------
+  var muted = Arcade.load("muted", false) === true;
+  function tone(freq, dur, delay, vol, type) {
+    var ctx = Arcade.audioCtx;
+    if (!ctx || muted) return;
+    try {
+      var t0 = ctx.currentTime + (delay || 0);
+      var osc = ctx.createOscillator(), gain = ctx.createGain();
+      osc.type = type || "triangle";
+      osc.frequency.value = freq;
+      gain.gain.setValueAtTime(0.0001, t0);
+      gain.gain.exponentialRampToValueAtTime(vol || 0.18, t0 + 0.012);
+      gain.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+      osc.connect(gain); gain.connect(ctx.destination);
+      osc.start(t0); osc.stop(t0 + dur + 0.02);
+    } catch (e) { /* play on silently */ }
+  }
+  function commitSound() { tone(520, 0.07, 0, 0.12); }
+  function thunk() { tone(95, 0.16, 0, 0.3, "sine"); tone(60, 0.22, 0.02, 0.25, "sine"); }
+  function tickSound(i, n) { tone(600 + 700 * (i / Math.max(1, n - 1)), 0.035, 0, 0.07, "square"); }
+  function chord(delay) { [523, 659, 784, 1047].forEach(function (f, i) { tone(f, 0.35, (delay || 0) + i * 0.09, 0.2); }); }
+  function renderMute() {
+    $("mute").textContent = muted ? "🔇" : "🔊";
+    $("mute").setAttribute("aria-label", muted ? "Unmute sound" : "Mute sound");
+  }
+  $("mute").addEventListener("click", function () { muted = !muted; Arcade.save("muted", muted); renderMute(); });
+  renderMute();
+
+  // ---- tweens ------------------------------------------------------------
+  function easeOut(t) { return 1 - Math.pow(1 - t, 3); }
+  function tween(from, to, dur, onFrame, onDone) {
+    // Reduced motion, or a backgrounded tab (no animation frames): land at once.
+    if (Arcade.reducedMotion() || document.hidden) { onFrame(to, 1); if (onDone) onDone(); return; }
+    var t0 = performance.now();
+    function step(now) {
+      var t = Math.min(1, (now - t0) / dur);
+      onFrame(from + (to - from) * easeOut(t), t);
+      if (t < 1) requestAnimationFrame(step); else if (onDone) onDone();
+    }
+    requestAnimationFrame(step);
+  }
+
+  // ---- persistence: the run in progress -----------------------------------
+  function saveRun() {
+    var sliders = {};
+    ORDER.forEach(function (k) { sliders[k] = Number(inputs[k].value); });
+    Arcade.save("run", { state: state, lockIdx: lockIdx, nominal: nominal, delivered: delivered, halves: halves, sliders: sliders });
+  }
+  function clearRun() { Arcade.save("run", null); }
+
+  // ---- run / day lifecycle --------------------------------------------
   function newRun() {
-    $("overlay").classList.remove("show");
+    hideCard();
+    busy = false;
     state = FFF.newRun();
+    clearRun();
+    shown.mass = 100; shown.muscle = 0; shown.score = 0;
     startDay();
-    drawGauges();
-    drawScore();
+    $("dial-muscle").className = "dial";
+    drawDials($("dial-mass"), $("dial-muscle"), 100, 0);
+    drawBlob($("blob"), 100, 0);
+    $("score").textContent = "0";
+  }
+  function resumeRun(saved) {
+    state = saved.state; lockIdx = saved.lockIdx; nominal = saved.nominal || {}; delivered = saved.delivered || {}; halves = saved.halves || [];
+    if (!(lockIdx >= 0 && lockIdx < ORDER.length)) { lockIdx = 0; nominal = {}; delivered = {}; halves = []; }
+    ORDER.forEach(function (k) { if (saved.sliders && saved.sliders[k] != null) inputs[k].value = saved.sliders[k]; });
+    shown.mass = state.lbs; shown.muscle = state.muscle; shown.score = state.running;
+    $("day").textContent = "DAY " + state.day + " / " + T.DAYS;
+    $("score").textContent = FFF.fmt(state.running);
+    drawSliderStates();
+    drawBar(null);
+    drawDials($("dial-mass"), $("dial-muscle"), state.lbs, state.muscle);
+    drawBlob($("blob"), state.lbs, state.muscle);
   }
   function startDay() {
     lockIdx = 0; nominal = {}; delivered = {}; halves = [];
     $("day").textContent = "DAY " + state.day + " / " + T.DAYS;
     drawSliderStates();
     drawBar(null);
-    console.log("--- day " + state.day + " ---");
+    $("commit").disabled = false;
   }
   function liveKey() { return ORDER[lockIdx]; }
 
   function commit() {
+    if (busy) return;
     var k = liveKey();
     var v = Number(inputs[k].value);
     nominal[k] = v;
     delivered[k] = FFF.deliver(k, v);          // hidden until resolution
     halves.push(FFF.windowHalf(k, v));
-    console.log("lock " + k + " nominal=" + v.toFixed(1) + " contrib=" + FFF.contribution(k, v).toFixed(0) +
-      " delivered=" + delivered[k].toFixed(0) + " window=±" + halves[halves.length - 1].toFixed(0) +
-      " cumulative=±" + FFF.cumulativeHalf(halves).toFixed(0));
+    commitSound();
     lockIdx += 1;
-    if (lockIdx < ORDER.length) { drawSliderStates(); drawBar(null); }
+    if (lockIdx < ORDER.length) { drawSliderStates(); drawBar(null); saveRun(); }
     else resolveDay();
   }
 
   function resolveDay() {
-    var out = FFF.resolveDay(state, delivered);
-    console.log("resolve net=" + out.net.toFixed(0) + " p=" + out.p.toFixed(2) + " stim=" + out.stim.toFixed(2) +
-      " gain=" + out.gain.toFixed(1) + " loss=" + out.loss.toFixed(1) + " lbs=" + out.lbs.toFixed(1) +
-      " muscle=" + out.muscle.toFixed(1) + " +" + Math.round(out.dayPoints) + " pts");
-    drawBarTruth();
-    drawGauges(out);
-    drawScore();
+    busy = true;
     $("commit").disabled = true;
-    // Hold on the resolved bar long enough to read where it actually landed.
+    var out = FFF.resolveDay(state, delivered);
+    drawSliderStates();
+
+    // 1. the bar snaps to truth
+    drawBarTruth();
+    // From here the day is over: a resume should land on the next day's first lock.
+    lockIdx = 0; nominal = {}; halves = [];
+    if (state.day > T.DAYS) clearRun(); else saveRun();
+    setTimeout(function () { thunk(); $("bar").classList.add("thud"); }, 300);
+    setTimeout(function () { $("bar").classList.remove("thud"); }, 700);
+
+    // 2. dials sweep, blob updates
     setTimeout(function () {
-      $("commit").disabled = false;
+      var dm = $("dial-muscle");
+      dm.classList.toggle("grey", out.proteinShort);
+      if (out.loss > 0.05) { dm.classList.remove("flicker"); void dm.offsetWidth; dm.classList.add("flicker"); }
+      var m0 = shown.mass, u0 = shown.muscle;
+      tween(0, 1, 650, function (t) {
+        drawDials($("dial-mass"), $("dial-muscle"), m0 + (out.lbs - m0) * t, u0 + (out.muscle - u0) * t);
+      }, function () { shown.mass = out.lbs; shown.muscle = out.muscle; });
+      drawBlob($("blob"), out.lbs, out.muscle);
+    }, 500);
+
+    // 3. the day's points count up
+    setTimeout(function () { countUp($("score"), shown.score, state.running, 400, function () { shown.score = state.running; }); }, 900);
+
+    // 4. next day, or the end card
+    setTimeout(function () {
+      busy = false;
       if (state.day > T.DAYS) endRun(); else startDay();
-    }, 1500);
+    }, 2100);
   }
 
+  // Rapid-fire count-up: ~28 steps, one tick each, pitch rising.
+  function countUp(el, from, to, dur, onDone) {
+    var steps = 28, last = -1;
+    el.classList.add("bump");
+    tween(from, to, dur, function (v, t) {
+      var i = Math.floor(t * steps);
+      if (i !== last && i < steps) { tickSound(i, steps); last = i; }
+      el.textContent = FFF.fmt(v);
+      if (t > 0.5) el.classList.remove("bump");
+    }, function () { el.textContent = FFF.fmt(to); el.classList.remove("bump"); if (onDone) onDone(); });
+  }
+  // Count-up into an HTML template (for the cascade lines). `dp` fixes decimals.
+  function countUpHtml(el, to, dur, wrap, dp) {
+    var last = -1;
+    tween(0, to, dur, function (v, t) {
+      var i = Math.floor(t * 20);
+      if (i !== last && i < 20) { tickSound(i, 20); last = i; }
+      el.innerHTML = wrap(dp != null ? v.toFixed(dp) : FFF.fmt(v));
+    }, function () { el.innerHTML = wrap(dp != null ? to.toFixed(dp) : FFF.fmt(to)); });
+  }
+
+  // ---- end card ----------------------------------------------------------
   function endRun() {
     var f = FFF.finalScore(state);
-    if (f.final > best) { best = f.final; Arcade.save("best", best); Arcade.save("bestWon", f.won); }
-    runsDone += 1;
-    if (f.won) wins += 1;
-    Arcade.save("runs", runsDone);
-    Arcade.save("wins", wins);
-    saveBrag();
-    var bestWon = f.final === best ? f.won : !!Arcade.load("bestWon", false);
-    $("c-lbs").textContent = Math.round(state.lbs) + "%";
-    $("c-muscle").textContent = Math.round(state.muscle) + "%";
-    $("c-cascade").textContent = FFF.fmt(f.running) + " × " + f.build.toFixed(2) + " × " + f.precision.toFixed(2);
-    $("c-final").textContent = FFF.fmt(f.final, f.won);
-    $("c-best").textContent = "best " + FFF.fmt(best, bestWon);
-    var sp = $("spark"); sp.innerHTML = "";
-    state.lbsHistory.forEach(function (v) {
-      var b = document.createElement("span");
-      b.style.height = Math.max(4, Math.min(100, (v - 60) / 80 * 100)) + "%";
-      sp.appendChild(b);
-    });
+    var beat = f.final > best;
+    if (beat) { best = f.final; Arcade.save("best", best); }
+    lastResult = { f: f, beat: beat, mass: state.lbs, muscle: state.muscle, history: state.lbsHistory.slice() };
+
+    $("card-date").textContent = Arcade.cardDate();
+    $("card-blob").innerHTML = "";
+    drawBlob($("card-blob"), state.lbs, state.muscle);
+    drawDials($("cdial-mass"), $("cdial-muscle"), state.lbs, state.muscle);
+    drawSpark(state.lbsHistory);
+    $("card-best").textContent = "";
+    $("card-hint").textContent = "";
+    ["cs-run", "cs-build", "cs-prec"].forEach(function (id) { $(id).className = "step"; $(id).innerHTML = ""; });
+    var fin = $("card-final");
+    fin.className = "card-final"; fin.innerHTML = "";
+
     $("overlay").classList.add("show");
-    console.log("END", f);
+    void $("overlay").offsetWidth;
+    $("overlay").classList.add("in");
+    cascade(f, beat);
   }
 
-  // ---- drawing -----------------------------------------------------------
+  // running → ×BUILD → ×PRECISION → FINAL, one at a time, ~2.5s.
+  function cascade(f, beat) {
+    var fin = $("card-final");
+    var t = 0;
+    function at(ms, fn) { setTimeout(fn, ms); }
+    function finalText(v) {
+      return FFF.fmt(v, true) + "<small>" + (f.won ? "BOTH DIALS. YOU DID IT." : "POINTS") + "</small>";
+    }
+    at(t += 250, function () {
+      var el = $("cs-run"); el.classList.add("on");
+      countUpHtml(el, f.running, 450, function (s) { return "run <b>" + s + "</b>"; });
+    });
+    at(t += 650, function () {
+      var el = $("cs-build"); el.classList.add("on");
+      countUpHtml(el, f.build, 450, function (s) { return "× build <b>" + s + "</b>"; }, 2);
+    });
+    at(t += 650, function () {
+      var el = $("cs-prec"); el.classList.add("on");
+      countUpHtml(el, f.precision, 450, function (s) { return "× precision <b>" + s + "</b>"; }, 2);
+    });
+    at(t += 650, function () {
+      var crossed = false, last = -1;
+      Arcade.stampIn(fin);
+      tween(0, f.final, 700, function (v, tt) {
+        var i = Math.floor(tt * 28);
+        if (i < 28 && i !== last) { tickSound(i, 28); last = i; }
+        if (!crossed && v >= 1e6) {
+          crossed = true;
+          fin.classList.add("win");
+          $("flash").classList.remove("go"); void $("flash").offsetWidth; $("flash").classList.add("go");
+          chord(0);
+        }
+        fin.innerHTML = finalText(v);
+      }, function () {
+        fin.innerHTML = finalText(f.final);
+        var bestEl = $("card-best");
+        if (beat && f.final > 0) { bestEl.innerHTML = "🎉 <b>New best</b>"; Arcade.confetti(); if (!crossed) chord(0); }
+        else bestEl.innerHTML = "your best <b>" + FFF.fmt(best, true) + "</b>";
+        Arcade.brag("Best " + FFF.fmt(best, true));
+      });
+    });
+  }
+
+  function hideCard() { $("overlay").classList.remove("in", "show"); }
+
+  // The 8-day MASS line. Every run draws a different shape.
+  function drawSpark(hist) {
+    var W = 300, H = 64, pad = 6;
+    var lo = Math.min(90, Math.min.apply(null, hist) - 2), hi = Math.max(110, Math.max.apply(null, hist) + 2);
+    function x(i) { return pad + (W - 2 * pad) * i / (hist.length - 1); }
+    function y(v) { return pad + (H - 2 * pad) * (1 - (v - lo) / (hi - lo)); }
+    var pts = hist.map(function (v, i) { return x(i).toFixed(1) + "," + y(v).toFixed(1); });
+    var y100 = y(100).toFixed(1);
+    $("spark").innerHTML =
+      '<svg viewBox="0 0 ' + W + ' ' + H + '" preserveAspectRatio="none">' +
+      '<line x1="0" x2="' + W + '" y1="' + y100 + '" y2="' + y100 + '" stroke="rgba(210,249,247,0.35)" stroke-width="1" stroke-dasharray="4 4"/>' +
+      '<polygon points="' + x(0).toFixed(1) + ',' + y100 + ' ' + pts.join(" ") + ' ' + x(hist.length - 1).toFixed(1) + ',' + y100 + '" fill="rgba(74,222,197,0.18)"/>' +
+      '<polyline points="' + pts.join(" ") + '" fill="none" stroke="#4adec5" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"/>' +
+      hist.map(function (v, i) { return '<circle cx="' + x(i).toFixed(1) + '" cy="' + y(v).toFixed(1) + '" r="3" fill="#d2f9f7"/>'; }).join("") +
+      '</svg>';
+  }
+
+  function sparkText(hist) {
+    var blocks = "▁▂▃▄▅▆▇█", lo = Math.min.apply(null, hist), hi = Math.max.apply(null, hist), span = Math.max(1, hi - lo);
+    return hist.map(function (v) { return blocks[Math.round((v - lo) / span * 7)]; }).join("");
+  }
+  function shareText(r) {
+    var s = "💪 Fat Finger Fit · " + FFF.fmt(r.f.final, true) + " · MASS " + Math.round(r.mass) + "% · MUSCLE " + Math.round(r.muscle) + "%";
+    s += " · " + sparkText(r.history);
+    s += r.beat ? " · new best!" : " · best " + FFF.fmt(best, true);
+    return s;
+  }
+  Arcade.shareButton($("share"), $("card-hint"), function () {
+    return lastResult ? { text: shareText(lastResult), title: "Fat Finger Fit" } : null;
+  });
+  $("again").addEventListener("click", newRun);
+
+  // ---- drawing: sliders + bar ------------------------------------------
   function drawSliderStates() {
     ORDER.forEach(function (k, i) {
       var st = i < lockIdx ? "locked" : i === lockIdx ? "live" : "waiting";
@@ -252,14 +505,10 @@
   }
 
   function pct(kcal) { return (100 * kcal / T.BAR_MAX) + "%"; }
-
-  // The five bar segments are persistent so their left/width can animate.
   var segs = {};
   Array.prototype.forEach.call(document.querySelectorAll("#bar .seg"), function (el) { segs[el.classList[1]] = el; });
   function place(el, a, b) { el.style.left = pct(Math.max(0, a)); el.style.width = pct(Math.max(0, b - a)); }
 
-  // Lay out P/C/F stacked, warm overlay past the tick, T carved back from the
-  // tip. Returns the frontier (net position of the tip).
   function layout(vals) {
     var x = 0;
     ["P", "C", "F"].forEach(function (k) { var c = vals[k] || 0; place(segs[k], x, x + c); x += c; });
@@ -272,9 +521,6 @@
     if (half > 0) { place(el, centre - half, Math.min(T.BAR_MAX, centre + half)); el.classList.add("on"); }
     else el.classList.remove("on");
   }
-
-  // Draw the bar from nominal locked values, plus an optional pending
-  // (released but uncommitted) value for the live slider, plus the window.
   function drawBar(pendingValue) {
     $("bar").classList.remove("snap");
     var vals = {}, tHalves = halves.slice(), pendingKey = null;
@@ -287,54 +533,116 @@
     });
     ORDER.forEach(function (k) { segs[k].classList.toggle("pending", k === pendingKey); });
     var x = layout(vals);
-    setWindow($("window"), x, FFF.cumulativeHalf(tHalves));
-    // ghost: the cumulative window as it stood after the previous lock
+    var w = $("window");
+    setWindow(w, x, FFF.cumulativeHalf(tHalves));
+    if (pendingKey) { w.classList.remove("pulse"); void w.offsetWidth; w.classList.add("pulse"); }
     setWindow($("ghost"), x, pendingKey && halves.length ? FFF.cumulativeHalf(halves) : 0);
   }
-
-  // After the fourth commit: snap to delivered truth, window collapses.
   function drawBarTruth() {
     var bar = $("bar");
     bar.classList.add("snap");
     ORDER.forEach(function (k) { segs[k].classList.remove("pending"); });
     var x = layout(delivered);
     var w = $("window");
-    place(w, x, x); w.classList.remove("on");
+    place(w, x, x); w.classList.remove("on", "pulse");
     $("ghost").classList.remove("on");
   }
 
-  function drawGauges(out) {
-    // LBS: 60–140 sweep, 100 at 12 o'clock, neutral colour both sides.
-    var lbs = state.lbs, deg = (lbs - 100) / 40 * 180;
-    var rl = $("ring-lbs");
-    rl.style.background = deg >= 0
-      ? "conic-gradient(var(--fg) 0deg " + deg + "deg, rgba(255,255,255,0.12) " + deg + "deg 360deg)"
-      : "conic-gradient(rgba(255,255,255,0.12) 0deg " + (360 + deg) + "deg, var(--fg) " + (360 + deg) + "deg 360deg)";
-    $("lbs").textContent = Math.round(lbs) + "%";
-    // MUSCLE: clockwise from 6 o'clock.
-    var m = state.muscle, md = m / 100 * 360;
-    var rm = $("ring-muscle");
-    rm.style.background = "conic-gradient(from 180deg, var(--accent) 0deg " + md + "deg, rgba(255,255,255,0.12) " + md + "deg 360deg)";
-    rm.className = "ring" + (out && out.proteinShort ? " grey" : "");
-    $("muscle").textContent = Math.round(m) + "%";
-    $("blob").style.transform = "scale(" + (lbs / 100) + ")";
+  // ---- drawing: dials ------------------------------------------------------
+  // Angles in degrees, 0 = 12 o'clock, clockwise.
+  function px(cx, r, a) { return (cx + r * Math.sin(a * Math.PI / 180)).toFixed(2); }
+  function py(cy, r, a) { return (cy - r * Math.cos(a * Math.PI / 180)).toFixed(2); }
+  function arc(cx, cy, r, a0, a1) {
+    if (a1 < a0) { var s = a0; a0 = a1; a1 = s; }
+    if (a1 - a0 >= 359.9) a1 = a0 + 359.9;
+    return "M " + px(cx, r, a0) + " " + py(cy, r, a0) + " A " + r + " " + r + " 0 " + (a1 - a0 > 180 ? 1 : 0) + " 1 " + px(cx, r, a1) + " " + py(cy, r, a1);
   }
-  function drawScore() { $("score").textContent = FFF.fmt(state.running); }
+  function drawDials(massEl, muscleEl, mass, muscle) {
+    // MASS: 60–140 across a 270° sweep, 100 straight up. Neutral both ways.
+    var a = FFF.clamp((mass - 100) / 40 * 135, -135, 135);
+    massEl.querySelector("svg").innerHTML =
+      '<path class="track" d="' + arc(48, 48, 38, -135, 135) + '"/>' +
+      (Math.abs(a) > 0.5 ? '<path class="fill" d="' + arc(48, 48, 38, 0, a) + '"/>' : "") +
+      '<line class="notch" x1="48" y1="4" x2="48" y2="12"/>' +
+      '<line class="needle" x1="' + px(48, 28, a) + '" y1="' + py(48, 28, a) + '" x2="' + px(48, 46, a) + '" y2="' + py(48, 46, a) + '"/>';
+    massEl.querySelector(".num").textContent = Math.round(mass) + "%";
+    // MUSCLE: fills clockwise from 6 o'clock.
+    var m = FFF.clamp(muscle, 0, 100) / 100 * 360;
+    muscleEl.querySelector("svg").innerHTML =
+      '<path class="track" d="' + arc(48, 48, 38, 180, 540) + '"/>' +
+      (m > 0.5 ? '<path class="fill" d="' + arc(48, 48, 38, 180, 180 + m) + '"/>' : "");
+    muscleEl.querySelector(".num").textContent = Math.round(muscle) + "%";
+  }
+
+  // ---- drawing: the blob ---------------------------------------------------
+  // Scale from MASS (60% → small, 140% → big). Four postures cross-faded by
+  // MUSCLE. Never a body, never a silhouette: a blob with a face and arms.
+  var POSES = [
+    // 0: no muscle. Arms hang, mouth flat.
+    '<path d="M 28 66 q -6 10 -3 20" class="arm"/><path d="M 92 66 q 6 10 3 20" class="arm"/><path d="M 50 74 h 20" class="mouth"/>',
+    // 1: a little. Arms out, small smile.
+    '<path d="M 27 62 q -12 2 -16 10" class="arm"/><path d="M 93 62 q 12 2 16 10" class="arm"/><path d="M 50 72 q 10 6 20 0" class="mouth"/>',
+    // 2: getting there. Arms bent up, first biceps.
+    '<path d="M 28 60 q -14 -6 -12 -20" class="arm"/><circle cx="18" cy="48" r="5" class="bicep"/><path d="M 92 60 q 14 -6 12 -20" class="arm"/><circle cx="102" cy="48" r="5" class="bicep"/><path d="M 48 72 q 12 8 24 0" class="mouth"/>',
+    // 3: jacked. Full flex, grin, headband.
+    '<path d="M 30 56 q -18 -4 -14 -24" class="arm"/><circle cx="20" cy="40" r="8" class="bicep"/><path d="M 90 56 q 18 -4 14 -24" class="arm"/><circle cx="100" cy="40" r="8" class="bicep"/><path d="M 46 70 q 14 12 28 0" class="mouth"/><rect x="40" y="30" width="40" height="5" rx="2" class="band"/>'
+  ];
+  function drawBlob(host, mass, muscle) {
+    if (!host.querySelector("svg")) {
+      host.innerHTML =
+        '<svg viewBox="0 0 120 110">' +
+        '<style>.arm{fill:none;stroke:#2f8f7f;stroke-width:6;stroke-linecap:round}.bicep{fill:#3aa58f}.mouth{fill:none;stroke:#052926;stroke-width:3;stroke-linecap:round}.band{fill:#ffe066}</style>' +
+        POSES.map(function (p, i) { return '<g class="pose p' + i + '">' + p + "</g>"; }).join("") +
+        '<g class="bod"><ellipse cx="60" cy="62" rx="34" ry="32" fill="#3d9484"/><ellipse cx="60" cy="58" rx="30" ry="24" fill="#48a898" opacity="0.6"/>' +
+        '<circle cx="49" cy="54" r="4" fill="#052926"/><circle cx="71" cy="54" r="4" fill="#052926"/>' +
+        '<circle cx="50.5" cy="52.5" r="1.4" fill="#fff"/><circle cx="72.5" cy="52.5" r="1.4" fill="#fff"/></g>' +
+        "</svg>";
+    }
+    var sx = 0.72 + FFF.clamp((mass - 60) / 80, 0, 1) * 0.6;   // 60 → 0.72, 100 → 1.02, 140 → 1.32
+    var sy = 0.9 + (sx - 1) * 0.45;
+    var scale = "scale(" + sx.toFixed(3) + "," + sy.toFixed(3) + ")";
+    host.querySelector(".bod").style.transform = scale;
+    // Arms sit behind the body; mouths are drawn on top by a second pass.
+    var poses = host.querySelectorAll(".pose");
+    for (var i = 0; i < poses.length; i++) {
+      var w = Math.max(0, 1 - Math.abs(muscle - i * 33.3) / 33.3);
+      poses[i].style.opacity = w.toFixed(2);
+      poses[i].style.transform = scale;
+    }
+    // Mouths need to be above the body: move each pose's mouth into the body group once.
+    if (!host._mouthsMoved) {
+      host._mouthsMoved = true;
+      var bod = host.querySelector(".bod");
+      for (var j = 0; j < poses.length; j++) {
+        var mouth = poses[j].querySelector(".mouth");
+        if (mouth) { mouth.setAttribute("data-pose", j); bod.appendChild(mouth); }
+      }
+    }
+    var mouths = host.querySelectorAll(".bod .mouth");
+    for (var k = 0; k < mouths.length; k++) {
+      var pj = Number(mouths[k].getAttribute("data-pose"));
+      mouths[k].style.opacity = Math.max(0, 1 - Math.abs(muscle - pj * 33.3) / 33.3).toFixed(2);
+    }
+  }
 
   // ---- input -------------------------------------------------------------
   ORDER.forEach(function (k) {
     var inp = inputs[k];
     // Nothing on the bar moves while the thumb is down. On release, the
     // window for this lock draws at the tip.
-    function release() { if (k === liveKey()) drawBar(Number(inp.value)); }
+    function release() { if (k === liveKey() && !busy) drawBar(Number(inp.value)); }
     inp.addEventListener("change", release);
     inp.addEventListener("pointerup", release);
     inp.addEventListener("touchend", release);
   });
   $("commit").addEventListener("click", commit);
-  $("again").addEventListener("click", newRun);
 
-  Arcade.boot(newRun);
+  Arcade.boot(function () {
+    var saved = null;
+    try { saved = Arcade.load("run", null); } catch (e) { saved = null; }
+    if (saved && saved.state && saved.state.day >= 1 && saved.state.day <= T.DAYS && Array.isArray(saved.halves)) resumeRun(saved);
+    else newRun();
+  });
 </script>
 </body>
 </html>
