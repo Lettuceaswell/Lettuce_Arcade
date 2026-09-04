@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>Fat Finger Fit — Lettuce Arcade</title>
+<meta name="theme-color" content="#083734">
+<link rel="stylesheet" href="/shared/arcade.css">
+<style>
+  body { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; text-align: center; gap: 12px; padding: 0 24px; }
+  h1 { font-size: 1.4rem; }
+  p { color: var(--fg-dim); font-size: 1rem; }
+</style>
+</head>
+<body>
+<h1>Fat Finger Fit</h1>
+<p>Not built yet.</p>
+
+<script src="/shared/arcade.js"></script>
+<script>
+  Arcade.backButton();
+  Arcade.menuButton({
+    rules: ["Not built yet."],
+    describeSave: function () { return "Nothing to reset yet."; }
+  });
+
+  Arcade.boot(function () {});
+</script>
+</body>
+</html>
