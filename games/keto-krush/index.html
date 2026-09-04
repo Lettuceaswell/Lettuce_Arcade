@@ -418,7 +418,7 @@
     rules: [
       "Swap two neighbours to line up three or more.",
       "🍖 🧀 protein climbs the ketosis meter. 🍕 🥐 🍪 carbs pay cash now but drain it.",
-      "The higher the meter, the bigger the multiplier. Fill it for a frenzy.",
+      "The higher the meter, the bigger the multiplier. Fill it for a frenzy. Chain reactions can't knock you down a tier.",
       "Four in a row leaves a special tile. Sweep it into a later clear to detonate it.",
       "25 moves. Climbing the meter earns more."
     ],
@@ -1460,10 +1460,21 @@
       // the protein you already spent, and waiving carbs there let runs coast
       // far past the budget's intent (playtest: "almost always enough keto
       // options to stay afloat").
+      //
+      // Cascade steps are luck, not choice: three of five icons are carbs, so
+      // refills land roughly meter-neutral on average but with a lot of
+      // variance, and losing a tier (or crashing) to tiles you never picked
+      // is the one outcome playtesting called unfair. So only the match you
+      // made (step 1) can drop you a tier. A chain reaction's carbs still
+      // cost meter, but never below the floor of the tier you hold going
+      // into that step. Protein chains stay fully live — the lucky rocket
+      // into a frenzy is one of the best moments in the game.
       if (frenzyMoves === 0) {
         var loss = carbCount * KETOSIS_CARB_LOSS;
-        ketosis = Math.max(0, Math.min(100, ketosis + proteinCount * KETOSIS_PROTEIN_GAIN - loss));
-        run.carbLoss += loss;
+        var floor = comboStep > 1 ? Math.min(ketosis, tierFor(ketosis).min) : 0;
+        var before = ketosis;
+        ketosis = Math.max(floor, Math.min(100, ketosis + proteinCount * KETOSIS_PROTEIN_GAIN - loss));
+        run.carbLoss += Math.min(loss, Math.max(0, Math.min(100, before + proteinCount * KETOSIS_PROTEIN_GAIN) - ketosis));
         if (ketosis > run.peak) run.peak = ketosis;
         if (tierFor(ketosis).name === "crash") run.crashed = true;
         if (ketosis >= 100) {
