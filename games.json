@@ -29,5 +29,19 @@
     "title": "Daily Letters",
     "blurb": "Same 19 letters for everyone. Fewest left over wins. Honor system on the words.",
     "emoji": "🔤"
+  },
+  {
+    "slug": "open-gym",
+    "title": "Open Gym",
+    "blurb": "Sign the whole neighborhood before the rival chain does. Turn-based turf war.",
+    "emoji": "🏋️",
+    "beta": true
+  },
+  {
+    "slug": "zorro-runner",
+    "title": "Zorro Runner",
+    "blurb": "Endless runner. Jump, slide, and swing past everything Spanish California throws at you.",
+    "emoji": "🦊",
+    "beta": true
   }
 ]

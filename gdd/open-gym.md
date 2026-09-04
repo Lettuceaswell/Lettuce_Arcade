@@ -2,8 +2,9 @@
 
 - **Slug:** `games/open-gym/`
 - **Emoji:** 🏋️
-- **Status:** prototype — full engine built (15 levels, Rival AI), held off
-  the arcade index (`games.json`) until playtests 1–3 pass.
+- **Status:** beta — full engine built (15 levels, Rival AI), listed under
+  the index's "Beta games" button (`"beta": true` in `games.json`) until
+  playtests 1–3 pass.
 
 *(Working title. Alternates: Block by Block, The Circuit, Foot Traffic.)*
 

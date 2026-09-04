@@ -20,7 +20,10 @@ Cloudflare Pages as-is.
 - Adding a game means: one new folder under `games/`, one new object
   appended to `games.json` (`slug`, `title`, `blurb`, `emoji`, and optionally
   `icon` — a PNG inside the game's own folder, shown instead of the emoji).
-  Nothing else in the codebase should need to change.
+  Nothing else in the codebase should need to change. Add `"beta": true` to
+  list a game behind the index's "Beta games" button instead of on the main
+  list: anyone can play it, but its play count stays at zero, so removing
+  the flag later ships it to the main list wearing the "New!" tag.
 - Portrait-first, one-thumb play. Minimum 44×44px tap targets. No reliance
   on hover states or precise dragging — assume a thumb on glass.
 - Assume the target device is an older iPhone on cell data. Keep total page

@@ -167,6 +167,43 @@
   }
   .tile-plays .sep { opacity: 0.5; margin: 0 5px; }
 
+  /* Beta games: unfinished, playable by anyone, hidden behind one small
+     button so the main list stays the family's list. */
+  .beta-row {
+    display: flex;
+    justify-content: center;
+    margin-top: 24px;
+  }
+  .beta-btn {
+    background: transparent;
+    border: 2px dashed var(--accent-dim);
+    color: var(--fg-dim);
+    font-size: 0.9rem;
+    font-weight: 600;
+    padding: 10px 16px;
+  }
+  .beta-btn:active {
+    background: var(--accent-dim);
+    color: var(--fg);
+  }
+  .beta-section {
+    margin-top: 16px;
+  }
+  .beta-note {
+    text-align: center;
+    color: var(--fg-dim);
+    font-size: 0.9rem;
+    margin-bottom: 12px;
+  }
+  .tile.beta {
+    border: 2px dashed var(--accent-dim);
+    background: transparent;
+  }
+  .tag-beta {
+    background: var(--accent-dim);
+    color: var(--fg);
+  }
+
   .empty, .error {
     text-align: center;
     color: var(--fg-dim);
@@ -182,6 +219,13 @@
     <button class="btn sort-btn" id="sort-btn" type="button" aria-live="polite"><span>Sort:</span><span class="sort-label"></span></button>
   </div>
   <ul class="tile-list" id="tile-list" aria-live="polite"></ul>
+  <div class="beta-row" id="beta-row" hidden>
+    <button class="btn beta-btn" id="beta-btn" type="button" aria-expanded="false" aria-controls="beta-section"></button>
+  </div>
+  <section class="beta-section" id="beta-section" hidden>
+    <p class="beta-note">Unfinished games. Anyone can play, nothing counts.</p>
+    <ul class="tile-list" id="beta-list"></ul>
+  </section>
   <button class="lettuce" id="lettuce" aria-label="Lettuce"><img src="/lettuce-192.png" alt="" width="48" height="48"></button>
 </main>
 <script src="/shared/arcade.js"></script>
@@ -219,6 +263,7 @@
     SORTS.forEach(function (s, i) { if (s.id === savedSort) sortIndex = i; });
 
     var games = [];
+    var betaGames = [];
 
     function playsText(n) {
       return n === 1 ? "1 play" : n + " plays";
@@ -235,79 +280,120 @@
       rows.sort(sort.cmp);
 
       list.innerHTML = "";
-      rows.forEach(function (row) {
-        var game = row.game;
-        var li = document.createElement("li");
-        var a = document.createElement("a");
-        a.className = "tile";
-        a.href = "/games/" + encodeURIComponent(game.slug) + "/";
+      if (rows.length === 0) list.innerHTML = '<li class="empty">No games yet.</li>';
+      rows.forEach(function (row) { list.appendChild(tile(row, false)); });
+    }
 
-        // A game may supply `icon` (a file inside its own folder) instead of
-        // an emoji. `emoji` stays the fallback for everything else.
-        var emoji;
-        if (game.icon) {
-          emoji = document.createElement("img");
-          emoji.className = "tile-icon";
-          emoji.src = "/games/" + encodeURIComponent(game.slug) + "/" + encodeURIComponent(game.icon);
-          emoji.alt = "";
-          emoji.width = 56;
-          emoji.height = 56;
-          emoji.loading = "lazy";
-        } else {
-          emoji = document.createElement("div");
-          emoji.className = "tile-emoji";
-          emoji.textContent = game.emoji || "🎮";
-        }
-        emoji.setAttribute("aria-hidden", "true");
-
-        var text = document.createElement("div");
-        var title = document.createElement("div");
-        title.className = "tile-title";
-        title.textContent = row.title;
-        if (row.plays === 0) {
-          var tag = document.createElement("span");
-          tag.className = "tag-new";
-          tag.textContent = "New!";
-          title.appendChild(tag);
-        }
-        var blurb = document.createElement("div");
-        blurb.className = "tile-blurb";
-        blurb.textContent = game.blurb || "";
-        text.appendChild(title);
-        text.appendChild(blurb);
-        var brag = Arcade.bragFor(game.slug);
-        if (row.plays > 0 || brag) {
-          var plays = document.createElement("div");
-          plays.className = "tile-plays";
-          if (brag) {
-            var b = document.createElement("span");
-            b.className = "brag";
-            b.textContent = brag;
-            plays.appendChild(b);
-          }
-          if (row.plays > 0) {
-            if (brag) {
-              var sep = document.createElement("span");
-              sep.className = "sep";
-              sep.textContent = "·";
-              plays.appendChild(sep);
-            }
-            plays.appendChild(document.createTextNode(playsText(row.plays)));
-          }
-          text.appendChild(plays);
-        }
-
-        a.appendChild(emoji);
-        a.appendChild(text);
-        li.appendChild(a);
-        list.appendChild(li);
+    // Beta tiles keep games.json order, never sort, and never show a play
+    // count: Arcade.boot skips the tally for any slug the index flagged as
+    // beta, so a game graduates to the main list still wearing "New!".
+    function renderBeta() {
+      betaList.innerHTML = "";
+      betaGames.forEach(function (game, i) {
+        betaList.appendChild(tile({ game: game, i: i, title: game.title || game.slug, plays: 0 }, true));
       });
+    }
+
+    function tile(row, isBeta) {
+      var game = row.game;
+      var li = document.createElement("li");
+      var a = document.createElement("a");
+      a.className = isBeta ? "tile beta" : "tile";
+      a.href = "/games/" + encodeURIComponent(game.slug) + "/";
+
+      // A game may supply `icon` (a file inside its own folder) instead of
+      // an emoji. `emoji` stays the fallback for everything else.
+      var emoji;
+      if (game.icon) {
+        emoji = document.createElement("img");
+        emoji.className = "tile-icon";
+        emoji.src = "/games/" + encodeURIComponent(game.slug) + "/" + encodeURIComponent(game.icon);
+        emoji.alt = "";
+        emoji.width = 56;
+        emoji.height = 56;
+        emoji.loading = "lazy";
+      } else {
+        emoji = document.createElement("div");
+        emoji.className = "tile-emoji";
+        emoji.textContent = game.emoji || "🎮";
+      }
+      emoji.setAttribute("aria-hidden", "true");
+
+      var text = document.createElement("div");
+      var title = document.createElement("div");
+      title.className = "tile-title";
+      title.textContent = row.title;
+      var tag = document.createElement("span");
+      if (isBeta) {
+        tag.className = "tag-new tag-beta";
+        tag.textContent = "Beta";
+        title.appendChild(tag);
+      } else if (row.plays === 0) {
+        tag.className = "tag-new";
+        tag.textContent = "New!";
+        title.appendChild(tag);
+      }
+      var blurb = document.createElement("div");
+      blurb.className = "tile-blurb";
+      blurb.textContent = game.blurb || "";
+      text.appendChild(title);
+      text.appendChild(blurb);
+      var brag = Arcade.bragFor(game.slug);
+      if (row.plays > 0 || brag) {
+        var plays = document.createElement("div");
+        plays.className = "tile-plays";
+        if (brag) {
+          var b = document.createElement("span");
+          b.className = "brag";
+          b.textContent = brag;
+          plays.appendChild(b);
+        }
+        if (row.plays > 0) {
+          if (brag) {
+            var sep = document.createElement("span");
+            sep.className = "sep";
+            sep.textContent = "·";
+            plays.appendChild(sep);
+          }
+          plays.appendChild(document.createTextNode(playsText(row.plays)));
+        }
+        text.appendChild(plays);
+      }
+
+      a.appendChild(emoji);
+      a.appendChild(text);
+      li.appendChild(a);
+      return li;
     }
 
     sortBtn.addEventListener("click", function () {
       sortIndex = (sortIndex + 1) % SORTS.length;
       Arcade.save("sort", SORTS[sortIndex].id);
       render();
+    });
+
+    // ---- beta games ----
+    //
+    // The toggle remembers its state, so a playtest loop (play, back, play
+    // again) doesn't cost a tap each time.
+    var betaRow = document.getElementById("beta-row");
+    var betaBtn = document.getElementById("beta-btn");
+    var betaSection = document.getElementById("beta-section");
+    var betaList = document.getElementById("beta-list");
+    var betaOpen = Arcade.load("beta-open", false) === true;
+
+    function updateBeta() {
+      betaRow.hidden = betaGames.length === 0;
+      betaSection.hidden = !betaOpen || betaGames.length === 0;
+      betaBtn.setAttribute("aria-expanded", betaOpen ? "true" : "false");
+      betaBtn.textContent = (betaOpen ? "Hide beta games" : "Beta games") +
+        " (" + betaGames.length + ")";
+    }
+
+    betaBtn.addEventListener("click", function () {
+      betaOpen = !betaOpen;
+      Arcade.save("beta-open", betaOpen);
+      updateBeta();
     });
 
     fetch("/games.json")
@@ -320,8 +406,12 @@
           list.innerHTML = '<li class="empty">No games yet.</li>';
           return;
         }
-        games = loaded;
+        games = loaded.filter(function (g) { return !g.beta; });
+        betaGames = loaded.filter(function (g) { return g.beta === true; });
+        Arcade.setBetaSlugs(betaGames.map(function (g) { return g.slug; }));
         render();
+        renderBeta();
+        updateBeta();
       })
       .catch(function () {
         list.innerHTML = '<li class="error">Could not load the game list.</li>';

@@ -489,6 +489,46 @@
   // starts. The index reads it to sort tiles and tag never-played games.
 
   var PLAYS_KEY = "arcade:arcade:plays";
+  var BETA_KEY = "arcade:arcade:beta";
+
+  // Beta games never tally. The index tells us which slugs are beta on every
+  // visit (it's the only page that reads games.json), and any count a beta
+  // game somehow picked up is pruned, so when the game graduates to the main
+  // list it still gets its "New!" tag.
+  function betaSlugs() {
+    var slugs = null;
+    try {
+      slugs = JSON.parse(localStorage.getItem(BETA_KEY));
+    } catch (e) { /* storage unavailable or corrupt; fall through */ }
+    if (!Array.isArray(slugs)) slugs = memoryFallback[BETA_KEY] || [];
+    return slugs;
+  }
+
+  Arcade.setBetaSlugs = function (slugs) {
+    slugs = Array.isArray(slugs) ? slugs : [];
+    try {
+      localStorage.setItem(BETA_KEY, JSON.stringify(slugs));
+    } catch (e) {
+      memoryFallback[BETA_KEY] = slugs;
+    }
+    var counts = Arcade.playCounts();
+    var dirty = false;
+    slugs.forEach(function (slug) {
+      if (Object.prototype.hasOwnProperty.call(counts, slug)) {
+        delete counts[slug];
+        dirty = true;
+      }
+    });
+    if (dirty) writePlayCounts(counts);
+  };
+
+  function writePlayCounts(counts) {
+    try {
+      localStorage.setItem(PLAYS_KEY, JSON.stringify(counts));
+    } catch (e) {
+      memoryFallback[PLAYS_KEY] = counts;
+    }
+  }
 
   Arcade.playCounts = function () {
     var counts = null;
@@ -500,13 +540,10 @@
   };
 
   function recordPlay(slug) {
+    if (betaSlugs().indexOf(slug) !== -1) return;
     var counts = Arcade.playCounts();
     counts[slug] = (counts[slug] || 0) + 1;
-    try {
-      localStorage.setItem(PLAYS_KEY, JSON.stringify(counts));
-    } catch (e) {
-      memoryFallback[PLAYS_KEY] = counts;
-    }
+    writePlayCounts(counts);
   }
 
   // ---- deterministic daily randomness --------------------------------------------------

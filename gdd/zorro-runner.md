@@ -2,9 +2,9 @@
 
 - **Slug:** `games/zorro-runner/`
 - **Emoji:** 🦊
-- **Status:** prototype — built and playable, but held off the arcade
-  index (`games.json`) pending further polish before it's ready for the
-  family site.
+- **Status:** beta — built and playable, listed under the index's "Beta
+  games" button (`"beta": true` in `games.json`) pending further polish
+  before it's ready for the main list.
 
 ## One-line pitch
 An endless runner starring a masked, whip-cracking Zorro who never stops
