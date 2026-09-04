@@ -72,6 +72,20 @@
   .board.placing .cell:not(.filled) { background: rgba(74, 222, 197, 0.2); }
   .cell.filled:active { transform: scale(0.94); }
 
+  /* ---- rarity dots (rack tiles + placed cells) ---- */
+  .tile, .cell.filled { position: relative; }
+  .tile::after, .cell.filled::after {
+    content: ""; position: absolute; left: 50%; bottom: 5px;
+    transform: translateX(-50%);
+    height: 3px;
+    background: radial-gradient(circle, rgba(43, 29, 14, 0.38) 1.3px, transparent 1.6px) 0 0 / 5px 3px repeat-x;
+    pointer-events: none;
+  }
+  [data-dots="1"]::after { width: 5px; }
+  [data-dots="2"]::after { width: 10px; }
+  [data-dots="3"]::after { width: 15px; }
+  [data-dots="4"]::after { width: 20px; }
+
   /* ---- board tools (shift + clear) ---- */
   .tools { display: flex; gap: 6px; justify-content: center; align-items: center; }
   .tools .tool {
@@ -284,6 +298,7 @@
       <li>No names, no abbreviations. Everything should connect.</li>
       <li>The game doesn't check words. <b>Honor system.</b> Every run on your board is listed on your card, so what you spelled is there for anyone to see.</li>
       <li>Tap a rack tile, then tap a square. Tap a placed tile to pick it up. The arrows slide the whole board.</li>
+      <li>Dots under a letter mark how rare it is. More dots, harder to place.</li>
       <li><b>Commit</b> makes your card. You can reopen and re-commit as often as you like.</li>
       <li>Done with today's? <b>Free play</b> deals fresh racks all day long.</li>
     </ul>
@@ -324,6 +339,14 @@
     T: 9.1, N: 6.7, S: 6.3, H: 6.1, R: 6.0, D: 4.3, L: 4.0, C: 2.8, M: 2.4,
     W: 2.4, F: 2.2, G: 2.0, Y: 2.0, P: 1.9, B: 1.5, V: 1.0, K: 0.8,
     J: 0.2, X: 0.2, Z: 0.1
+  };
+  // Rarity dots, hand-picked by how often a letter appears in dictionary words
+  // (not running text). Purely informational; no points attached.
+  var DOTS = {
+    E: 1, A: 1, I: 1, O: 1, S: 1, R: 1, N: 1, T: 1, L: 1,
+    U: 2, D: 2, C: 2, M: 2, P: 2, H: 2, G: 2,
+    B: 3, Y: 3, F: 3, K: 3, W: 3, V: 3,
+    J: 4, X: 4, Z: 4, Q: 4
   };
 
   var reducedMotion = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -672,6 +695,7 @@
       t = grid[rr][cc];
       el.textContent = t >= 0 ? rack[t] : "";
       el.className = "cell" + (t >= 0 ? " filled" : "");
+      if (t >= 0) el.dataset.dots = DOTS[rack[t]] || 1; else delete el.dataset.dots;
       el.setAttribute("aria-label", t >= 0 ? rack[t] + ", placed" : "empty");
     }
     boardEl.classList.toggle("placing", selected >= 0);
@@ -684,6 +708,7 @@
       var b = document.createElement("button");
       b.className = "tile" + (idx === selected ? " sel" : "");
       b.textContent = rack[idx];
+      b.dataset.dots = DOTS[rack[idx]] || 1;
       b.setAttribute("aria-label", rack[idx] + (idx === selected ? ", selected" : ""));
       b.dataset.i = idx;
       b.addEventListener("click", onRack);
