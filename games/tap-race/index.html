@@ -22,6 +22,14 @@
 <script src="/shared/arcade.js"></script>
 <script>
   Arcade.backButton();
+  Arcade.menuButton({
+    rules: [
+      "Tap the big button as fast as you can.",
+      "Fifteen seconds. Every tap is a point.",
+      "Beat your best."
+    ],
+    describeSave: function () { return "Your best Tap Race score."; }
+  });
 
   var timerEl = document.getElementById("timer");
   var scoreEl = document.getElementById("score");

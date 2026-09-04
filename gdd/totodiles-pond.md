@@ -2,7 +2,9 @@
 
 - **Slug:** `games/totodiles-pond/` (no apostrophe — it's a live URL segment)
 - **Tile:** not an emoji — `"icon": "totodile-2.png"` in `games.json`
-- **Status:** **shipped** — v2 built against `Arcade.VERSION = 9`
+- **Status:** **shipped** — v2 built against `Arcade.VERSION = 9`; v3
+  (`Arcade.VERSION = 26`) closes the FEED/PLAY drop leak, clamps inflated
+  balances, and adds the shared ☰ menu with a save reset. See "Pass 5".
 - **Mascot:** Totodile, named by the player at first boot. Evolves twice.
 
 ## One-line pitch
@@ -106,6 +108,37 @@ was worse than a tuning miss:
 
 Pass 4 is the version below. The through-line of every change: **turn taps
 into appointments, and turn text into objects.**
+
+**Pass 5 — the leak Pass 4 missed (v3).** Playtest: unlimited feeding and
+playing, the whole shop bought in a day. Pass 4 gated DIVE and CAST behind
+real time and claimed FEED was "paced by appetite" — but a full gator still
+paid 1 drop, and PLAY had no gate at all: 2 drops per tap, forever. Same
+exploit class, two buttons over. The fix follows the doc's own rule (no hard
+daily caps — they amputate good sessions) and its own pattern (appetite):
+**actions stay unlimited; payouts need timing.**
+
+| Action | v2 paid | v3 pays |
+| --- | --- | --- |
+| Feed, hungry | 6 | 6 |
+| Feed, peckish | 3 | 3 |
+| Feed, full | 1 | **0** — "He nibbles politely." |
+| Play, rested (2h since the last paid game) | 2 | 2 |
+| Play, again sooner | 2 | **0** — "He's still puffed from last time. Fun, though." |
+
+The favourite bonus (+3 food, +3 play) and Silly's +2 ride only on a paid
+action, or favourite-spam becomes the new leak. Everything else is
+untouched: reactions, favourite discovery, care-day banking (two different
+actions, paid or not). `lastPlayAt` only advances on a paid game, so a child
+who plays every ten minutes still gets paid on the two-hour mark.
+
+**Migration (v2 → v3).** Balances over 30 clamp to 30 with a card on first
+open ("The jar had a leak"). Collection, decor, care-days, name, stage are
+kept: finds came from timed dives and lines, which were never the leak, and
+the v2 precedent kept purchases. A pond already fully bought is finished as
+far as the shop goes; that's the drop-sink question in Open questions, not a
+reason to wipe. Anyone who wants a genuinely fresh pond has ☰ → Reset, which
+is a goodbye rather than a factory reset: name, care-days, finds and things
+bought are spelled out on the confirmation, and a new Totodile hatches.
 
 ---
 
@@ -394,6 +427,8 @@ we want it.
 - `drops`, `decor[]`, `found[]`, `dives`, `traces[]`, `keepsakes[]`,
   `journal[]` — economy, pond, collection, memory.
 - `dreamDay`, `boostDay`, `boostTier`, `tuckNight`, `stageSeen` — daily gates.
+- `lastPlayAt` — the play rest clock (v3): advances only on a paid game.
+- `v` — save version, 3. `redug` / `reclamped` — one-shot migration cards.
 - `favHits`, `favSeen` — favourite discovery.
 
 Clock-tamper tolerant: negative deltas clamp to zero, drift caps at the 3d+
@@ -466,8 +501,12 @@ forbids. Rather than special-case this game, `games.json` takes an optional
 3. **Appetite curve (2h / 5h).** Now double duty: meal windows *and* the depth
    gate.
 4. **Line yields (8 / 25 / 45 drops).** The entire drop economy is here now
-   that diving doesn't print money. Shop totals 645; ~80/day is ~8 days to own
-   the pond.
+   that diving doesn't print money — and, since v3, neither does feeding a
+   full gator or playing on repeat (care pays ~10–20/day at best). Shop
+   totals 645; ~80/day is ~8 days to own the pond.
+7. **Play rest (2h).** v3. Shorter and a lunch-break session pays twice;
+   longer and the midday open pays nothing. Two hours matches the
+   appetite curve's first step on purpose.
 5. **Evolution gates (14 / 40 care-days), at two actions per day.**
 6. **Keepsake grant rate.** Eight exist. Too fast and they're loot; too slow
    and the memory layer never starts. Currently: 30% of long-absence drifts,
@@ -475,6 +514,10 @@ forbids. Rather than special-case this game, `games.json` takes an optional
 
 ## Open questions
 
+- **A drop sink after the shop.** Ten decorations and the economy is done.
+  Ponds that bought everything during the leak are already there. A second
+  shelf, or something consumable (treats that change a reaction for a day),
+  is the next economic question.
 - **Live weather API?** Rain outside = rain in the pond is still the best idea
   in this document and the only one needing a network call.
 - **Tricks** — a Croconaw-stage verb. Evolution currently unlocks depths only.

@@ -109,7 +109,7 @@
     align-items: center;
     justify-content: flex-end;
     gap: 10px;
-    padding: calc(10px + var(--safe-top)) calc(12px + var(--safe-right)) 6px 12px;
+    padding: calc(10px + var(--safe-top)) calc(60px + var(--safe-right)) 6px 12px; /* the shared ☰ menu sits at 8px */
     font-size: 0.85rem;
     color: var(--fg-dim);
     text-shadow: 0 1px 3px rgba(0, 0, 0, 0.45);
@@ -777,7 +777,7 @@
   var HOUR = 3600000;
   var DAY = 86400000;
   var MIN = 60000;
-  var SAVE_V = 2;
+  var SAVE_V = 3;
 
   // ---- content tables ---------------------------------------------------
 
@@ -1040,13 +1040,22 @@
   // Re-dig the pond: collection, dive count and drops reset. His name, his
   // birthday, his care-days and everything you bought are kept — and he tells
   // you it happened rather than the game quietly robbing you.
-  if (S.born && oldV < SAVE_V) {
+  if (S.born && oldV < 2) {
     S.found = [];
     S.dives = 0;
     S.tierFirsts = [];
     S.drops = Math.min(S.drops || 0, 30);
     S.dive = null;
     S.redug = true;
+  }
+  // v2 -> v3. FEED and PLAY paid on every tap — a full gator paid 1, a game
+  // paid 2, forever — so the shop could be funded in minutes. They pay on
+  // timing now (appetite; a two-hour rest). Balances built the old way get
+  // clamped to 30 again. The collection and everything bought are kept: the
+  // finds came from timed dives and lines, which were never the leak.
+  if (S.born && oldV < 3 && (S.drops || 0) > 30) {
+    S.drops = 30;
+    S.reclamped = true;
   }
   S.v = SAVE_V;
 
@@ -1746,7 +1755,10 @@
     openWheel("What's for dinner?", items, false, function (food) {
       var ap = appetite();
       var isFav = food.id === fav.food;
-      var gain = (ap === 2 ? 6 : ap === 1 ? 3 : 1) + (isFav ? 3 : 0);
+      // A full gator only nibbles, and nibbling pays nothing: drops come from
+      // timing, not tapping. The favourite bonus rides on a paid meal only.
+      var gain = ap === 2 ? 6 : ap === 1 ? 3 : 0;
+      if (gain && isFav) gain += 3;
       S.drops += gain;
       S.fedAt = Date.now();
       if (isFav) S.favHits[food.id] = (S.favHits[food.id] || 0) + 1;
@@ -1794,9 +1806,12 @@
     });
     openWheel("What shall we do?", items, false, function (p) {
       var isFav = p.id === fav.play;
-      var gain = (isFav ? 5 : 2) + (trait().id === "silly" ? 2 : 0);
+      // Play pays once he's rested: two hours since the last paid game. He
+      // still plays, and it still counts as care; it just doesn't pay.
+      var rested = !S.lastPlayAt || Date.now() - S.lastPlayAt >= 2 * HOUR;
+      var gain = rested ? (isFav ? 5 : 2) + (trait().id === "silly" ? 2 : 0) : 0;
       S.drops += gain;
-      S.lastPlayAt = Date.now();
+      if (rested) S.lastPlayAt = Date.now();
       if (isFav) S.favHits[p.id] = (S.favHits[p.id] || 0) + 1;
       var banked = markCare("played");
 
@@ -1810,6 +1825,9 @@
         }
         react(trait().play, "wiggle");
         melody([659, 784, 988], 90);
+      } else if (!rested) {
+        react("He's still puffed from last time. Fun, though.", "happy");
+        blip(523, 0.16, "sine");
       } else {
         react("That was fun.", "happy");
         blip(587, 0.18, "sine");
@@ -2181,6 +2199,11 @@
         "Everything he'd collected has settled back into the silt.",
         "the depths are worth exploring again");
     }
+    if (S.reclamped) {
+      S.reclamped = false;
+      showCard("💧", "The jar had a leak. It's down to thirty drops.",
+        "meals pay when he's hungry, games pay when he's rested");
+    }
     doDrift();
     if (!asleep()) doDream();
     S.lastSeen = Date.now();
@@ -2227,6 +2250,23 @@
   }
 
   Arcade.backButton();
+  Arcade.menuButton({
+    rules: [
+      "The pond runs on the real clock. Close it and he keeps living. Open it to see what you missed.",
+      "FEED when he's hungry. A full gator only nibbles, and nibbling pays nothing.",
+      "PLAY once he's had a rest, about two hours between games.",
+      "DIVE sends him down for real minutes or hours. He surfaces with a find for the collection.",
+      "CAST a line and come back later. The line pays dew drops; the dive pays the collection.",
+      "Two different care actions in a day bank a care-day. Care-days make him grow.",
+      "At night, tuck him in."
+    ],
+    describeSave: function () {
+      var d = S.careDays || 0;
+      return S.name + " · " + d + " care-day" + (d === 1 ? "" : "s") + " · " +
+        (S.found || []).length + " finds · " + (S.decor || []).length + " things bought · " +
+        (S.drops || 0) + " 💧. A new Totodile hatches, and you name him again.";
+    }
+  });
   Arcade.boot(function () {
     if (!S.born) {
       askName(begin);

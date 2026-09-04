@@ -11,8 +11,12 @@ Cloudflare Pages as-is.
   only `shared/arcade.css` and `shared/arcade.js`. No other cross-game or
   cross-folder imports.
 - Every game calls `Arcade.boot()` before starting any gameplay or audio, and
-  calls `Arcade.backButton()`. The arcade index (`index.html`) does neither —
-  it has no back button and doesn't need a tap-to-start gate.
+  calls `Arcade.backButton()` and `Arcade.menuButton({ rules | help,
+  describeSave })`. The menu is the one place for "How to play" and for
+  wiping that game's save (confirmed, never one tap). A game with its own
+  mute button sits it at `right: 60px` so the menu keeps the corner. The
+  arcade index (`index.html`) does none of this — it has no back button, no
+  menu, and doesn't need a tap-to-start gate.
 - Adding a game means: one new folder under `games/`, one new object
   appended to `games.json` (`slug`, `title`, `blurb`, `emoji`, and optionally
   `icon` — a PNG inside the game's own folder, shown instead of the emoji).

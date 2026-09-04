@@ -56,6 +56,143 @@
     return a;
   };
 
+  // ---- menu: how to play + save reset ---------------------------------
+  //
+  // Every game calls Arcade.menuButton(opts) after backButton(). One ☰ at
+  // the top right (games with a mute button sit it at right: 60px). The
+  // sheet offers the rules and a reset of this game's save, and nothing
+  // else. opts:
+  //   title        - shown at the top of the sheet; defaults to the <title>
+  //                  up to the " — ".
+  //   rules        - array of strings, one per line, for "How to play"; or
+  //   help         - a function that opens the game's own rules screen.
+  //   describeSave - function returning one line naming what a reset wipes,
+  //                  in the game's own words ("Totodile · 23 care-days …").
+  //   canOpen      - function returning false while the menu must stay shut
+  //                  (a reel mid-spin, a run in flight).
+  //
+  // The reset is toddler-proofed three ways: the wipe button sits at the top
+  // of the card and Cancel at the thumb; the wipe button is inert for the
+  // first second; and the card says what dies before it asks.
+
+  Arcade.menuButton = function (opts) {
+    opts = opts || {};
+    var css = document.createElement("style");
+    css.textContent =
+      ".arc-menu-btn{position:fixed;top:calc(8px + env(safe-area-inset-top,0px));right:calc(8px + env(safe-area-inset-right,0px));" +
+      "min-height:44px;min-width:44px;padding:8px 12px;z-index:9999;background:rgba(0,0,0,0.5);font-size:1.25rem;line-height:1}" +
+      ".arc-sheet{position:fixed;inset:0;z-index:10002;background:rgba(8,55,52,0.97);display:none;align-items:center;justify-content:center;" +
+      "padding:calc(56px + env(safe-area-inset-top,0px)) 20px calc(24px + env(safe-area-inset-bottom,0px));overflow-y:auto;text-align:center}" +
+      ".arc-sheet.show{display:flex}" +
+      ".arc-box{width:100%;max-width:360px;display:flex;flex-direction:column;align-items:stretch;gap:12px}" +
+      ".arc-box h2{font-size:1.5rem;line-height:1.2;text-align:center}" +
+      ".arc-box p{color:var(--fg-dim);font-size:1rem;text-align:center}" +
+      ".arc-box ul{text-align:left;color:var(--fg);padding-left:1.2em;font-size:1rem}" +
+      ".arc-box li{margin:8px 0}" +
+      ".arc-box .btn{width:100%;min-height:60px;font-size:1.15rem;font-weight:800}" +
+      ".arc-box .btn.quiet{background:var(--bg-elevated)}" +
+      ".arc-box .btn.danger{background:#ff8a7a;color:#2b0f0a}" +
+      ".arc-box .btn.danger:disabled{opacity:0.35}" +
+      ".arc-box .spacer{min-height:32px;flex:1}";
+    document.head.appendChild(css);
+
+    var title = opts.title || String(document.title).split(" — ")[0] || "This game";
+    var sheet = document.createElement("div");
+    sheet.className = "arc-sheet";
+    sheet.setAttribute("role", "dialog");
+    sheet.setAttribute("aria-modal", "true");
+    var box = document.createElement("div");
+    box.className = "arc-box";
+    sheet.appendChild(box);
+    document.body.appendChild(sheet);
+
+    function el(tag, cls, text) {
+      var e = document.createElement(tag);
+      if (cls) e.className = cls;
+      if (text != null) e.textContent = text;
+      return e;
+    }
+    function button(label, cls, onClick) {
+      var b = el("button", cls, label);
+      b.addEventListener("click", onClick);
+      return b;
+    }
+    function fill(kids) {
+      box.innerHTML = "";
+      kids.forEach(function (k) { box.appendChild(k); });
+    }
+    function close() {
+      sheet.classList.remove("show");
+      if (opts.onClose) opts.onClose();
+    }
+
+    function showMain() {
+      var kids = [el("h2", null, title)];
+      if (opts.rules || opts.help) kids.push(button("How to play", "btn", function () {
+        if (opts.help) { close(); opts.help(); } else showRules();
+      }));
+      kids.push(button("Reset this game's save", "btn quiet", showReset));
+      kids.push(el("div", "spacer"));
+      kids.push(button("Close", "btn quiet", close));
+      fill(kids);
+    }
+
+    function showRules() {
+      var ul = el("ul");
+      (opts.rules || []).forEach(function (t) { ul.appendChild(el("li", null, t)); });
+      fill([el("h2", null, "How to play"), ul, el("div", "spacer"), button("Back", "btn", showMain)]);
+    }
+
+    function showReset() {
+      var what = "";
+      try { what = opts.describeSave ? String(opts.describeSave() || "") : ""; } catch (e) { what = ""; }
+      var wipe = button("Wipe it", "btn danger", function () { Arcade.resetSave(); });
+      wipe.disabled = true;
+      setTimeout(function () { wipe.disabled = false; }, 1000);
+      fill([
+        el("h2", null, "Reset " + title + "?"),
+        el("p", null, what || "Everything this game has saved on this phone."),
+        el("p", null, "This can't be undone."),
+        wipe,
+        el("div", "spacer"),
+        button("Cancel", "btn", showMain)
+      ]);
+    }
+
+    var btn = button("☰", "btn arc-menu-btn", function () {
+      if (opts.canOpen && !opts.canOpen()) return;
+      showMain();
+      sheet.classList.add("show");
+      if (opts.onOpen) opts.onOpen();
+    });
+    btn.setAttribute("aria-label", "Menu");
+    document.body.appendChild(btn);
+
+    document.addEventListener("keydown", function (e) {
+      if (e.key === "Escape" && sheet.classList.contains("show")) close();
+    });
+    return btn;
+  };
+
+  // Wipes every key this game has saved (its storage prefix), keeps the
+  // sound preference, and reloads so the game boots as if new.
+  Arcade.resetSave = function () {
+    var prefix = "arcade:" + gameNamespace() + ":";
+    var keep = prefix + "muted";
+    try {
+      var doomed = [];
+      for (var i = 0; i < localStorage.length; i++) {
+        var k = localStorage.key(i);
+        if (k && k.indexOf(prefix) === 0 && k !== keep) doomed.push(k);
+      }
+      doomed.forEach(function (k) { localStorage.removeItem(k); });
+    } catch (e) { /* storage unavailable; the in-memory copy goes below */ }
+    Object.keys(memoryFallback).forEach(function (k) {
+      if (k.indexOf(prefix) === 0 && k !== keep) delete memoryFallback[k];
+    });
+    location.reload();
+  };
+
   // ---- boot / audio unlock --------------------------------------------------
 
   Arcade.audioCtx = null;

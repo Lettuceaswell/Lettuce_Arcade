@@ -90,7 +90,7 @@
   #mute {
     position: fixed;
     top: calc(8px + var(--safe-top));
-    right: calc(8px + var(--safe-right));
+    right: calc(60px + var(--safe-right)); /* the shared ☰ menu sits at 8px */
     min-height: 44px;
     min-width: 44px;
     font-size: 1.2rem;
@@ -160,6 +160,15 @@
 <script src="/shared/arcade.js"></script>
 <script>
 Arcade.backButton();
+Arcade.menuButton({
+  rules: [
+    "Zorro runs on his own. You get him past what's ahead.",
+    "Tap to jump and slash. Hold to swing high on the whip.",
+    "Swipe down to slide under aqueducts.",
+    "Clean clears build a combo. One hit ends the run."
+  ],
+  describeSave: function () { return "Your best distance in Zorro Runner."; }
+});
 
 (function () {
   "use strict";

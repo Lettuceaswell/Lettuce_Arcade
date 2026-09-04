@@ -2,14 +2,17 @@
 
 - **Slug:** `games/lettuce-slots/`
 - **Emoji:** 🥬
-- **Status:** **v3 shipped (v24)** — two modes on one page. **Spin** is a
-  numberless toy for the smallest player; **Run** is the 75-spin bowl game
-  from v2, with the bunny recast as a bunny and the rules card gone. The v1
-  post-mortem is kept below: v3 brings the toy back on purpose, as a mode,
-  not as the game.
+- **Status:** **v4 shipped (v26)** — two modes on one page. **Spin** is v1
+  restored verbatim: lifetime points, jackpots, matches, the dry counter, no
+  bunny. **Run** is the 75-spin bowl game, now with no daily: play as many as
+  you like, one best. The rules live behind the shared ☰ menu at all times
+  and the three-line short version stays on the start card. The v1
+  post-mortem is kept below; read it now as a division of labour rather than
+  an indictment. Spin is allowed to have no stakes because Run has all of
+  them.
 
 ## One-line pitch
-Spin for the sounds, or make a run. In a run every spin adds to a salad
+Spin for the points, or make a run. In a run every spin adds to a salad
 bowl. Serve it and it's yours; spin again and it grows faster — unless the
 bunny on the third reel gets there first.
 
@@ -82,38 +85,53 @@ reel is moving.
 
 ### Spin
 
-The toy, on purpose this time. Reels, a status word, and the SPIN button.
-**No numbers anywhere**: no bowl, no counter, no serve, no spins-left. v1
-was criticised by adults who wanted a game; a two-year-old wants a button
-that makes noise, and that is the whole spec.
+v1, verbatim. Reels, the SPIN button, and two lines of lifetime stats:
+`3 jackpots · 41 matches` and `2,614 pts · 87 since last 🥬`. One point a
+spin, fifty for a match, five hundred for 🥬🥬🥬. Points only ever go up.
 
-- Same strips, same crawl, same near-miss rule, same reel-stop tones. Reels
-  are rolled from `Math.random` — there is no run and nothing at stake, so
-  the seeded stream is never touched.
-- **The bunny is the best outcome.** Same symbol, opposite valence: reel 3
-  rings pink and hops, the status line says `🐰 munch munch`, and the munch
-  gets a happy chirp on the end. A match rings gold with the jingle
-  (`MATCH! 🥕🥕🥕`); a jackpot gets the arpeggio. A tension miss says
-  `so close!`.
+- Reel 3 is the **five-symbol** strip here — no bunny. Match odds 1 in 25,
+  jackpot 1 in 125, exactly v1. Reels are rolled from `Math.random`; there
+  is no run and nothing at stake, so the seeded stream is never touched.
+- The same crawl, the same near-miss rule (without the lettuce exception,
+  which only exists because of the bunny), the same tones.
+- **The stats are v1's keys**, `points` / `jackpots` / `matches` / `dry`,
+  which v2 abandoned in place and never deleted. Every phone that played v1
+  gets its lifetime totals back the moment v4 loads. Nothing to migrate.
+- v3 shipped Spin as a numberless toy with a happy bunny for a week. The
+  household verdict was "'twas good how it was," and it was: the counter
+  that only goes up is the dopamine, not the crawl alone. Cut without
+  regret; the numbers-free variant is in the drafts table.
 - A tap during a spin does nothing, exactly as in Run. Slam-to-stop was
-  considered and cut (drafts table below): with nothing at stake the crawl
-  *is* the toy, and a mashing kid would skip every crawl.
+  considered and cut (drafts table below): the crawl is the product, and a
+  mashing kid would skip every crawl.
 
 ### Run
 
-The v2 game, its rules unchanged. Switching to Run picks up wherever the
-run was: a run in progress shows its resume card, a finished daily shows its
-end card, otherwise today's start card. Switching to Spin closes any card
-and leaves the run saved exactly where it is, so flicking the pill back and
-forth can't lose anything.
+The v2 game, its rules unchanged, **its daily gone** (v4). A run is a run:
+start one whenever you like, as many as you like, one best. Switching to
+Run picks up wherever the run was: a run in progress shows its resume card,
+otherwise the start card. Switching to Spin closes any card and leaves the
+run saved exactly where it is, so flicking the pill back and forth can't
+lose anything.
+
+What the daily bought was comparison on identical reels and a shared
+jackpot spin. What replaced it is the ladder: "I got Feast" is the sentence
+the family texts, so the copy-result button stays. The `bestDaily` and
+`bestFree` keys fold into one `best` (the higher of the two) on first load.
+
+### Menu
+
+The shared ☰ (see `CLAUDE.md`) holds the full five-line rulebook, openable
+at any time except mid-spin, and the save reset. The start card keeps its
+three lines because they cost zero taps; the menu carries the long version
+for whoever asks, including match and jackpot. Reset wipes the lifetime
+stats, the best, and any run in progress, and the confirmation says so in
+numbers.
 
 The one exposure: a small child already in Run, past the start card, can
 spin away a daily. Accepted rather than locked — the start card is one tap
 and the pill is out of reach, and that's as much fence as a family arcade
 wants.
-
-v2's "Free play" is renamed **Practice run** so it can't be confused with
-Spin. The save keys (`bestFree`, `mode: "free"`) keep their old names.
 
 ## Rules
 
@@ -182,23 +200,19 @@ streak: five spins 40%, eight 23%, ten 16%, twelve 11%.
   the second half of every run has a concrete target. This is the line that
   turns "how did I do" into "I'm making a run at Chef's."
 
-### Daily and practice
+### One run at a time
 
-- **Daily run.** Reel outcomes are drawn from `Arcade.seededRandom` keyed
-  on `"lettuce-slots:" + Arcade.dailySeed()`, three draws per spin and
-  nothing else from the stream. **Everyone gets the same 75 reels.** Serving
-  doesn't consume a draw, so the sequence is identical whatever anyone
-  does — two players' scores differ *only* by when they served. One daily
-  run per device per day; reopening lands on the end card.
-- **Practice run.** Same rules, unlimited, its own best. A practice run draws a
-  random seed string once at the start and stores it, then uses the same
-  seeded stream as the daily — so a practice run can be resumed exactly too,
-  and nothing in the file ever calls `Math.random()` for an outcome. This
-  is the retry loop. The daily is the one you can't take back.
+- A run draws a random seed string once at the start and stores it, then
+  draws three numbers per spin from `Arcade.seededRandom` keyed on it, and
+  nothing else from the stream. Reopening mid-run resumes exactly: rebuild
+  the stream, skip `spin × 3` draws, carry on. A phone call in the middle of
+  a run costs nothing.
 - **Copy result** on the end card writes one line to the clipboard:
-  `🥬 Lettuce Slots · Sep 3 · 214 served · Chef's salad · biggest bowl 88 · 🐰 11`
+  `🥬 Lettuce Slots · 214 served · Chef's salad · biggest bowl 88 · 🐰 11`
   Text only, no canvas — the score line is the whole story. Same
   `navigator.clipboard` call and `<textarea>` fallback as Daily Letters.
+- v2 and v3 had a daily run on `Arcade.dailySeed()` with a practice run
+  beside it. Cut in v4; the reasoning is under Modes → Run above.
 
 ### Measured
 
@@ -250,6 +264,8 @@ table and a p10 of 14. Everyone in the house will recognise who plays it.
 | **Lives.** Three bunnies and the run is over. | A cautious player never busts and the run never ends — the v1 problem in a hat. Bounded means a fixed spin count. |
 | **Rising bunny odds** (bust chance grows with streak). | Wanted for the "getting scary" arc, but the triangular bowl already produces it with the risk left honest and flat. Nothing on reel 3 changes between spins, and the player can see that. |
 | **Serve costs a spin.** | Makes the safe move expensive, so the timid player gets punished twice. Serve should be free and cheap-feeling; its real cost is the reset streak, and the sim shows that's plenty. |
+| **Numberless Spin** (v3: no counter at all, a happy hopping bunny). | Shipped for a week. Verdict from the house: "'twas good how it was." The lifetime counter that only goes up *is* the dopamine of the toy; without it the crawl is a screensaver. v1's economy restored in v4. |
+| **The daily run** (v2–v3: everyone gets the same 75 reels). | Cut in v4. Nobody was comparing on the day, and the daily gate ("reopening lands on the end card") read as a lockout on a toy. One best and the ladder do the comparing now. |
 | **Slam-to-stop in Spin mode** (v3: a tap mid-spin lands the reels now). | Wanted so every toddler tap does something. Cut: Spin has no stakes, so the crawl is the entire product there, and slam lets a mashing kid skip every crawl. Revisit only if the mode tests as boring, not as slow. |
 | **Four symbols instead of five** (v3: shorter runs, more jackpots). | Measured. Without a blank slot the bunny goes to 1 in 5 and sharp-vs-steady on the same reels drops from 61% to 52% — a coin flip. With a blank it works (tuning knob 3) but buys no play time, because time is spins × seconds, not symbols. |
 
@@ -294,13 +310,14 @@ stream, so it can't shift anyone's reels:
 ## Screen
 
 Portrait, single view, nothing scrolls. The pill sits under the title in
-both modes. In Spin mode everything below the reels except the status line
-and SPIN is hidden: title, pill, three reels, one word, one button.
+both modes. In Spin mode the counter and SERVE are hidden and the readout
+and footer carry the lifetime stats: title, pill, three reels, a status
+line, two stat lines, one button.
 
 ```
         🥬 LETTUCE SLOTS
           [ Spin | Run ]
-     Daily · Sep 3            41 spins left
+              41 spins left
 
      ┌─────┬─────┬─────┐
      │ 🍅  │ 🍅  │ 🐰  │     <- ~72px emoji, reels 1&2 ringed
@@ -320,19 +337,18 @@ and SPIN is hidden: title, pill, three reels, one word, one button.
      served 138  ·  Chef's at 200 · 62 to go
 ```
 
-- **Start card** (before spin 1): `Daily run · Sep 3 · 75 spins · your best
-  312 · [START]`, and under the button the whole rulebook, three lines, no
-  gate and no "Got it":
+- **Start card** (before spin 1): `75-spin run · your best 312 · [START]`,
+  and under the button the short rulebook, three lines, no gate and no
+  "Got it":
   - Every spin adds more than the last.
   - The 🐰 eats the bowl. SERVE keeps it.
   - 75 spins. Whatever's left at the end is served.
 
   Match and jackpot aren't in the list; the status line explains them the
-  moment they happen (`MATCH — bowl doubled to 90`), and a ×3 +50 told in
-  advance is a number with nothing attached. "Adds more than the last" was
-  chosen over "is worth more points than the last" because the second is
-  false after a serve or a bunny, and a nine-year-old will notice. Practice
-  shows `Practice run · 75 spins · your best 288` over the same three lines.
+  moment they happen (`MATCH — bowl doubled to 90`), and the ☰ menu has the
+  full five lines for anyone who wants them first. "Adds more than the
+  last" was chosen over "is worth more points than the last" because the
+  second is false after a serve or a bunny, and a nine-year-old will notice.
 - **Coaching, first run only.** On the first three leaves of a streak in
   the first run this device has ever played, the leaf status is replaced by
   `+1 · every spin adds more than the last`, `+2 · SERVE keeps the bowl`,
@@ -358,13 +374,13 @@ and SPIN is hidden: title, pill, three reels, one word, one button.
          Run over — 214 served
              🥗 Chef's salad
      biggest bowl 88 · 🐰 11 · 🥬 jackpot ×1
-     your daily best 312
+     your best 312
 
-      [ Copy result ]     [ Practice run ]
+      [ Copy result ]     [ Play again ]
 ```
 
-  `Practice run` opens a fresh random run; on a practice run the button
-  says `Play again`. The daily card is what you see for the rest of the day.
+  `Play again` opens a fresh random run. When the run just finished is the
+  best, the best line reads `a new best` instead of a number.
 - Win, bust and serve are each signalled by **text and colour together**,
   never colour alone.
 
@@ -417,27 +433,23 @@ Cheap WebAudio blips after `Arcade.boot()`; the v1 ramp plus three sounds.
 Via `Arcade.save` / `Arcade.load`, namespaced per game already:
 
 - `run` — the run in progress, or `null`:
-  `{ mode, seed, date, spin, bowl, streak, served, biggest, bunnies,
-  jackpots, coach }`. A v2 `run` or `daily` still holding `snails` is read
-  as `bunnies`.
-  Because reels are seeded (daily) or the free seed is stored, reopening
+  `{ seed, spin, bowl, streak, served, biggest, bunnies, jackpots, coach }`.
+  A v2 `run` still holding `snails` is read as `bunnies`; a v2/v3 run's
+  `mode` and `date` are ignored and the run simply resumes.
+  Because the seed is stored, reopening
   mid-run resumes exactly: rebuild the stream, skip `spin × 3` draws, carry
   on. A phone call in the middle of a run costs nothing.
-- `daily` — `{ date, served, tier, biggest, bunnies, jackpots }` for today.
-  Stale dates are ignored, not migrated.
-- **A daily `run` whose `date` isn't today is discarded on load** — not
-  auto-served, not scored. Yesterday's half-run doesn't become yesterday's
-  result, and it doesn't block today's. A practice `run` never goes stale.
-- `bestDaily`, `bestFree` — integers. Kept separate because the daily is
-  comparable between people and practice isn't. `bestFree` keeps its v2
-  name.
+- `best` — integer, the one best. On first v4 load it is the highest of
+  itself, `bestDaily` and `bestFree`; the two old keys are then ignored.
+- `points`, `jackpots`, `matches`, `dry` — Spin mode's lifetime stats,
+  v1's keys, live again.
 - `muted` — as before.
 - `uiMode` — `"spin"` or `"run"`; where the pill was last left.
 - `coached` — `true` once the first run's three coaching lines have shown.
 
-v1's `points`, `jackpots`, `matches`, `dry` keys are abandoned in place,
-and v2's `seenRules` joins them in v3. Nothing reads them; nothing needs to
-delete them.
+Abandoned in place, never deleted: v2's `seenRules`, `daily`, `bestDaily`,
+`bestFree`. The shared reset (☰ → Reset) is the only thing that removes
+keys, and it removes all of them.
 
 ## Accessibility
 
@@ -499,6 +511,19 @@ delete them.
 - [x] `Arcade.VERSION` → 24. Blurb in `games.json` updated. No new files.
       Page weight ~28KB.
 
+### v4
+
+- [x] Daily gone: no `dailySeed`, no `daily` key, no date logic. `newRun()`
+      always draws a random seed; `loadRun()` resumes any run.
+- [x] One `best`, seeded from the higher of `bestDaily` / `bestFree`.
+- [x] Spin mode = v1: five-symbol reel 3, `points`/`jackpots`/`matches`/`dry`
+      in the readout and footer, +1 / +50 / +500, saved after every spin.
+      The bunny, its hop, its pink ring and its chirp are gone from Spin.
+- [x] `Arcade.menuButton({ rules: HELP, canOpen: !spinning, describeSave })`
+      — five-line rulebook, reset with the lifetime stats named.
+- [x] Mute button moved to `right: 60px` for the shared menu.
+- [x] `Arcade.VERSION` → 26.
+
 ## Tuning knobs (in the order to distrust them)
 
 1. **Spin count (75).** The run-length dial, roughly 1:1 with minutes.
@@ -553,7 +578,8 @@ delete them.
   type, separate from the status text — the number itself as the drumroll.
   Try it after playtest; the status sentence may already carry it.
 - **Do the three rule lines survive a week?** If nobody reads those
-  either, cut them and let the coaching carry it alone.
+  either, cut them and let the coaching carry it alone. The long version is
+  in the menu now, so the start card can afford to lose them.
 - **Does the last-call all-in read as a feature or a bug?** The last six
   spins have no reason to serve. If testers feel cheated by a bunny on
   spin 74, the fix is copy ("last call" on the counter), not a rule.

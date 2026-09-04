@@ -348,7 +348,7 @@
   #mute {
     position: fixed;
     top: calc(8px + var(--safe-top));
-    right: calc(8px + var(--safe-right));
+    right: calc(60px + var(--safe-right)); /* the shared ☰ menu sits at 8px */
     min-height: 44px;
     min-width: 44px;
     font-size: 1.2rem;
@@ -414,6 +414,16 @@
 <script src="/shared/arcade.js"></script>
 <script>
   Arcade.backButton();
+  Arcade.menuButton({
+    rules: [
+      "Swap two neighbours to line up three or more.",
+      "🍖 🧀 protein climbs the ketosis meter. 🍕 🥐 🍪 carbs pay cash now but drain it.",
+      "The higher the meter, the bigger the multiplier. Fill it for a frenzy.",
+      "Four in a row leaves a special tile. Sweep it into a later clear to detonate it.",
+      "25 moves. Climbing the meter earns more."
+    ],
+    describeSave: function () { return "High score, best combo, cleared boards and your stats in Keto Krush."; }
+  });
 
   // ---- config ----------------------------------------------------------
   var N = 6; // 6x6 keeps every tile >=44px on the smallest supported phone

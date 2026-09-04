@@ -26,6 +26,7 @@
     gap: 8px;
     min-height: 44px;
     padding-left: 136px; /* room for the fixed back button */
+    padding-right: 52px; /* room for the fixed ☰ menu, which holds How to play */
   }
   .top .date { color: var(--fg-dim); font-size: 0.95rem; white-space: nowrap; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
   .top .sub { display: block; font-size: 0.7rem; opacity: 0.7; line-height: 1; overflow: hidden; text-overflow: ellipsis; }
@@ -242,7 +243,6 @@
     <div class="date"><span id="dateLabel"></span><span class="sub" id="dateSub"></span></div>
     <div class="streak" id="streakPill" hidden>🔥 <span id="streakNum"></span></div>
     <div class="leftRead"><b id="leftNum">19</b> left</div>
-    <button class="info" id="infoBtn" aria-label="How to play">?</button>
   </header>
   <div class="pill" id="groupsPill" hidden></div>
   <div class="board" id="board" role="grid" aria-label="Board"></div>
@@ -844,7 +844,13 @@
 
   // ---- how to play / name ------------------------------------------------
 
-  $("infoBtn").addEventListener("click", openHowto);
+  Arcade.menuButton({
+    help: openHowto,
+    describeSave: function () {
+      var who = profile && profile.name ? " (" + profile.name + ")" : "";
+      return "Your name" + who + ", your streak and today's board in Daily Letters.";
+    }
+  });
   function openHowto() {
     $("nameInput").value = profile.name;
     howto.hidden = false;

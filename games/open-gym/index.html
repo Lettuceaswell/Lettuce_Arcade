@@ -158,6 +158,17 @@
 <script src="/shared/arcade.js"></script>
 <script>
   Arcade.backButton();
+  Arcade.menuButton({
+    rules: [
+      "Sign the whole neighbourhood before the rival chain does.",
+      "Each turn: you act, momentum resolves, the rival moves, then sedentary spreads.",
+      "Every block in a circuit adds momentum. Every member costs load. Below zero, the circuit folds.",
+      "A member can enter a neighbouring block whose defence is lower than its strength.",
+      "Put two members of the same tier together to merge them up a tier.",
+      "A branch costs 15, defends everything next to it at 2, and never moves."
+    ],
+    describeSave: function () { return "Every level you've unlocked and your progress in Open Gym."; }
+  });
 
   // ============================================================
   // Constants
