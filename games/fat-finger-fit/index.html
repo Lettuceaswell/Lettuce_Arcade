@@ -7,24 +7,302 @@
 <meta name="theme-color" content="#083734">
 <link rel="stylesheet" href="/shared/arcade.css">
 <style>
-  body { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; text-align: center; gap: 12px; padding: 0 24px; }
-  h1 { font-size: 1.4rem; }
-  p { color: var(--fg-dim); font-size: 1rem; }
+  /* SKELETON. Layout and mechanics only — no polish, no blob, no count-up. */
+  html, body { height: 100%; overflow: hidden; }
+  body {
+    display: flex; flex-direction: column;
+    height: 100vh; height: 100dvh;
+    padding: calc(8px + var(--safe-top)) 14px calc(10px + var(--safe-bottom));
+    gap: 6px;
+    -webkit-user-select: none; user-select: none;
+  }
+
+  /* header: day + running score */
+  /* sits between the shared back button (ends ~127px) and menu button (starts ~323px) */
+  #head { display: flex; justify-content: space-between; align-items: center; min-height: 48px; padding: 0 60px 0 120px; font-weight: 800; font-variant-numeric: tabular-nums; }
+  #day { font-size: 1rem; letter-spacing: 0.06em; color: var(--fg-dim); }
+  #score { font-size: 1.3rem; }
+
+  /* blob + gauges (~36%) */
+  #body { flex: 36 1 0; min-height: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; }
+  #blob { width: 72px; height: 60px; border-radius: 50% 50% 45% 45%; background: var(--accent-dim); opacity: 0.7; transition: transform 400ms; }
+  #gauges { display: flex; gap: 36px; }
+  .gauge { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+  .ring { width: 78px; height: 78px; border-radius: 50%; display: flex; align-items: center; justify-content: center; position: relative; }
+  .ring::after { content: ""; position: absolute; inset: 8px; border-radius: 50%; background: var(--bg); }
+  .ring b { position: relative; z-index: 1; font-size: 1.15rem; font-variant-numeric: tabular-nums; }
+  .ring.grey { filter: saturate(0); }
+  .glabel { font-size: 0.72rem; letter-spacing: 0.12em; color: var(--fg-dim); font-weight: 700; }
+
+  /* energy bar (~16%) */
+  #energy { flex: 16 1 0; min-height: 0; display: flex; flex-direction: column; justify-content: center; gap: 4px; }
+  #energy .glabel { text-align: left; }
+  #bar { position: relative; height: 34px; background: rgba(0,0,0,0.35); border-radius: 6px; overflow: hidden; }
+  #bar .seg { position: absolute; top: 0; bottom: 0; }
+  #bar .seg.pending { opacity: 0.45; }
+  #bar .seg.T { background: repeating-linear-gradient(135deg, #3A3F4B 0 5px, #565b6a 5px 8px); }
+  #bar .seg.warm { background: #f0b054; } /* overshoot past the tick, warmer amber */
+  #window { position: absolute; top: 0; bottom: 0; background: rgba(210, 249, 247, 0.28); border-left: 1px solid var(--fg); border-right: 1px solid var(--fg); display: none; }
+  #tick { position: absolute; top: -2px; bottom: -2px; left: 50%; width: 3px; margin-left: -1.5px; background: var(--fg); }
+  #tickmark { text-align: center; font-size: 0.7rem; line-height: 1; color: var(--fg-dim); }
+  #bar.snap { transition: none; }
+
+  /* sliders (~36%) */
+  #sliders { flex: 36 1 0; min-height: 0; display: flex; flex-direction: column; justify-content: space-evenly; }
+  .row { display: flex; align-items: center; gap: 10px; min-height: 44px; }
+  .row label { width: 78px; text-align: left; font-size: 0.78rem; letter-spacing: 0.1em; font-weight: 800; }
+  .row .mark { width: 22px; font-size: 1rem; text-align: center; }
+  .row input[type=range] { flex: 1; height: 44px; margin: 0; -webkit-appearance: none; appearance: none; background: transparent; }
+  .row input[type=range]::-webkit-slider-runnable-track { height: 6px; border-radius: 3px; background: rgba(210,249,247,0.25); }
+  .row input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 34px; height: 34px; margin-top: -14px; border-radius: 50%; background: var(--fg); border: 3px solid var(--bg); box-shadow: 0 0 0 2px var(--fg); }
+  .row input[type=range]::-moz-range-track { height: 6px; border-radius: 3px; background: rgba(210,249,247,0.25); }
+  .row input[type=range]::-moz-range-thumb { width: 34px; height: 34px; border-radius: 50%; background: var(--fg); border: 3px solid var(--bg); }
+  .row.live input::-webkit-slider-thumb { background: var(--accent); }
+  .row.live input::-moz-range-thumb { background: var(--accent); }
+  .row.live label { color: var(--accent); }
+  .row.locked { opacity: 0.5; }
+  .row.waiting { opacity: 0.3; }
+  .row.locked input, .row.waiting input { pointer-events: none; }
+
+  /* commit (~12%) */
+  #foot { flex: 12 1 0; min-height: 56px; display: flex; align-items: center; }
+  #commit { width: 100%; min-height: 56px; font-size: 1.1rem; font-weight: 900; letter-spacing: 0.25em; }
+
+  /* end card — bones only */
+  #overlay { position: fixed; inset: 0; z-index: 9000; display: none; align-items: center; justify-content: center; background: rgba(3, 26, 24, 0.9); padding: 12px; }
+  #overlay.show { display: flex; }
+  .card { width: 100%; max-width: 320px; background: #052926; border: 1px solid rgba(255,255,255,0.08); border-radius: 18px; padding: 16px; display: flex; flex-direction: column; gap: 10px; align-items: stretch; }
+  .card .final { font-size: 3rem; font-weight: 900; line-height: 1; }
+  .card .line { color: var(--fg-dim); font-size: 0.95rem; font-variant-numeric: tabular-nums; }
+  .card .line b { color: var(--fg); }
+  .spark { display: flex; align-items: flex-end; gap: 4px; height: 48px; padding: 0 8px; }
+  .spark span { flex: 1; background: var(--accent); border-radius: 2px 2px 0 0; min-height: 2px; }
 </style>
 </head>
 <body>
-<h1>Fat Finger Fit</h1>
-<p>Not built yet.</p>
+<div id="head"><span id="day">DAY 1 / 8</span><span id="score">0</span></div>
+
+<div id="body">
+  <div id="blob"></div>
+  <div id="gauges">
+    <div class="gauge"><div class="ring" id="ring-lbs"><b id="lbs">100%</b></div><div class="glabel">LBS</div></div>
+    <div class="gauge"><div class="ring" id="ring-muscle"><b id="muscle">0%</b></div><div class="glabel">MUSCLE</div></div>
+  </div>
+</div>
+
+<div id="energy">
+  <div class="glabel">ENERGY</div>
+  <div id="bar"><div id="window"></div><div id="tick"></div></div>
+  <div id="tickmark">▲</div>
+</div>
+
+<div id="sliders">
+  <div class="row" data-key="P"><label>PROTEIN</label><input type="range" min="0" max="100" step="0.01" value="50"><span class="mark"></span></div>
+  <div class="row" data-key="C"><label>CARBS</label><input type="range" min="0" max="100" step="0.01" value="50"><span class="mark"></span></div>
+  <div class="row" data-key="F"><label>FAT</label><input type="range" min="0" max="100" step="0.01" value="50"><span class="mark"></span></div>
+  <div class="row" data-key="T"><label>TRAINING</label><input type="range" min="0" max="100" step="0.01" value="50"><span class="mark"></span></div>
+</div>
+
+<div id="foot"><button id="commit" class="btn">COMMIT</button></div>
+
+<div id="overlay" role="dialog" aria-label="Run over">
+  <div class="card">
+    <div class="line">🍔 Fat Finger Fit · day 8</div>
+    <div class="line"><b id="c-lbs"></b> LBS · <b id="c-muscle"></b> MUSCLE</div>
+    <div class="line" id="c-cascade"></div>
+    <div class="final" id="c-final"></div>
+    <div class="spark" id="spark" aria-hidden="true"></div>
+    <div class="line" id="c-best"></div>
+    <button id="again" class="btn">RUN IT BACK</button>
+  </div>
+</div>
 
 <script src="/shared/arcade.js"></script>
+<script src="model.js"></script>
 <script>
   Arcade.backButton();
   Arcade.menuButton({
-    rules: ["Not built yet."],
-    describeSave: function () { return "Nothing to reset yet."; }
+    rules: [
+      "Eight days. Four sliders a day: protein, carbs, fat, training. You lock them one at a time and you can't go back.",
+      "Eating fills the bar. Training empties it.",
+      "The tick in the middle is maintenance. Land right of it and you gain weight, left of it and you lose it.",
+      "Muscle needs training, protein, and a surplus. All three.",
+      "Win: end day 8 with both dials at 100%.",
+      "Your blob starts at 50 lbs, which is not a realistic weight for anything, and that's fine.",
+      "Your thumb is not precise. Every lock lands somewhere inside the window it shows you, not on the line. The more you've locked, the wider the window gets."
+    ],
+    describeSave: function () { return "Your best Fat Finger Fit score."; }
   });
 
-  Arcade.boot(function () {});
+  var T = FFF.TUNE, ORDER = FFF.ORDER;
+  function $(id) { return document.getElementById(id); }
+  var rows = {}, inputs = {};
+  Array.prototype.forEach.call(document.querySelectorAll(".row"), function (r) {
+    rows[r.dataset.key] = r; inputs[r.dataset.key] = r.querySelector("input");
+  });
+
+  var state, lockIdx, nominal, delivered, halves, best;
+  best = Number(Arcade.load("best", 0)) || 0;
+
+  // ---- run / day lifecycle ---------------------------------------------
+  function newRun() {
+    state = FFF.newRun();
+    startDay();
+    drawGauges();
+    drawScore();
+  }
+  function startDay() {
+    lockIdx = 0; nominal = {}; delivered = {}; halves = [];
+    $("day").textContent = "DAY " + state.day + " / " + T.DAYS;
+    ORDER.forEach(function (k) { rows[k].querySelector(".mark").textContent = ""; });
+    drawSliderStates();
+    drawBar(null);
+    console.log("--- day " + state.day + " ---");
+  }
+  function liveKey() { return ORDER[lockIdx]; }
+
+  function commit() {
+    var k = liveKey();
+    var v = Number(inputs[k].value);
+    nominal[k] = v;
+    delivered[k] = FFF.deliver(k, v);          // hidden until resolution
+    halves.push(FFF.windowHalf(k, v));
+    rows[k].querySelector(".mark").textContent = "✓";
+    console.log("lock " + k + " nominal=" + v.toFixed(1) + " contrib=" + FFF.contribution(k, v).toFixed(0) +
+      " delivered=" + delivered[k].toFixed(0) + " window=±" + halves[halves.length - 1].toFixed(0) +
+      " cumulative=±" + FFF.cumulativeHalf(halves).toFixed(0));
+    lockIdx += 1;
+    if (lockIdx < ORDER.length) { drawSliderStates(); drawBar(null); }
+    else resolveDay();
+  }
+
+  function resolveDay() {
+    var out = FFF.resolveDay(state, delivered);
+    console.log("resolve net=" + out.net.toFixed(0) + " p=" + out.p.toFixed(2) + " stim=" + out.stim.toFixed(2) +
+      " gain=" + out.gain.toFixed(1) + " loss=" + out.loss.toFixed(1) + " lbs=" + out.lbs.toFixed(1) +
+      " muscle=" + out.muscle.toFixed(1) + " +" + Math.round(out.dayPoints) + " pts");
+    drawBarTruth();
+    drawGauges(out);
+    drawScore();
+    $("commit").disabled = true;
+    setTimeout(function () {
+      $("commit").disabled = false;
+      if (state.day > T.DAYS) endRun(); else startDay();
+    }, 900);
+  }
+
+  function endRun() {
+    var f = FFF.finalScore(state);
+    if (f.final > best) { best = f.final; Arcade.save("best", best); Arcade.save("bestWon", f.won); }
+    var bestWon = f.final === best ? f.won : !!Arcade.load("bestWon", false);
+    $("c-lbs").textContent = Math.round(state.lbs) + "%";
+    $("c-muscle").textContent = Math.round(state.muscle) + "%";
+    $("c-cascade").textContent = FFF.fmt(f.running) + " × " + f.build.toFixed(2) + " × " + f.precision.toFixed(2);
+    $("c-final").textContent = FFF.fmt(f.final, f.won);
+    $("c-best").textContent = "best " + FFF.fmt(best, bestWon);
+    var sp = $("spark"); sp.innerHTML = "";
+    state.lbsHistory.forEach(function (v) {
+      var b = document.createElement("span");
+      b.style.height = Math.max(4, Math.min(100, (v - 60) / 80 * 100)) + "%";
+      sp.appendChild(b);
+    });
+    $("overlay").classList.add("show");
+    console.log("END", f);
+  }
+
+  // ---- drawing -----------------------------------------------------------
+  function drawSliderStates() {
+    ORDER.forEach(function (k, i) {
+      rows[k].className = "row " + (i < lockIdx ? "locked" : i === lockIdx ? "live" : "waiting");
+      inputs[k].disabled = i !== lockIdx;
+    });
+  }
+
+  function pct(kcal) { return (100 * kcal / T.BAR_MAX) + "%"; }
+
+  // Draw the bar from nominal locked values, plus an optional pending
+  // (released but uncommitted) value for the live slider, plus the window.
+  function drawBar(pendingValue) {
+    var bar = $("bar");
+    Array.prototype.forEach.call(bar.querySelectorAll(".seg"), function (s) { s.remove(); });
+    var x = 0, tHalves = halves.slice();
+    ORDER.forEach(function (k, i) {
+      var v, pending = false;
+      if (i < lockIdx) v = nominal[k];
+      else if (i === lockIdx && pendingValue != null) { v = pendingValue; pending = true; tHalves.push(FFF.windowHalf(k, v)); }
+      else return;
+      var c = FFF.contribution(k, v);
+      if (k === "T") { addSeg(bar, Math.max(0, x - c), x, "T" + (pending ? " pending" : ""), null); x = Math.max(0, x - c); }
+      else {
+        addSeg(bar, x, x + c, k + (pending ? " pending" : ""), T.COLORS[k]);
+        x += c;
+      }
+    });
+    var w = $("window");
+    var half = FFF.cumulativeHalf(tHalves);
+    if (half > 0 && (lockIdx > 0 || pendingValue != null)) {
+      w.style.display = "block";
+      w.style.left = pct(Math.max(0, x - half));
+      w.style.width = pct(Math.min(T.BAR_MAX, x + half) - Math.max(0, x - half));
+    } else w.style.display = "none";
+  }
+  function addSeg(bar, a, b, cls, color) {
+    if (b <= a) return;
+    var s = document.createElement("div");
+    s.className = "seg " + cls;
+    s.style.left = pct(a); s.style.width = pct(b - a);
+    if (color) s.style.background = color;
+    bar.insertBefore(s, $("window"));
+    // warm fill for the part of an intake segment past the tick
+    if (color && b > T.MAINT) {
+      var w = document.createElement("div");
+      w.className = "seg warm"; w.style.left = pct(Math.max(a, T.MAINT)); w.style.width = pct(b - Math.max(a, T.MAINT));
+      w.style.opacity = 0.35;
+      bar.insertBefore(w, $("window"));
+    }
+  }
+  // After the fourth commit: snap to delivered truth, window gone.
+  function drawBarTruth() {
+    var bar = $("bar");
+    Array.prototype.forEach.call(bar.querySelectorAll(".seg"), function (s) { s.remove(); });
+    var x = 0;
+    ["P", "C", "F"].forEach(function (k) { addSeg(bar, x, x + delivered[k], k, T.COLORS[k]); x += delivered[k]; });
+    addSeg(bar, Math.max(0, x - delivered.T), x, "T", null);
+    $("window").style.display = "none";
+  }
+
+  function drawGauges(out) {
+    // LBS: 60–140 sweep, 100 at 12 o'clock, neutral colour both sides.
+    var lbs = state.lbs, deg = (lbs - 100) / 40 * 180;
+    var rl = $("ring-lbs");
+    rl.style.background = deg >= 0
+      ? "conic-gradient(var(--fg) 0deg " + deg + "deg, rgba(255,255,255,0.12) " + deg + "deg 360deg)"
+      : "conic-gradient(rgba(255,255,255,0.12) 0deg " + (360 + deg) + "deg, var(--fg) " + (360 + deg) + "deg 360deg)";
+    $("lbs").textContent = Math.round(lbs) + "%";
+    // MUSCLE: clockwise from 6 o'clock.
+    var m = state.muscle, md = m / 100 * 360;
+    var rm = $("ring-muscle");
+    rm.style.background = "conic-gradient(from 180deg, var(--accent) 0deg " + md + "deg, rgba(255,255,255,0.12) " + md + "deg 360deg)";
+    rm.className = "ring" + (out && out.proteinShort ? " grey" : "");
+    $("muscle").textContent = Math.round(m) + "%";
+    $("blob").style.transform = "scale(" + (lbs / 100) + ")";
+  }
+  function drawScore() { $("score").textContent = FFF.fmt(state.running); }
+
+  // ---- input -------------------------------------------------------------
+  ORDER.forEach(function (k) {
+    var inp = inputs[k];
+    // Nothing on the bar moves while the thumb is down. On release, the
+    // window for this lock draws at the tip.
+    function release() { if (k === liveKey()) drawBar(Number(inp.value)); }
+    inp.addEventListener("change", release);
+    inp.addEventListener("pointerup", release);
+    inp.addEventListener("touchend", release);
+  });
+  $("commit").addEventListener("click", commit);
+  $("again").addEventListener("click", function () { $("overlay").classList.remove("show"); newRun(); });
+
+  Arcade.boot(newRun);
 </script>
 </body>
 </html>
