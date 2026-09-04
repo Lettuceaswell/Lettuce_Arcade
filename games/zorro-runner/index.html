@@ -187,6 +187,17 @@ Arcade.menuButton({
 
   var muted = Arcade.load("muted", false) === true;
   var best = Number(Arcade.load("best", 0)) || 0;
+  var rides = Number(Arcade.load("rides", 0)) || 0;
+  var totalDist = Number(Arcade.load("totalDist", 0)) || 0;
+  function saveBrag() {
+    Arcade.brag(best > 0 ? "Best " + Math.floor(best).toLocaleString() : "");
+    Arcade.stats(rides > 0 ? [
+      ["Best distance", Math.floor(best)],
+      ["Rides", rides],
+      ["Total distance", Math.floor(totalDist)]
+    ] : null);
+  }
+  saveBrag();
 
   function renderMute() {
     muteBtn.textContent = muted ? "🔇" : "🔊";
@@ -646,6 +657,11 @@ Arcade.menuButton({
       best = score;
       Arcade.save("best", best);
     }
+    rides += 1;
+    totalDist += score;
+    Arcade.save("rides", rides);
+    Arcade.save("totalDist", totalDist);
+    saveBrag();
     bestEl.textContent = "BEST " + Math.floor(best);
     showGameOver();
   }

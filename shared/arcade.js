@@ -5,7 +5,7 @@
 
   var Arcade = {};
 
-  Arcade.VERSION = 34;
+  Arcade.VERSION = 35;
 
   // ---- namespacing --------------------------------------------------
 
@@ -77,8 +77,10 @@
   // of the card and Cancel at the thumb; the wipe button is inert for the
   // first second; and the card says what dies before it asks.
 
-  Arcade.menuButton = function (opts) {
-    opts = opts || {};
+  var sheetCssDone = false;
+  function sheetCss() {
+    if (sheetCssDone) return;
+    sheetCssDone = true;
     var css = document.createElement("style");
     css.textContent =
       ".arc-menu-btn{position:fixed;top:calc(8px + env(safe-area-inset-top,0px));right:calc(8px + env(safe-area-inset-right,0px));" +
@@ -97,8 +99,20 @@
       ".arc-box .btn.quiet{background:var(--bg-elevated)}" +
       ".arc-box .btn.danger{background:#ff8a7a;color:#2b0f0a}" +
       ".arc-box .btn.danger:disabled{opacity:0.35}" +
-      ".arc-box .spacer{min-height:32px;flex:1}";
+      ".arc-box .spacer{min-height:32px;flex:1}" +
+      ".arc-stats{display:flex;flex-direction:column;gap:2px;text-align:left}" +
+      ".arc-stats h3{margin:14px 0 4px}" +
+      ".arc-stats h3:first-child{margin-top:0}" +
+      ".arc-stat{display:flex;justify-content:space-between;align-items:baseline;gap:12px;padding:7px 0;border-bottom:1px solid rgba(255,255,255,0.08);font-size:1rem}" +
+      ".arc-stat span:first-child{color:var(--fg-dim)}" +
+      ".arc-stat span:last-child{color:#ffe066;font-weight:800;font-variant-numeric:tabular-nums;text-align:right}" +
+      ".arc-stats .note{color:var(--fg-dim);font-size:0.9rem;margin-top:12px;text-align:center}";
     document.head.appendChild(css);
+  }
+
+  Arcade.menuButton = function (opts) {
+    opts = opts || {};
+    sheetCss();
 
     var title = opts.title || String(document.title).split(" — ")[0] || "This game";
     var sheet = document.createElement("div");
@@ -383,6 +397,86 @@
       if (raw !== null) return String(JSON.parse(raw) || "");
     } catch (e) { /* fall through */ }
     return Object.prototype.hasOwnProperty.call(memoryFallback, k) ? String(memoryFallback[k] || "") : "";
+  };
+
+  // ---- lifetime stats -------------------------------------------------
+  //
+  // The brag's longer cousin. A game hands over its lifetime numbers wherever
+  // it saves its brag:
+  //
+  //   Arcade.stats([["Bunnies fed", 12], ["Bowls served", 4], "# Spin", ...])
+  //
+  // Each row is [label, value]; a string starting "# " is a section heading,
+  // as in the menu's rules. Saved under the game's own namespace, so the
+  // game's save reset wipes it. The index puts a 📊 on the corner of any tile
+  // whose game has reported stats and opens them in a sheet, without
+  // launching the game. Nothing here counts across phones.
+
+  Arcade.stats = function (rows) {
+    Arcade.save("stats", Array.isArray(rows) && rows.length ? rows : null);
+  };
+
+  Arcade.statsFor = function (slug) {
+    var k = "arcade:" + slug + ":stats";
+    var rows = null;
+    try {
+      var raw = localStorage.getItem(k);
+      if (raw !== null) rows = JSON.parse(raw);
+    } catch (e) { rows = null; }
+    if (rows === null && Object.prototype.hasOwnProperty.call(memoryFallback, k)) rows = memoryFallback[k];
+    return Array.isArray(rows) && rows.length ? rows : null;
+  };
+
+  // Opens the sheet the index uses. Rows as above; numbers get separators.
+  Arcade.statsSheet = function (title, rows) {
+    sheetCss();
+    var sheet = document.createElement("div");
+    sheet.className = "arc-sheet show";
+    sheet.setAttribute("role", "dialog");
+    sheet.setAttribute("aria-modal", "true");
+    var box = document.createElement("div");
+    box.className = "arc-box";
+    var h2 = document.createElement("h2");
+    h2.textContent = title;
+    box.appendChild(h2);
+    var list = document.createElement("div");
+    list.className = "arc-stats";
+    (rows || []).forEach(function (r) {
+      if (typeof r === "string") {
+        if (r.indexOf("# ") === 0) {
+          var h3 = document.createElement("h3");
+          h3.textContent = r.slice(2);
+          list.appendChild(h3);
+        }
+        return;
+      }
+      if (!Array.isArray(r) || r.length < 2) return;
+      var row = document.createElement("div");
+      row.className = "arc-stat";
+      var label = document.createElement("span");
+      label.textContent = String(r[0]);
+      var value = document.createElement("span");
+      value.textContent = typeof r[1] === "number" ? r[1].toLocaleString() : String(r[1]);
+      row.appendChild(label);
+      row.appendChild(value);
+      list.appendChild(row);
+    });
+    var note = document.createElement("div");
+    note.className = "note";
+    note.textContent = "Lifetime, on this phone.";
+    list.appendChild(note);
+    box.appendChild(list);
+    var spacer = document.createElement("div");
+    spacer.className = "spacer";
+    box.appendChild(spacer);
+    var close = document.createElement("button");
+    close.className = "btn quiet";
+    close.textContent = "Close";
+    close.addEventListener("click", function () { sheet.remove(); });
+    box.appendChild(close);
+    sheet.appendChild(box);
+    document.body.appendChild(sheet);
+    return sheet;
   };
 
   // ---- boot / audio unlock --------------------------------------------------

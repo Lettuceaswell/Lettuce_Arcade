@@ -512,6 +512,7 @@
   var cleared = num(Arcade.load("cleared", 0)); // lifetime tiles cleared
   var frenzies = num(Arcade.load("frenzies", 0)); // lifetime Fat-Adapted runs
   var highScore = num(Arcade.load("highScore", 0));
+  var games = num(Arcade.load("games", 0)); // lifetime runs finished
   var muted = Arcade.load("muted", false) === true;
 
   // Per-run records the end card can award beyond the high score, so a low
@@ -1067,6 +1068,8 @@
   function endRun() {
     runOver = true;
     busy = true;
+    games += 1;
+    Arcade.save("games", games);
     var beat = score > highScore;
     if (beat) {
       highScore = score;
@@ -1183,6 +1186,15 @@
 
   function saveBrag() {
     Arcade.brag(highScore > 0 ? "Best " + highScore.toLocaleString() : "");
+    Arcade.stats(games > 0 ? [
+      ["Best score", highScore],
+      ["Biggest move", records.move],
+      ["Best combo", records.combo > 0 ? "×" + records.combo : "—"],
+      ["Most frenzies in a run", records.frenzies],
+      ["Games played", games],
+      ["Tiles cleared", cleared],
+      ["Fat-adapted runs", frenzies]
+    ] : null);
   }
 
   function buildCard(beat, recs) {

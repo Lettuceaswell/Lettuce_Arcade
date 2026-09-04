@@ -353,6 +353,17 @@
     Arcade.save("jackpots", jackpots);
     Arcade.save("matches", matches);
     Arcade.save("dry", dry);
+    saveBrag();
+  }
+
+  // Run mode's lifetime tallies, for the index's stats sheet.
+  var runs = num(Arcade.load("runs", 0));
+  var serves = num(Arcade.load("serves", 0));
+  var bunnies = num(Arcade.load("bunnies", 0));
+  function saveRunStats() {
+    Arcade.save("runs", runs);
+    Arcade.save("serves", serves);
+    Arcade.save("bunnies", bunnies);
   }
 
   // One best for Run. v2/v3 kept a daily best and a free-play best; the
@@ -373,6 +384,8 @@
     };
     rng = Arcade.seededRandom(run.seed);
     saveRun();
+    runs += 1;
+    saveRunStats();
   }
 
   function saveRun() { Arcade.save("run", run); }
@@ -588,6 +601,8 @@
     if (outcome === "bust") {
       var lost = run.bowl;
       run.bunnies += 1;
+      bunnies += 1;
+      saveRunStats();
       run.bowl = 0;
       run.streak = 0;
       reelEls[2].classList.add("bunny");
@@ -635,6 +650,8 @@
       if (run.bowl > 0) {
         run.served += run.bowl;
         run.hist.push("s");
+        serves += 1;
+        saveRunStats();
         setStatus("last call — served " + run.bowl, "serve");
         serveSound(run.bowl);
         run.bowl = 0;
@@ -657,6 +674,8 @@
     var amount = run.bowl;
     run.served += amount;
     run.hist.push("s");
+    serves += 1;
+    saveRunStats();
     run.bowl = 0;
     run.streak = 0;
     clearRings();
@@ -756,6 +775,20 @@
     if (best > 0) Arcade.brag("Best run " + best + " · " + tierFor(best).name);
     else if (points > 0) Arcade.brag(points.toLocaleString() + " pts" + (jackpots > 0 ? " · " + plural(jackpots, "jackpot") : ""));
     else Arcade.brag("");
+    if (best > 0 || runs > 0 || points > 0) {
+      Arcade.stats([
+        "# Run",
+        ["Best run", best > 0 ? best + " · " + tierFor(best).name : "—"],
+        ["Runs started", runs],
+        ["Bowls served", serves],
+        ["Bunnies fed", bunnies],
+        "# Spin",
+        ["Points", points],
+        ["Jackpots", jackpots],
+        ["Matches", matches],
+        ["Dry spins", dry]
+      ]);
+    } else Arcade.stats(null);
   }
 
   function showEndCard(r) {

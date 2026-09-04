@@ -1141,6 +1141,14 @@
     Arcade.save("state", S);
     if (S.born) {
       Arcade.brag(S.name + " · day " + ageDays() + " · " + S.careDays + " care-day" + (S.careDays === 1 ? "" : "s"));
+      Arcade.stats([
+        ["Name", S.name],
+        ["Age", ageDays() + " day" + (ageDays() === 1 ? "" : "s")],
+        ["Care-days", S.careDays || 0],
+        ["Finds", (S.found || []).length],
+        ["Things bought", (S.decor || []).length],
+        ["💧 in the jar", S.drops || 0]
+      ]);
     }
   }
 

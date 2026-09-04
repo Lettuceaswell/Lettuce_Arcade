@@ -292,6 +292,14 @@
   // ============================================================
   var levelIndex = num(Arcade.load("levelIndex", 0));
   var maxLevel = num(Arcade.load("maxLevel", 0));
+  var wins = num(Arcade.load("wins", 0)); // neighbourhoods signed, ever
+  function saveBrag() {
+    Arcade.brag(wins > 0 ? "Level " + Math.min(maxLevel + 1, LEVELS.length) + " of " + LEVELS.length : "");
+    Arcade.stats(wins > 0 ? [
+      ["Furthest level", Math.min(maxLevel + 1, LEVELS.length) + " of " + LEVELS.length],
+      ["Neighbourhoods signed", wins]
+    ] : null);
+  }
   var state = null;
   var elMap = {};
   var selected = null; // {q,r} of selected own unit
@@ -950,6 +958,9 @@
       headline.textContent = "🎉 Neighborhood signed!";
       sub.textContent = "Level " + state.levelId + " cleared in " + state.turn + " turns.";
       if (levelIndex + 1 > maxLevel) { maxLevel = levelIndex + 1; Arcade.save("maxLevel", maxLevel); }
+      wins += 1;
+      Arcade.save("wins", wins);
+      saveBrag();
       btn.textContent = levelIndex < LEVELS.length - 1 ? "Next level" : "Replay";
       btn.onclick = function () {
         overlay.classList.remove("show");
@@ -1009,6 +1020,7 @@
   // ============================================================
   function start() {
     if (levelIndex > maxLevel) levelIndex = maxLevel;
+    saveBrag();
     loadLevel(levelIndex);
     fitSize();
     buildBoard();

@@ -157,6 +157,18 @@
 
   var state, lockIdx, nominal, delivered, halves, best;
   best = Number(Arcade.load("best", 0)) || 0;
+  var runsDone = Number(Arcade.load("runs", 0)) || 0;
+  var wins = Number(Arcade.load("wins", 0)) || 0;
+  function saveBrag() {
+    var bestWon = !!Arcade.load("bestWon", false);
+    Arcade.brag(best > 0 ? "Best " + FFF.fmt(best, bestWon) : "");
+    Arcade.stats(runsDone > 0 ? [
+      ["Best score", FFF.fmt(best, bestWon)],
+      ["Runs finished", runsDone],
+      ["Wins", wins]
+    ] : null);
+  }
+  saveBrag();
 
   // ---- run / day lifecycle ---------------------------------------------
   function newRun() {
@@ -208,6 +220,11 @@
   function endRun() {
     var f = FFF.finalScore(state);
     if (f.final > best) { best = f.final; Arcade.save("best", best); Arcade.save("bestWon", f.won); }
+    runsDone += 1;
+    if (f.won) wins += 1;
+    Arcade.save("runs", runsDone);
+    Arcade.save("wins", wins);
+    saveBrag();
     var bestWon = f.final === best ? f.won : !!Arcade.load("bestWon", false);
     $("c-lbs").textContent = Math.round(state.lbs) + "%";
     $("c-muscle").textContent = Math.round(state.muscle) + "%";

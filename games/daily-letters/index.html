@@ -427,12 +427,25 @@
   profile.seenHowToPlay = !!profile.seenHowToPlay;
   profile.mode = profile.mode === "free" ? "free" : "daily";
   profile.freeCount = profile.freeCount | 0;
+  profile.played = profile.played | 0;       // daily boards committed, ever
+  profile.cleanDays = profile.cleanDays | 0; // of those, clean racks
+  profile.bestStreak = profile.bestStreak | 0;
   // date key -> tiles left, for the week strip on the card. Pruned to 14.
   if (!profile.history || typeof profile.history !== "object") profile.history = {};
   function persistProfile() { Arcade.save("profile", profile); }
 
   function updateBrag() {
     var s = currentStreak();
+    if (s.days > profile.bestStreak) { profile.bestStreak = s.days; persistProfile(); }
+    if (profile.played > 0 || profile.freeCount > 0) {
+      Arcade.stats([
+        ["Current streak", s.days + " day" + (s.days === 1 ? "" : "s")],
+        ["Best streak", profile.bestStreak + " day" + (profile.bestStreak === 1 ? "" : "s")],
+        ["Daily boards played", profile.played],
+        ["Clean racks", profile.cleanDays],
+        ["Free racks dealt", profile.freeCount]
+      ]);
+    } else Arcade.stats(null);
     if (s.days > 0) {
       Arcade.brag("🔥 " + s.days + "-day streak" + (s.clean > 0 ? " · " + s.clean + " clean" : ""));
     } else if (Object.prototype.hasOwnProperty.call(profile.history, today)) {
@@ -902,6 +915,10 @@
         days: base.days + 1,
         clean: a.left === 0 ? base.clean + 1 : 0
       };
+      if (!Object.prototype.hasOwnProperty.call(profile.history, today)) {
+        profile.played += 1;
+        if (a.left === 0) profile.cleanDays += 1;
+      }
       profile.history[today] = a.left;
       var keys = Object.keys(profile.history).sort();
       while (keys.length > 14) delete profile.history[keys.shift()];

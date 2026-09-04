@@ -124,6 +124,8 @@
   var startedAt = 0;
   var intervalId = null;
   var best = Number(Arcade.load("best", 0)) || 0;
+  var races = Number(Arcade.load("races", 0)) || 0;
+  var totalTaps = Number(Arcade.load("totalTaps", 0)) || 0;
   var lastResult = null;
 
   function $(id) { return document.getElementById(id); }
@@ -131,6 +133,12 @@
   function showBest() {
     bestEl.textContent = best > 0 ? "Best: " + best : "";
     Arcade.brag(best > 0 ? "Best " + best : "");
+    Arcade.stats(races > 0 ? [
+      ["Best", best],
+      ["Races", races],
+      ["Total taps", totalTaps],
+      ["Average", Math.round(totalTaps / races)]
+    ] : null);
   }
 
   function arm() {
@@ -173,6 +181,10 @@
       best = taps;
       Arcade.save("best", best);
     }
+    races += 1;
+    totalTaps += taps;
+    Arcade.save("races", races);
+    Arcade.save("totalTaps", totalTaps);
     showBest();
     lastResult = { taps: taps, beat: beat, prevBest: prevBest, perSecond: perSecond.slice() };
     buildCard(lastResult);
