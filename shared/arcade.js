@@ -177,6 +177,7 @@
   // Wipes every key this game has saved (its storage prefix), keeps the
   // sound preference, and reloads so the game boots as if new.
   Arcade.resetSave = function () {
+    resetting = true;
     var prefix = "arcade:" + gameNamespace() + ":";
     var keep = prefix + "muted";
     try {
@@ -278,7 +279,13 @@
 
   var memoryFallback = {};
 
+  // Once a reset has started, nothing may write: games save on
+  // visibilitychange / pagehide, and those fire during the reload the reset
+  // triggers, which would put the wiped state straight back.
+  var resetting = false;
+
   Arcade.save = function (key, value) {
+    if (resetting) return;
     var k = storageKey(key);
     try {
       localStorage.setItem(k, JSON.stringify(value));
