@@ -57,8 +57,32 @@
 
   h1 {
     font-size: 2rem;
-    margin-bottom: 24px;
+    margin-bottom: 12px;
     text-align: center;
+  }
+
+  /* One button that cycles the sort order: the whole row is the tap target,
+     so a thumb can't miss it. */
+  .sort-row {
+    display: flex;
+    justify-content: center;
+    margin-bottom: 16px;
+  }
+  .sort-btn {
+    background: transparent;
+    border: 2px solid var(--accent-dim);
+    color: var(--fg-dim);
+    font-size: 1rem;
+    font-weight: 600;
+    padding: 10px 18px;
+  }
+  .sort-btn:active {
+    background: var(--accent-dim);
+    color: var(--fg);
+  }
+  .sort-btn .sort-label {
+    color: var(--fg);
+    margin-left: 0.4em;
   }
 
   .tile-list {
@@ -106,10 +130,34 @@
     font-weight: 700;
   }
 
+  /* A never-played game gets an inviting tag beside its title, so under
+     "Most played" a zero reads as "try me", not as the loser at the bottom. */
+  .tag-new {
+    display: inline-block;
+    vertical-align: 0.15em;
+    margin-left: 8px;
+    padding: 2px 9px;
+    border-radius: 999px;
+    background: #ffd54a;
+    color: #4a3300;
+    font-size: 0.75rem;
+    font-weight: 800;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+
   .tile-blurb {
     font-size: 1rem;
     color: var(--fg-dim);
     margin-top: 2px;
+  }
+
+  .tile-plays {
+    font-size: 0.85rem;
+    color: var(--fg-dim);
+    opacity: 0.85;
+    margin-top: 4px;
   }
 
   .empty, .error {
@@ -123,6 +171,9 @@
 <main>
   <img class="header-icon" src="/icon-180.png" alt="" width="180" height="180">
   <h1>Lettuce Arcade</h1>
+  <div class="sort-row">
+    <button class="btn sort-btn" id="sort-btn" type="button" aria-live="polite"><span>Sort:</span><span class="sort-label"></span></button>
+  </div>
   <ul class="tile-list" id="tile-list" aria-live="polite"></ul>
   <button class="lettuce" id="lettuce" aria-label="Lettuce"><img src="/lettuce-192.png" alt="" width="48" height="48"></button>
 </main>
@@ -140,55 +191,115 @@
     });
     lettuce.addEventListener("animationend", function () { lettuce.classList.remove("wiggle"); });
 
+    // ---- sorting ----
+    //
+    // games.json order is the hand-picked default. Every comparator breaks
+    // ties on that order (index `i`), so the list never jitters between
+    // visits and old Safari's unstable sort can't reshuffle equal entries.
+    var SORTS = [
+      { id: "default", label: "Default", cmp: function (a, b) { return a.i - b.i; } },
+      { id: "title", label: "A to Z", cmp: function (a, b) {
+        return (a.title || "").localeCompare(b.title || "") || a.i - b.i;
+      } },
+      { id: "most", label: "Most played", cmp: function (a, b) { return b.plays - a.plays || a.i - b.i; } },
+      { id: "least", label: "Least played", cmp: function (a, b) { return a.plays - b.plays || a.i - b.i; } }
+    ];
+
+    var sortBtn = document.getElementById("sort-btn");
+    var sortLabel = sortBtn.querySelector(".sort-label");
+    var sortIndex = 0;
+    var savedSort = Arcade.load("sort", "default");
+    SORTS.forEach(function (s, i) { if (s.id === savedSort) sortIndex = i; });
+
+    var games = [];
+
+    function playsText(n) {
+      return n === 1 ? "1 play" : n + " plays";
+    }
+
+    function render() {
+      var sort = SORTS[sortIndex];
+      sortLabel.textContent = sort.label;
+
+      var counts = Arcade.playCounts();
+      var rows = games.map(function (game, i) {
+        return { game: game, i: i, title: game.title || game.slug, plays: counts[game.slug] || 0 };
+      });
+      rows.sort(sort.cmp);
+
+      list.innerHTML = "";
+      rows.forEach(function (row) {
+        var game = row.game;
+        var li = document.createElement("li");
+        var a = document.createElement("a");
+        a.className = "tile";
+        a.href = "/games/" + encodeURIComponent(game.slug) + "/";
+
+        // A game may supply `icon` (a file inside its own folder) instead of
+        // an emoji. `emoji` stays the fallback for everything else.
+        var emoji;
+        if (game.icon) {
+          emoji = document.createElement("img");
+          emoji.className = "tile-icon";
+          emoji.src = "/games/" + encodeURIComponent(game.slug) + "/" + encodeURIComponent(game.icon);
+          emoji.alt = "";
+          emoji.width = 56;
+          emoji.height = 56;
+          emoji.loading = "lazy";
+        } else {
+          emoji = document.createElement("div");
+          emoji.className = "tile-emoji";
+          emoji.textContent = game.emoji || "🎮";
+        }
+        emoji.setAttribute("aria-hidden", "true");
+
+        var text = document.createElement("div");
+        var title = document.createElement("div");
+        title.className = "tile-title";
+        title.textContent = row.title;
+        if (row.plays === 0) {
+          var tag = document.createElement("span");
+          tag.className = "tag-new";
+          tag.textContent = "New!";
+          title.appendChild(tag);
+        }
+        var blurb = document.createElement("div");
+        blurb.className = "tile-blurb";
+        blurb.textContent = game.blurb || "";
+        text.appendChild(title);
+        text.appendChild(blurb);
+        if (row.plays > 0) {
+          var plays = document.createElement("div");
+          plays.className = "tile-plays";
+          plays.textContent = playsText(row.plays);
+          text.appendChild(plays);
+        }
+
+        a.appendChild(emoji);
+        a.appendChild(text);
+        li.appendChild(a);
+        list.appendChild(li);
+      });
+    }
+
+    sortBtn.addEventListener("click", function () {
+      sortIndex = (sortIndex + 1) % SORTS.length;
+      Arcade.save("sort", SORTS[sortIndex].id);
+      render();
+    });
+
     fetch("/games.json")
       .then(function (res) {
         if (!res.ok) throw new Error("failed to load games.json");
         return res.json();
       })
-      .then(function (games) {
-        if (!Array.isArray(games) || games.length === 0) {
+      .then(function (loaded) {
+        if (!Array.isArray(loaded) || loaded.length === 0) {
           list.innerHTML = '<li class="empty">No games yet.</li>';
           return;
         }
-        games.forEach(function (game) {
-          var li = document.createElement("li");
-          var a = document.createElement("a");
-          a.className = "tile";
-          a.href = "/games/" + encodeURIComponent(game.slug) + "/";
-
-          // A game may supply `icon` (a file inside its own folder) instead of
-          // an emoji. `emoji` stays the fallback for everything else.
-          var emoji;
-          if (game.icon) {
-            emoji = document.createElement("img");
-            emoji.className = "tile-icon";
-            emoji.src = "/games/" + encodeURIComponent(game.slug) + "/" + encodeURIComponent(game.icon);
-            emoji.alt = "";
-            emoji.width = 56;
-            emoji.height = 56;
-            emoji.loading = "lazy";
-          } else {
-            emoji = document.createElement("div");
-            emoji.className = "tile-emoji";
-            emoji.textContent = game.emoji || "🎮";
-          }
-          emoji.setAttribute("aria-hidden", "true");
-
-          var text = document.createElement("div");
-          var title = document.createElement("div");
-          title.className = "tile-title";
-          title.textContent = game.title || game.slug;
-          var blurb = document.createElement("div");
-          blurb.className = "tile-blurb";
-          blurb.textContent = game.blurb || "";
-          text.appendChild(title);
-          text.appendChild(blurb);
-
-          a.appendChild(emoji);
-          a.appendChild(text);
-          li.appendChild(a);
-          list.appendChild(li);
-        });
+        games = loaded;
+        render();
       })
       .catch(function () {
         list.innerHTML = '<li class="error">Could not load the game list.</li>';

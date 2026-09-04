@@ -264,6 +264,7 @@
         }, { passive: true });
       });
       overlay.remove();
+      recordPlay(gameNamespace());
       startFn();
     }
 
@@ -306,6 +307,34 @@
       return Object.prototype.hasOwnProperty.call(memoryFallback, k) ? memoryFallback[k] : fallback;
     }
   };
+
+  // ---- play counts --------------------------------------------------
+  //
+  // One tally for the whole arcade, keyed by game slug. It lives under the
+  // index's own namespace, not the game's, so "Reset this game's save" leaves
+  // it alone. A play is the tap on the boot overlay: the moment gameplay
+  // starts. The index reads it to sort tiles and tag never-played games.
+
+  var PLAYS_KEY = "arcade:arcade:plays";
+
+  Arcade.playCounts = function () {
+    var counts = null;
+    try {
+      counts = JSON.parse(localStorage.getItem(PLAYS_KEY));
+    } catch (e) { /* storage unavailable or corrupt; fall through */ }
+    if (!counts || typeof counts !== "object") counts = memoryFallback[PLAYS_KEY] || {};
+    return counts;
+  };
+
+  function recordPlay(slug) {
+    var counts = Arcade.playCounts();
+    counts[slug] = (counts[slug] || 0) + 1;
+    try {
+      localStorage.setItem(PLAYS_KEY, JSON.stringify(counts));
+    } catch (e) {
+      memoryFallback[PLAYS_KEY] = counts;
+    }
+  }
 
   // ---- deterministic daily randomness --------------------------------------------------
 
