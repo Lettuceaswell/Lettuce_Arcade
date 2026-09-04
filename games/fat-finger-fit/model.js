@@ -9,13 +9,13 @@
     DAYS: 8,
     MAINT: 1500,       BAR_MAX: 3000,
     KCAL_P: 6,         KCAL_C: 12,      KCAL_F: 12,
-    BURN: 10,          LBS_K: 320,
+    BURN: 10,          MASS_K: 320,
     PROT_THRESHOLD: 55,
     GAIN: 88.2,        LOSS: 5.0,
     E_BASE: 0.10,      E_SLOPE: 750,    E_CAP: 1.7,
     STIM_EXP: 0.85,    ROOM_EXP: 0.6,
     SIGMA: 0.10,       WINDOW_SIGMAS: 2,
-    WIN_LBS_TOL: 1.0,  WIN_MUSCLE: 99.5,
+    WIN_MASS_TOL: 1.0,  WIN_MUSCLE: 99.5,
     SCORE_K: 11.52,    BUILD_MAX: 1.5,  PRECISION_MAX: 1.0,
     COLORS: { P: "#2E8B7A", C: "#E0A030", F: "#8A6BC1", T: "#3A3F4B" }
   };
@@ -77,7 +77,7 @@
     var dayPoints = TUNE.SCORE_K * d.T * (1 + state.muscle / 25) * (0.5 + 0.5 * p);
 
     state.muscle = clamp(state.muscle + gain - loss, 0, 100);
-    state.lbs = state.lbs + net / TUNE.LBS_K;
+    state.lbs = state.lbs + net / TUNE.MASS_K;
     state.running += dayPoints;
     state.lbsHistory.push(state.lbs);
 
@@ -97,7 +97,7 @@
     var build     = 1 + TUNE.BUILD_MAX * (state.muscle / 100);
     var precision = 1 + TUNE.PRECISION_MAX * accuracy * accuracy;
     var final     = state.running * build * precision;
-    var won = Math.abs(state.lbs - 100) <= TUNE.WIN_LBS_TOL && state.muscle >= TUNE.WIN_MUSCLE;
+    var won = Math.abs(state.lbs - 100) <= TUNE.WIN_MASS_TOL && state.muscle >= TUNE.WIN_MUSCLE;
     return { running: state.running, accuracy: accuracy, build: build,
              precision: precision, final: final, won: won };
   }

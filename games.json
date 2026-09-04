@@ -43,5 +43,12 @@
     "blurb": "Endless runner. Jump, slide, and swing past everything Spanish California throws at you.",
     "emoji": "🦊",
     "beta": true
+  },
+  {
+    "slug": "fat-finger-fit",
+    "title": "Fat Finger Fit",
+    "blurb": "Eight days, four sliders a day, locked one at a time. Your thumb is not as precise as you think.",
+    "emoji": "💪",
+    "beta": true
   }
 ]

@@ -55,22 +55,22 @@
   #tickmark { text-align: center; font-size: 0.7rem; line-height: 1; color: var(--fg-dim); }
   @media (prefers-reduced-motion: reduce) { #bar.snap .seg, #bar.snap #window { transition: none; } }
 
-  /* sliders (~36%) */
-  #sliders { flex: 36 1 0; min-height: 0; display: flex; flex-direction: column; justify-content: space-evenly; }
-  .row { display: flex; align-items: center; gap: 10px; min-height: 44px; }
-  .row label { width: 78px; text-align: left; font-size: 0.78rem; letter-spacing: 0.1em; font-weight: 800; }
-  .row .mark { width: 22px; font-size: 1rem; text-align: center; }
-  .row input[type=range] { flex: 1; height: 44px; margin: 0; -webkit-appearance: none; appearance: none; background: transparent; }
-  .row input[type=range]::-webkit-slider-runnable-track { height: 6px; border-radius: 3px; background: rgba(210,249,247,0.25); }
-  .row input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 34px; height: 34px; margin-top: -14px; border-radius: 50%; background: var(--fg); border: 3px solid var(--bg); box-shadow: 0 0 0 2px var(--fg); }
-  .row input[type=range]::-moz-range-track { height: 6px; border-radius: 3px; background: rgba(210,249,247,0.25); }
-  .row input[type=range]::-moz-range-thumb { width: 34px; height: 34px; border-radius: 50%; background: var(--fg); border: 3px solid var(--bg); }
-  .row.live input::-webkit-slider-thumb { background: var(--accent); }
-  .row.live input::-moz-range-thumb { background: var(--accent); }
-  .row.live label { color: var(--accent); }
-  .row.locked { opacity: 0.5; }
-  .row.waiting { opacity: 0.3; }
-  .row.locked input, .row.waiting input { pointer-events: none; }
+  /* sliders (~36%): only the live one is on screen. The strip above it
+     shows which lock you're on and which are done. */
+  #sliders { flex: 36 1 0; min-height: 0; display: flex; flex-direction: column; justify-content: center; gap: 18px; }
+  #locks { display: flex; justify-content: center; gap: 22px; font-size: 1.5rem; line-height: 1; }
+  #locks span { position: relative; opacity: 0.3; transition: opacity 150ms, transform 150ms; }
+  #locks span.live { opacity: 1; transform: scale(1.25); }
+  #locks span.locked { opacity: 0.55; }
+  #locks span.locked::after { content: "✓"; position: absolute; right: -10px; bottom: -6px; font-size: 0.7rem; font-weight: 900; color: var(--accent); }
+  .row { display: none; align-items: center; gap: 14px; min-height: 60px; }
+  .row.live { display: flex; }
+  .row label { font-size: 2.2rem; line-height: 1; width: 48px; text-align: center; }
+  .row input[type=range] { flex: 1; height: 60px; margin: 0; -webkit-appearance: none; appearance: none; background: transparent; }
+  .row input[type=range]::-webkit-slider-runnable-track { height: 8px; border-radius: 4px; background: rgba(210,249,247,0.25); }
+  .row input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 44px; height: 44px; margin-top: -18px; border-radius: 50%; background: var(--accent); border: 3px solid var(--bg); box-shadow: 0 0 0 2px var(--fg); }
+  .row input[type=range]::-moz-range-track { height: 8px; border-radius: 4px; background: rgba(210,249,247,0.25); }
+  .row input[type=range]::-moz-range-thumb { width: 44px; height: 44px; border-radius: 50%; background: var(--accent); border: 3px solid var(--bg); }
 
   /* commit (~12%) */
   #foot { flex: 12 1 0; min-height: 56px; display: flex; align-items: center; }
@@ -93,7 +93,7 @@
 <div id="body">
   <div id="blob"></div>
   <div id="gauges">
-    <div class="gauge"><div class="ring" id="ring-lbs"><b id="lbs">100%</b></div><div class="glabel">LBS</div></div>
+    <div class="gauge"><div class="ring" id="ring-lbs"><b id="lbs">100%</b></div><div class="glabel">MASS</div></div>
     <div class="gauge"><div class="ring" id="ring-muscle"><b id="muscle">0%</b></div><div class="glabel">MUSCLE</div></div>
   </div>
 </div>
@@ -108,18 +108,19 @@
 </div>
 
 <div id="sliders">
-  <div class="row" data-key="P"><label>PROTEIN</label><input type="range" min="0" max="100" step="0.01" value="50"><span class="mark"></span></div>
-  <div class="row" data-key="C"><label>CARBS</label><input type="range" min="0" max="100" step="0.01" value="50"><span class="mark"></span></div>
-  <div class="row" data-key="F"><label>FAT</label><input type="range" min="0" max="100" step="0.01" value="50"><span class="mark"></span></div>
-  <div class="row" data-key="T"><label>TRAINING</label><input type="range" min="0" max="100" step="0.01" value="50"><span class="mark"></span></div>
+  <div id="locks" aria-hidden="true"><span data-key="P">🥩</span><span data-key="C">🍞</span><span data-key="F">🧈</span><span data-key="T">🏋️</span></div>
+  <div class="row" data-key="P"><label aria-label="Protein">🥩</label><input type="range" min="0" max="100" step="0.01" value="50"></div>
+  <div class="row" data-key="C"><label aria-label="Carbs">🍞</label><input type="range" min="0" max="100" step="0.01" value="50"></div>
+  <div class="row" data-key="F"><label aria-label="Fat">🧈</label><input type="range" min="0" max="100" step="0.01" value="50"></div>
+  <div class="row" data-key="T"><label aria-label="Training">🏋️</label><input type="range" min="0" max="100" step="0.01" value="50"></div>
 </div>
 
 <div id="foot"><button id="commit" class="btn">COMMIT</button></div>
 
 <div id="overlay" role="dialog" aria-label="Run over">
   <div class="card">
-    <div class="line">🍔 Fat Finger Fit · day 8</div>
-    <div class="line"><b id="c-lbs"></b> LBS · <b id="c-muscle"></b> MUSCLE</div>
+    <div class="line">💪 Fat Finger Fit · day 8</div>
+    <div class="line"><b id="c-lbs"></b> MASS · <b id="c-muscle"></b> MUSCLE</div>
     <div class="line" id="c-cascade"></div>
     <div class="final" id="c-final"></div>
     <div class="spark" id="spark" aria-hidden="true"></div>
@@ -134,7 +135,7 @@
   Arcade.backButton();
   Arcade.menuButton({
     rules: [
-      "Eight days. Four sliders a day: protein, carbs, fat, training. You lock them one at a time and you can't go back.",
+      "Eight days. Four sliders a day: 🥩 protein, 🍞 carbs, 🧈 fat, 🏋️ training. You lock them one at a time, in that order, and you can't go back.",
       "Eating fills the bar. Training empties it.",
       "The tick in the middle is maintenance. Land right of it and you gain weight, left of it and you lose it.",
       "Muscle needs training, protein, and a surplus. All three.",
@@ -142,21 +143,24 @@
       "Your blob starts at 50 lbs, which is not a realistic weight for anything, and that's fine.",
       "Your thumb is not precise. Every lock lands somewhere inside the window it shows you, not on the line. The more you've locked, the wider the window gets."
     ],
+    actions: [{ label: "New run", confirm: "This run is gone. Your best score stays.", onClick: function () { newRun(); } }],
     describeSave: function () { return "Your best Fat Finger Fit score."; }
   });
 
   var T = FFF.TUNE, ORDER = FFF.ORDER;
   function $(id) { return document.getElementById(id); }
-  var rows = {}, inputs = {};
+  var rows = {}, inputs = {}, locks = {};
   Array.prototype.forEach.call(document.querySelectorAll(".row"), function (r) {
     rows[r.dataset.key] = r; inputs[r.dataset.key] = r.querySelector("input");
   });
+  Array.prototype.forEach.call(document.querySelectorAll("#locks span"), function (l) { locks[l.dataset.key] = l; });
 
   var state, lockIdx, nominal, delivered, halves, best;
   best = Number(Arcade.load("best", 0)) || 0;
 
   // ---- run / day lifecycle ---------------------------------------------
   function newRun() {
+    $("overlay").classList.remove("show");
     state = FFF.newRun();
     startDay();
     drawGauges();
@@ -165,7 +169,6 @@
   function startDay() {
     lockIdx = 0; nominal = {}; delivered = {}; halves = [];
     $("day").textContent = "DAY " + state.day + " / " + T.DAYS;
-    ORDER.forEach(function (k) { rows[k].querySelector(".mark").textContent = ""; });
     drawSliderStates();
     drawBar(null);
     console.log("--- day " + state.day + " ---");
@@ -178,7 +181,6 @@
     nominal[k] = v;
     delivered[k] = FFF.deliver(k, v);          // hidden until resolution
     halves.push(FFF.windowHalf(k, v));
-    rows[k].querySelector(".mark").textContent = "✓";
     console.log("lock " + k + " nominal=" + v.toFixed(1) + " contrib=" + FFF.contribution(k, v).toFixed(0) +
       " delivered=" + delivered[k].toFixed(0) + " window=±" + halves[halves.length - 1].toFixed(0) +
       " cumulative=±" + FFF.cumulativeHalf(halves).toFixed(0));
@@ -225,7 +227,9 @@
   // ---- drawing -----------------------------------------------------------
   function drawSliderStates() {
     ORDER.forEach(function (k, i) {
-      rows[k].className = "row " + (i < lockIdx ? "locked" : i === lockIdx ? "live" : "waiting");
+      var st = i < lockIdx ? "locked" : i === lockIdx ? "live" : "waiting";
+      rows[k].className = "row " + st;
+      locks[k].className = st;
       inputs[k].disabled = i !== lockIdx;
     });
   }
@@ -311,7 +315,7 @@
     inp.addEventListener("touchend", release);
   });
   $("commit").addEventListener("click", commit);
-  $("again").addEventListener("click", function () { $("overlay").classList.remove("show"); newRun(); });
+  $("again").addEventListener("click", newRun);
 
   Arcade.boot(newRun);
 </script>

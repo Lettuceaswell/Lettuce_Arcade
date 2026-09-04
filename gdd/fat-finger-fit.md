@@ -1,7 +1,9 @@
 # FAT FINGER FIT
-### Game Design Document — v2.0 · BUILD HANDOFF
+### Game Design Document — v2.1 · BUILD HANDOFF
 
 Supersedes v1.0 and change-doc v1.1 entirely. This is the only document the builder needs.
+
+**v2.1 (2026-09-04, first beta):** one slider on screen at a time; slider labels are emoji, not words; the LBS gauge is now **MASS**; a **New run** action lives in the shared menu behind a confirmation. Decisions 18–21 below.
 
 **Title:** *Fat Finger Fit*. Lock it before the first family install — iOS snapshots the app name at Add-to-Home-Screen time and won't update it without a delete-and-re-add.
 **Platform:** browser, phone-first, part of the family arcade. Plain HTML/CSS/vanilla JS. No build step, no framework, no server, no accounts.
@@ -33,9 +35,9 @@ Do not redesign these.
 | # | Decision |
 |---|---|
 | 1 | The avatar is a **Blob**. Never a human body, never a silhouette. |
-| 2 | Two **circular gauges**: **LBS** and **MUSCLE**. Both keep visible numbers and labels. |
+| 2 | Two **circular gauges**: **MASS** and **MUSCLE**. Both keep visible numbers and labels. |
 | 3 | Starting weight is **50 lbs** — deliberately non-human, so the number can never be read as a body-shame reference. |
-| 4 | LBS starts at **100%** and moves above and below. MUSCLE starts at **0%**. |
+| 4 | MASS starts at **100%** and moves above and below. MUSCLE starts at **0%**. |
 | 5 | **Win = both gauges at 100% at the end of day 8.** |
 | 6 | The **Energy Bar** is always visible, does **not** move during a drag, has a **maintenance tick at dead centre**, is filled by eating and drained by training, and is the visual hero of the screen. |
 | 7 | Four sliders, locked **one at a time, in fixed order**: Protein → Carbs → Fat → Training. |
@@ -49,6 +51,10 @@ Do not redesign these.
 | 15 | Round starts at **0 pts**. A winning score is **1,000,000**. Format: `100`, `1.43K`, `956K`, `1M!` |
 | 16 | The count-up is **rewarding and rapid-fire**. |
 | 17 | A win is **possible but difficult**. Heavy balance of skill *and* variance. |
+| 18 | **One slider on screen at a time.** Commit, and it's gone; the next one takes its place. A strip of the four emoji above it shows which lock you're on and which are done. |
+| 19 | Sliders are labelled with **emoji only**: 🥩 protein, 🍞 carbs, 🧈 fat, 🏋️ training. The words appear once, in How to Play. |
+| 20 | The weight gauge is called **MASS**, never LBS or weight. |
+| 21 | **New run** is in the shared menu (☰), behind a confirmation. The End Card's RUN IT BACK stays instant. |
 
 ---
 
@@ -64,17 +70,17 @@ One screen. No scrolling. No menus during a run.
 │                              │
 │    ╭────╮        ╭────╮      │
 │    │ 97%│        │ 66%│      │
-│    │LBS │        │MUSC│      │
+│    │MASS│        │MUSC│      │
 │    ╰────╯        ╰────╯      │
 ├──────────────────────────────┤
 │  ENERGY                      │
 │  ▓▓▓▓▓▒▒▒▒▒▒▒│░░░▓▒▒▒        │   ← teal / amber / violet, then
 │              ▲               │      the estimate window at the tip
 ├──────────────────────────────┤
-│  PROTEIN   ●────────  ✓ 44   │   ← locked, greyed
-│  CARBS     ─────●────  ✓ 61  │   ← locked, greyed
-│  FAT       ───●──────        │   ← LIVE
-│  TRAINING  ──────●───        │   ← waiting, dimmed
+│      🥩✓   🍞✓   🧈    🏋️      │   ← lock strip: done / LIVE / waiting
+│                              │
+│  🧈   ───────●──────────     │   ← the one live slider
+│                              │
 ├──────────────────────────────┤
 │        [  C O M M I T  ]     │
 └──────────────────────────────┘
@@ -82,7 +88,7 @@ One screen. No scrolling. No menus during a run.
 
 Vertical budget on 375×667: blob + gauges ~36%, energy bar ~16%, sliders ~36%, commit ~12%. The energy bar gets more contrast than anything except the blob. It is the thing being played.
 
-**Slider states:** locked (greyed, thumb frozen, checkmark), live (full colour, draggable), waiting (dimmed, not interactive). Exactly one slider is live at any moment.
+**Slider states:** only the live slider is on screen. Locked sliders are gone — their position is retained for tomorrow but not shown. The lock strip above the slider carries the state instead: done (dim, ✓), live (bright, enlarged), waiting (dimmer). Exactly one slider is live at any moment. A locked slider shows no number; the player asked for a value and got another one, and printing either invites arithmetic.
 
 ---
 
@@ -92,7 +98,7 @@ One run = **8 days**. One day = **four locks**.
 
 Per lock:
 
-1. The next slider becomes live. The other three are frozen or dimmed.
+1. The next slider becomes live and replaces the previous one on screen.
 2. Player drags. **Nothing on the energy bar moves while the thumb is down.**
 3. On thumb-release, the **estimate window** for that slider draws on the bar tip.
 4. Player may re-drag and re-release as many times as they like. The window redraws each time.
@@ -169,11 +175,11 @@ bar = deliveredProtein + deliveredCarbs + deliveredFat − deliveredTraining
 net = bar − 1500
 ```
 
-- Bar **right of tick** → surplus → LBS rises.
-- Bar **left of tick** → deficit → LBS falls.
-- Bar **on the tick** → LBS holds, and muscle gain is nearly zero.
+- Bar **right of tick** → surplus → MASS rises.
+- Bar **left of tick** → deficit → MASS falls.
+- Bar **on the tick** → MASS holds, and muscle gain is nearly zero.
 
-Read that last line carefully, because it is the whole game: **you cannot grow at maintenance.** Growth requires surplus, surplus costs LBS, and LBS has to come home to 100% by day 8. Every interesting decision falls out of that one constraint.
+Read that last line carefully, because it is the whole game: **you cannot grow at maintenance.** Growth requires surplus, surplus costs MASS, and MASS has to come home to 100% by day 8. Every interesting decision falls out of that one constraint.
 
 **Colour segments**, stacking left to right, then carved back:
 
@@ -194,13 +200,13 @@ So the finished bar shows what you ate *and* what you burned as separate readabl
 
 Both circular. Number inside, label beneath. **They move once per day, after the fourth lock.** Four locks build the bar; one resolution moves the body. Locks are tension, resolution is release — never mix them.
 
-**LBS** — starts at 100%. 100% = 50 lbs. Displayed as a percentage; the 50 lb figure appears exactly once, in How to Play, as a joke. Sweep 60%–140% with 100% at 12 o'clock, so deviation reads instantly as which side of vertical the needle is on. **Colour-neutral in both directions** — over is not bad, under is not good. Both are just not 100.
+**MASS** — starts at 100%. 100% = 50 lbs. Displayed as a percentage; the 50 lb figure appears exactly once, in How to Play, as a joke. Sweep 60%–140% with 100% at 12 o'clock, so deviation reads instantly as which side of vertical the needle is on. **Colour-neutral in both directions** — over is not bad, under is not good. Both are just not 100.
 
 **MUSCLE** — 0–100%, sweeps clockwise from 6 o'clock. Fills, never inverts.
 
-**There is no third gauge and no third number.** LBS minus MUSCLE is a residual the player can compute if they want to. The game never names it, never displays it, never draws it. This is a hard rule. The moment that quantity gets a label, this becomes a different and much worse game.
+**There is no third gauge and no third number.** MASS minus MUSCLE is a residual the player can compute if they want to. The game never names it, never displays it, never draws it. This is a hard rule. The moment that quantity gets a label, this becomes a different and much worse game.
 
-**The Blob** reads both gauges — scales with LBS, gains definition and posture with MUSCLE. Five drawn states, cross-faded. Not a rig. A blob at 130% LBS is *bigger*, and the game never comments on it.
+**The Blob** reads both gauges — scales with MASS, gains definition and posture with MUSCLE. Five drawn states, cross-faded. Not a rig. A blob at 130% MASS is *bigger*, and the game never comments on it.
 
 ---
 
@@ -244,11 +250,11 @@ Why each term is there, and why none of it is arbitrary:
 
 ## 11. Run length: 8 days
 
-Simulated. Three-phase slider policies optimised by random restart plus hill climbing, evaluated across four tiers of player imprecision. Win = LBS within ±1.0 of 100 **and** MUSCLE ≥ 99.5. 3,000 runs per cell.
+Simulated. Three-phase slider policies optimised by random restart plus hill climbing, evaluated across four tiers of player imprecision. Win = MASS within ±1.0 of 100 **and** MUSCLE ≥ 99.5. 3,000 runs per cell.
 
 Finger-noise calibration at 8 days, with the gain rate re-solved at each σ so 100% muscle stays just barely reachable:
 
-| σ | GAIN | LBS swing | Perfect | Good | Okay | Casual |
+| σ | GAIN | MASS swing | Perfect | Good | Okay | Casual |
 |---:|---:|---:|---:|---:|---:|---:|
 | 0.04 | 85.2 | 5.1 | 78.5 | 41.1 | 19.5 | 7.5 |
 | 0.06 | 71.3 | 8.8 | 79.0 | 46.1 | 22.0 | 10.6 |
@@ -256,14 +262,14 @@ Finger-noise calibration at 8 days, with the gain rate re-solved at each σ so 1
 | **0.10** | **88.2** | **9.8** | **51.3** | **39.9** | **23.8** | **11.4** |
 | 0.13 | 71.8 | 6.6 | 24.0 | 18.9 | 12.2 | 4.5 |
 
-**σ = 0.10, GAIN = 88.2.** Below 0.08 the game is too easy for anyone who understands it; at 0.13 perfect play wins a quarter of the time, which crosses from difficult into unfair. 0.10 gives perfect play a coin flip and casual play about one run in nine, with a 10-point LBS excursion so the gauge is genuinely used.
+**σ = 0.10, GAIN = 88.2.** Below 0.08 the game is too easy for anyone who understands it; at 0.13 perfect play wins a quarter of the time, which crosses from difficult into unfair. 0.10 gives perfect play a coin flip and casual play about one run in nine, with a 10-point MASS excursion so the gauge is genuinely used.
 
 The optimal 8-day line, for the tuning harness — **do not surface this in-game**:
 
 ```
-Days 1–2   cut hard        net ≈ −930    LBS 100 → 94
+Days 1–2   cut hard        net ≈ −930    MASS 100 → 94
 Days 3–4   surplus, build  net ≈ +430    MUSCLE 0 → 44
-Days 5–8   surplus, train  net ≈ +250    LBS 94 → 100, MUSCLE 44 → 100
+Days 5–8   surplus, train  net ≈ +250    MASS 94 → 100, MUSCLE 44 → 100
 ```
 
 Cut first, then build into the room you made. Not the line most players will guess, findable in 10–15 runs, and not the only line that wins.
@@ -329,11 +335,11 @@ The player must be able to *see* something is wrong and have to work out *what*.
 | Delivered protein under threshold | MUSCLE gauge **desaturates to grey** while it fills |
 | Deep deficit (net < −500) | MUSCLE ring **flickers** on the day it ticks down |
 | Surplus | Bar's overshoot past the tick renders in a **warmer fill**. Not red. Not a warning. |
-| LBS ≠ 100 | Nothing. The gauge already says it. |
+| MASS ≠ 100 | Nothing. The gauge already says it. |
 
 **Never shown, never said:**
 
-- Any word for the LBS-minus-MUSCLE residual.
+- Any word for the MASS-minus-MUSCLE residual.
 - Any number in real calories, grams, or pounds.
 - Any coefficient — the 55 threshold, the 1500 maintenance, the gain rate, σ.
 - The delivered-vs-nominal gap as a number. The player sees the window and the outcome, never the error.
@@ -341,7 +347,7 @@ The player must be able to *see* something is wrong and have to work out *what*.
 
 **How to Play** — one screen, reachable from the title and pausable mid-run:
 
-> Eight days. Four sliders a day: protein, carbs, fat, training. You lock them one at a time and you can't go back.
+> Eight days. Four sliders a day: 🥩 protein, 🍞 carbs, 🧈 fat, 🏋️ training. You lock them one at a time, in that order, and you can't go back.
 > Eating fills the bar. Training empties it.
 > The tick in the middle is maintenance. Land right of it and you gain weight, left of it and you lose it.
 > Muscle needs training, protein, and a surplus. All three.
@@ -371,7 +377,7 @@ One card at day 8, screenshot-shaped, portrait ~4:5:
 │                    │
 │       1M!          │
 │                    │
-│   ▇▅▃▄▅▆▇█         │   8-day LBS sparkline
+│   ▇▅▃▄▅▆▇█         │   8-day MASS sparkline
 │                    │
 │   [ RUN IT BACK ]  │
 └────────────────────┘
@@ -443,13 +449,13 @@ const TUNE = {
   DAYS: 8,
   MAINT: 1500,       BAR_MAX: 3000,
   KCAL_P: 6,         KCAL_C: 12,      KCAL_F: 12,
-  BURN: 10,          LBS_K: 320,
+  BURN: 10,          MASS_K: 320,
   PROT_THRESHOLD: 55,
   GAIN: 88.2,        LOSS: 5.0,
   E_BASE: 0.10,      E_SLOPE: 750,    E_CAP: 1.7,
   STIM_EXP: 0.85,    ROOM_EXP: 0.6,
   SIGMA: 0.10,       WINDOW_SIGMAS: 2,
-  WIN_LBS_TOL: 1.0,  WIN_MUSCLE: 99.5,
+  WIN_MASS_TOL: 1.0,  WIN_MUSCLE: 99.5,
   SCORE_K: 11.52,    BUILD_MAX: 1.5,  PRECISION_MAX: 1.0,
   COLORS: { P: '#2E8B7A', C: '#E0A030', F: '#8A6BC1', T: '#3A3F4B' },
 };
@@ -461,5 +467,5 @@ const TUNE = {
 
 1. **Does the compounding read, in four minutes?** The windows widen from ±120 to ±412 across a day. That's obvious in a spreadsheet and may be invisible on a phone. If it doesn't land, the fix is presentation — a faint tick showing the previous lock's window width for comparison — not a bigger σ.
 2. **Does "play small to play precise" get found, or does it get exploited?** It's the best emergent property in the design and it's also a potential degenerate strategy: tiny sliders every day, tiny windows, tiny variance. The sim says it loses because you can't reach 100% muscle that way. Verify against a real player before trusting that.
-3. **Five blob states across a 60–140% LBS range.** May be too few to read. Check at step 7.
-4. **Locked-slider display.** Spec shows the delivered value as a checkmark and number. It might be better to show nothing at all — the player asked for a value and got another one, and printing either invites arithmetic. Cheap to test both.
+3. **Five blob states across a 60–140% MASS range.** May be too few to read. Check at step 7.
+4. ~~Locked-slider display.~~ Resolved in v2.1: locked sliders leave the screen; the lock strip shows a checkmark and no number.

@@ -5,7 +5,7 @@
 
   var Arcade = {};
 
-  Arcade.VERSION = 32;
+  Arcade.VERSION = 33;
 
   // ---- namespacing --------------------------------------------------
 
@@ -135,6 +135,14 @@
       if (opts.rules || opts.help) kids.push(button("How to play", "btn", function () {
         if (opts.help) { close(); opts.help(); } else showRules();
       }));
+      // Game-supplied actions, e.g. { label: "New run", confirm: "This run is
+      // gone.", onClick: fn }. With `confirm` set, the action gets its own
+      // confirmation screen; without it, it fires straight away.
+      (opts.actions || []).forEach(function (a) {
+        kids.push(button(a.label, "btn quiet", function () {
+          if (a.confirm) showConfirm(a); else { close(); a.onClick(); }
+        }));
+      });
       kids.push(button("Reset this game's save", "btn quiet", showReset));
       kids.push(el("div", "spacer"));
       kids.push(button("Close", "btn quiet", close));
@@ -156,6 +164,16 @@
       kids.push(el("div", "spacer"));
       kids.push(button("Back", "btn", showMain));
       fill(kids);
+    }
+
+    function showConfirm(a) {
+      fill([
+        el("h2", null, a.label + "?"),
+        el("p", null, String(a.confirm)),
+        button(a.label, "btn danger", function () { close(); a.onClick(); }),
+        el("div", "spacer"),
+        button("Cancel", "btn", showMain)
+      ]);
     }
 
     function showReset() {
