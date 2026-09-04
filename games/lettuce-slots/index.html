@@ -32,8 +32,38 @@
 
   h1 { font-size: 1.3rem; letter-spacing: 0.02em; }
 
+  /* Mode pill: top of the page, far from the thumb, so a small child on the
+     SPIN button never reaches it. Each half is a full 44px target. */
+  #modes {
+    display: inline-flex;
+    padding: 3px;
+    border-radius: 14px;
+    background: rgba(0, 0, 0, 0.35);
+  }
+  #modes button {
+    min-height: 44px;
+    min-width: 76px;
+    padding: 8px 18px;
+    border: none;
+    border-radius: 11px;
+    background: transparent;
+    color: var(--fg-dim);
+    font-size: 1rem;
+    font-weight: 800;
+    letter-spacing: 0.03em;
+    cursor: pointer;
+  }
+  #modes button.on { background: var(--accent); color: #fff; }
+  #modes button:disabled { opacity: 0.6; cursor: default; }
+
   #sub { font-size: 0.95rem; color: var(--fg-dim); font-weight: 600; }
   #sub b { color: var(--fg); }
+
+  /* Spin mode: reels, a status word, and the button. No numbers anywhere. */
+  body.mode-spin #sub,
+  body.mode-spin #readout,
+  body.mode-spin #serve,
+  body.mode-spin #footer { display: none; }
 
   .stage { position: relative; margin-top: 4px; }
   .reels { display: flex; gap: 10px; }
@@ -52,8 +82,17 @@
     transition: opacity 120ms;
   }
   .reel.hot { border-color: #ffe066; }
-  .reel.snail { border-color: #ff8a7a; }
+  .reel.bunny { border-color: #ff8a7a; }
+  .reel.happy { border-color: #ffb4c8; }
   .reel.fade { opacity: 0.35; }
+  .reel.hop { animation: hop 0.6s ease-out; }
+  @keyframes hop {
+    0%   { transform: translateY(0); }
+    30%  { transform: translateY(-18px); }
+    55%  { transform: translateY(0); }
+    75%  { transform: translateY(-8px); }
+    100% { transform: translateY(0); }
+  }
 
   /* Floats over the reels so it can be loud without moving anything. */
   .payout {
@@ -70,6 +109,7 @@
   .payout.jackpot { color: #ffe066; }
   .payout.match { color: #eafffb; }
   .payout.bust { color: #ff8a7a; }
+  .payout.bunny { color: #ffb4c8; }
   .payout.pop { animation: payout-pop 1.15s ease-out forwards; }
   @keyframes payout-pop {
     0%   { opacity: 0; transform: translateY(-50%) scale(0.5); }
@@ -92,6 +132,7 @@
   #status.match   { color: var(--accent); }
   #status.near    { color: #ffb4a2; }
   #status.bust    { color: #ff8a7a; }
+  #status.bunny   { color: #ffb4c8; font-size: 1.3rem; }
   #status.serve   { color: var(--accent); }
 
   #readout { font-size: 1rem; color: var(--fg-dim); }
@@ -156,12 +197,17 @@
 
   @media (prefers-reduced-motion: reduce) {
     .payout.pop { animation: none; opacity: 1; }
+    .reel.hop { animation: none; }
   }
 </style>
 </head>
 <body>
 <main>
   <h1>🥬 Lettuce Slots</h1>
+  <div id="modes" role="tablist" aria-label="Mode">
+    <button id="mode-spin" role="tab" aria-selected="true">Spin</button>
+    <button id="mode-run" role="tab" aria-selected="false">Run</button>
+  </div>
   <div id="sub"><span id="mode-label"></span> · <b id="spins-left"></b></div>
 
   <div class="stage" aria-hidden="true">
@@ -191,9 +237,9 @@
 
   // ---- constants --------------------------------------------------------
   var SYMBOLS = ["🍅", "🥕", "🧀", "🫒", "🥬"];      // reels 1 and 2
-  var STRIP3 = ["🍅", "🥕", "🧀", "🫒", "🥬", "🐌"]; // reel 3: the snail lives here
+  var STRIP3 = ["🍅", "🥕", "🧀", "🫒", "🥬", "🐰"]; // reel 3: the bunny lives here
   var LETTUCE = 4;
-  var SNAIL = 5;
+  var BUNNY = 5;
   var SPINS = 75;
   var LADDER = [
     { at: 0, name: "Side salad" },
@@ -201,6 +247,18 @@
     { at: 200, name: "Chef's salad" },
     { at: 300, name: "Feast" },
     { at: 450, name: "Legendary" }
+  ];
+  var RULES = [
+    "Every spin adds more than the last.",
+    "The 🐰 eats the bowl. SERVE keeps it.",
+    SPINS + " spins. Whatever's left at the end is served."
+  ];
+  // First run only: the status line teaches for the first three leaves of a
+  // streak, then stops for good (or after ten spins, whichever comes first).
+  var COACH = [
+    "+1 · every spin adds more than the last",
+    "+2 · SERVE keeps the bowl",
+    "+3 · the 🐰 eats it. Serve, or spin?"
   ];
 
   // ?turbo skips every animation and delay so the economy can be driven
@@ -246,14 +304,19 @@
     if (amount < 30) { tone(523, 0.2, 0, 0.16); return; }
     [523, 659, 784].forEach(function (f, i) { tone(f, 0.22, i * 0.09, 0.18); });
   }
-  // A munch, not a buzzer.
-  function snailSound() { tone(220, 0.1, 0, 0.16); tone(160, 0.12, 0.09, 0.16); }
+  // Three crunches, not a buzzer. In Spin mode the bunny is the good news,
+  // so the munch gets a happy chirp on the end.
+  function bunnySound(happy) {
+    tone(240, 0.09, 0, 0.16); tone(180, 0.09, 0.1, 0.16); tone(130, 0.12, 0.2, 0.16);
+    if (happy) { tone(880, 0.12, 0.4, 0.12); tone(1175, 0.16, 0.5, 0.12); }
+  }
 
   // ---- elements ---------------------------------------------------------
   function $(id) { return document.getElementById(id); }
   var reelEls = [$("reel0"), $("reel1"), $("reel2")];
   var statusEl = $("status"), payoutEl = $("payout");
   var spinBtn = $("spin"), serveBtn = $("serve"), muteBtn = $("mute");
+  var modeSpinBtn = $("mode-spin"), modeRunBtn = $("mode-run");
   var bowlEl = $("bowl"), streakEl = $("streak"), nextEl = $("next");
   var servedEl = $("served"), rungEl = $("rung");
   var modeLabelEl = $("mode-label"), spinsLeftEl = $("spins-left");
@@ -262,6 +325,7 @@
   // ---- state ------------------------------------------------------------
   function num(v) { var n = Number(v); return isFinite(n) ? n : 0; }
   var today = Arcade.dailySeed();
+  var ui = "spin";     // "spin" (the toy) | "run" (the game)
   var run = null;      // the run in progress, mirrored to storage
   var rng = null;      // the run's seeded stream: three draws per spin, nothing else
   var phase = "card";  // "card" | "play"
@@ -278,7 +342,8 @@
       mode: mode,
       seed: mode === "daily" ? dailySeedString() : freeSeedString(),
       date: today,
-      spin: 0, bowl: 0, streak: 0, served: 0, biggest: 0, snails: 0, jackpots: 0
+      spin: 0, bowl: 0, streak: 0, served: 0, biggest: 0, bunnies: 0, jackpots: 0,
+      coach: Arcade.load("coached", false) !== true
     };
     rng = Arcade.seededRandom(run.seed);
     saveRun();
@@ -291,12 +356,16 @@
     if (!r || typeof r !== "object" || typeof r.seed !== "string") return null;
     // A daily run from another day is discarded, never scored.
     if (r.mode === "daily" && r.date !== today) { Arcade.save("run", null); return null; }
-    ["spin", "bowl", "streak", "served", "biggest", "snails", "jackpots"].forEach(function (k) { r[k] = num(r[k]); });
+    if (r.bunnies == null) r.bunnies = r.snails; // v2 runs called it a snail
+    ["spin", "bowl", "streak", "served", "biggest", "bunnies", "jackpots"].forEach(function (k) { r[k] = num(r[k]); });
+    r.coach = r.coach === true;
     if (r.spin >= SPINS || r.spin < 0) { Arcade.save("run", null); return null; }
     rng = Arcade.seededRandom(r.seed);
     for (var i = 0; i < r.spin * 3; i++) rng(); // replay the draws already spent
     return r;
   }
+
+  function bunniesOf(r) { return num(r.bunnies != null ? r.bunnies : r.snails); }
 
   function draw() {
     return {
@@ -305,9 +374,18 @@
       r3: Math.floor(rng() * STRIP3.length)
     };
   }
+  // Spin mode has no run and nothing at stake, so it rolls from Math.random.
+  // The seeded stream is only ever touched by draw().
+  function toyDraw() {
+    return {
+      r1: Math.floor(Math.random() * SYMBOLS.length),
+      r2: Math.floor(Math.random() * SYMBOLS.length),
+      r3: Math.floor(Math.random() * STRIP3.length)
+    };
+  }
 
   function classify(r1, r2, r3) {
-    if (r3 === SNAIL) return "bust";
+    if (r3 === BUNNY) return "bust";
     if (r1 === r2 && r2 === r3) return r1 === LETTUCE ? "jackpot" : "match";
     return "miss";
   }
@@ -330,8 +408,11 @@
 
   // ---- render -----------------------------------------------------------
   function render() {
-    if (!run) return;
-    modeLabelEl.textContent = run.mode === "daily" ? "Daily · " + dateLabel(run.date) : "Free play";
+    spinBtn.disabled = spinning;
+    modeSpinBtn.disabled = spinning;
+    modeRunBtn.disabled = spinning;
+    if (ui === "spin" || !run) return;
+    modeLabelEl.textContent = run.mode === "daily" ? "Daily · " + dateLabel(run.date) : "Practice";
     var left = SPINS - run.spin;
     spinsLeftEl.textContent = left + (left === 1 ? " spin left" : " spins left");
     bowlEl.textContent = run.bowl;
@@ -339,7 +420,6 @@
     nextEl.textContent = "+" + (run.streak + 1);
     serveBtn.textContent = "SERVE " + run.bowl;
     serveBtn.disabled = spinning || run.bowl <= 0;
-    spinBtn.disabled = spinning;
     servedEl.textContent = "served " + run.served;
     var nr = nextRung(run.served);
     rungEl.innerHTML = nr
@@ -356,7 +436,7 @@
     payoutEl.classList.add("pop");
   }
 
-  function clearRings() { reelEls.forEach(function (el) { el.classList.remove("hot", "snail"); }); }
+  function clearRings() { reelEls.forEach(function (el) { el.classList.remove("hot", "bunny", "happy", "hop"); }); }
 
   // ---- reel animation ---------------------------------------------------
   // Walks the strip one slot per tick, starting at (final - ticks) so the reel
@@ -389,22 +469,24 @@
 
   // ---- the spin ---------------------------------------------------------
   function spin() {
-    if (spinning || phase !== "play" || !run || run.spin >= SPINS) return;
+    if (spinning || phase !== "play") return;
+    if (ui === "run" && (!run || run.spin >= SPINS)) return;
     spinning = true;
     render();
     setStatus("");
     payoutEl.className = "payout";
     clearRings();
 
-    var d = draw();
+    var d = ui === "spin" ? toyDraw() : draw();
     var r1 = d.r1, r2 = d.r2, r3 = d.r3;
     var outcome = classify(r1, r2, r3);
     var tension = (r1 === r2);
+    var done = ui === "spin" ? resolveToy : resolve;
 
     // Presentation only. On half of near-misses, land reel 3 just past the
     // target so the winning symbol is the last thing replaced. One past
-    // lettuce is the snail, so a lettuce near-miss goes two past, onto tomato:
-    // the reel crawls through the lettuce, then the snail, then stops. This
+    // lettuce is the bunny, so a lettuce near-miss goes two past, onto tomato:
+    // the reel crawls through the lettuce, then the bunny, then stops. This
     // may only ever change which losing symbol shows.
     var shown = r3;
     if (tension && outcome === "miss" && Math.random() < 0.5) {
@@ -419,7 +501,7 @@
       reelEls[0].textContent = SYMBOLS[r1];
       reelEls[1].textContent = SYMBOLS[r2];
       reelEls[2].textContent = STRIP3[shown];
-      resolve(r1, r2, shown, outcome, tension);
+      done(r1, r2, shown, outcome, tension);
       return;
     }
 
@@ -433,15 +515,43 @@
       if (tension) {
         reelEls[0].classList.add("hot");
         reelEls[1].classList.add("hot");
-        setStatus("TWO " + SYMBOLS[r1] + (run.bowl > 0 ? " — bowl " + run.bowl + " on the line…" : " — one to go…"), "near");
+        var stake = ui === "run" && run.bowl > 0 ? " — bowl " + run.bowl + " on the line…" : " — one to go…";
+        setStatus("TWO " + SYMBOLS[r1] + stake, "near");
       }
     });
     spinReel(reelEls[2], STRIP3, third, shown, function (i) {
       if (tension && i >= TENSION_TAIL_FROM) tone(300, 0.05, 0, 0.08);
     }, function () {
       tone(STOP_TONES[2], 0.09, 0, 0.16);
-      resolve(r1, r2, shown, outcome, tension);
+      done(r1, r2, shown, outcome, tension);
     });
+  }
+
+  // Spin mode: the same reels, the same crawl, and nothing to count. The bunny
+  // is the best thing that can happen here.
+  function resolveToy(r1, r2, r3, outcome, tension) {
+    if (outcome === "bust") {
+      reelEls[2].classList.add("happy", "hop");
+      setStatus("🐰 munch munch", "bunny");
+      showPayout("🐰", "bunny");
+      bunnySound(true);
+    } else if (outcome === "jackpot") {
+      setStatus("JACKPOT! 🥬🥬🥬", "jackpot");
+      showPayout("JACKPOT", "jackpot");
+      reelEls.forEach(function (el) { el.classList.add("hot"); });
+      jackpotSound();
+    } else if (outcome === "match") {
+      setStatus("MATCH! " + SYMBOLS[r1] + SYMBOLS[r1] + SYMBOLS[r1], "match");
+      showPayout("MATCH", "match");
+      reelEls.forEach(function (el) { el.classList.add("hot"); });
+      matchSound();
+    } else if (tension) {
+      setStatus("so close!", "near");
+    } else {
+      setStatus("");
+    }
+    spinning = false;
+    render();
   }
 
   function resolve(r1, r2, r3, outcome, tension) {
@@ -449,17 +559,17 @@
 
     if (outcome === "bust") {
       var lost = run.bowl;
-      run.snails += 1;
+      run.bunnies += 1;
       run.bowl = 0;
       run.streak = 0;
-      reelEls[2].classList.add("snail");
+      reelEls[2].classList.add("bunny");
       if (lost > 0) {
-        setStatus("the snail ate " + lost, "bust");
-        showPayout("🐌 −" + lost, "bust");
+        setStatus("the bunny ate " + lost, "bust");
+        showPayout("🐰 −" + lost, "bust");
       } else {
         setStatus("he found an empty bowl", "bust");
       }
-      snailSound();
+      bunnySound(false);
     } else {
       run.streak += 1;
       var leaf = run.streak;
@@ -477,6 +587,11 @@
         showPayout("×2", "match");
         reelEls.forEach(function (el) { el.classList.add("hot"); });
         matchSound();
+      } else if (run.coach && run.streak <= COACH.length) {
+        // First run: the first three leaves of a streak teach in the status
+        // line. Keyed on the streak, not the spin, so an early bunny (which
+        // explains itself) doesn't cancel the lesson.
+        setStatus(COACH[run.streak - 1], "");
       } else if (tension) {
         setStatus("so close — one off · +" + leaf, "near");
       } else {
@@ -484,6 +599,7 @@
       }
     }
 
+    if (run.coach && (run.streak >= COACH.length || run.spin >= 10)) { run.coach = false; Arcade.save("coached", true); }
     if (run.bowl > run.biggest) run.biggest = run.bowl;
 
     if (run.spin >= SPINS) {
@@ -508,7 +624,7 @@
   }
 
   function serve() {
-    if (spinning || phase !== "play" || !run || run.bowl <= 0) return;
+    if (spinning || phase !== "play" || ui !== "run" || !run || run.bowl <= 0) return;
     var amount = run.bowl;
     run.served += amount;
     run.bowl = 0;
@@ -523,7 +639,7 @@
   function finishRun() {
     var result = {
       mode: run.mode, date: run.date, served: run.served, tier: tierFor(run.served).name,
-      biggest: run.biggest, snails: run.snails, jackpots: run.jackpots
+      biggest: run.biggest, bunnies: run.bunnies, jackpots: run.jackpots
     };
     if (run.mode === "daily") {
       Arcade.save("daily", result);
@@ -557,31 +673,22 @@
   }
   function closeCard() { cardEl.classList.remove("show"); phase = "play"; }
 
-  function showRulesCard(then) {
+  // The rules live on the start card, under the button. No gate, no "Got it".
+  function rulesList() {
     var ul = el("ul");
-    [
-      "Every spin adds a leaf to the bowl. Leaf 1 is worth 1, leaf 2 is worth 2, leaf 9 is worth 9.",
-      "SERVE banks the bowl. Served points can never be lost. The streak starts over.",
-      "🐌 on the third reel eats the bowl.",
-      "MATCH doubles the bowl. 🥬🥬🥬 triples it and adds 50.",
-      "75 spins. Whatever's in the bowl at the end is served."
-    ].forEach(function (t) { ul.appendChild(el("li", null, t)); });
-    openCard([
-      el("h2", null, "How to play"),
-      ul,
-      button("Got it", "btn", function () { Arcade.save("seenRules", true); then(); })
-    ]);
+    RULES.forEach(function (t) { ul.appendChild(el("li", null, t)); });
+    return ul;
   }
 
   function showStartCard(mode, resume) {
     var kids = [];
-    kids.push(el("h2", null, mode === "daily" ? "Daily run · " + dateLabel(today) : "Free play"));
+    kids.push(el("h2", null, mode === "daily" ? "Daily run · " + dateLabel(today) : "Practice run"));
     if (resume) {
       kids.push(el("p", null, (SPINS - run.spin) + " spins left · " + run.served + " served so far"));
     } else {
       var best = num(Arcade.load(mode === "daily" ? "bestDaily" : "bestFree", 0));
       kids.push(el("p", null, SPINS + " spins · your best " + best));
-      if (mode === "daily") kids.push(el("p", null, "Everyone gets the same 75 reels today. Only the serving is yours."));
+      if (mode === "daily") kids.push(el("p", null, "Everyone gets the same " + SPINS + " reels today. Only the serving is yours."));
     }
     kids.push(button(resume ? "RESUME" : "START", "btn", function () {
       if (!resume) newRun(mode);
@@ -590,13 +697,13 @@
       setStatus("");
       render();
     }));
+    if (!resume) kids.push(rulesList());
     if (!resume && mode === "daily") {
-      kids.push(button("or play a free run", "link", function () { showStartCard("free", false); }));
+      kids.push(button("or play a practice run", "link", function () { showStartCard("free", false); }));
     }
     if (!resume && mode === "free" && dailyAvailable()) {
       kids.push(button("back to today's daily", "link", function () { showStartCard("daily", false); }));
     }
-    kids.push(button("How to play", "link", function () { showRulesCard(function () { showStartCard(mode, resume); }); }));
     openCard(kids);
   }
 
@@ -606,8 +713,8 @@
   }
 
   function resultLine(r) {
-    var line = "🥬 Lettuce Slots · " + (r.mode === "daily" ? dateLabel(r.date) : "Free play") +
-      " · " + r.served + " served · " + r.tier + " · biggest bowl " + r.biggest + " · 🐌 " + r.snails;
+    var line = "🥬 Lettuce Slots · " + (r.mode === "daily" ? dateLabel(r.date) : "Practice") +
+      " · " + r.served + " served · " + r.tier + " · biggest bowl " + r.biggest + " · 🐰 " + bunniesOf(r);
     if (r.jackpots > 0) line += " · 🥬 ×" + r.jackpots;
     return line;
   }
@@ -635,15 +742,15 @@
     var isDaily = r.mode === "daily";
     var best = num(Arcade.load(isDaily ? "bestDaily" : "bestFree", 0));
     var kids = [
-      el("h2", null, isDaily ? "Daily run · " + dateLabel(r.date) : "Free play"),
+      el("h2", null, isDaily ? "Daily run · " + dateLabel(r.date) : "Practice run"),
       el("div", "big", r.served + " served"),
       el("div", "tier", "🥗 " + r.tier),
-      el("p", null, "biggest bowl " + r.biggest + " · 🐌 " + r.snails + (r.jackpots > 0 ? " · 🥬 jackpot ×" + r.jackpots : "")),
-      el("p", null, "your " + (isDaily ? "daily" : "free") + " best " + best)
+      el("p", null, "biggest bowl " + r.biggest + " · 🐰 " + bunniesOf(r) + (r.jackpots > 0 ? " · 🥬 jackpot ×" + r.jackpots : "")),
+      el("p", null, "your " + (isDaily ? "daily" : "practice") + " best " + best)
     ];
     var copyBtn = button("Copy result", "btn quiet", function () { copyText(resultLine(r), copyBtn); });
     kids.push(copyBtn);
-    kids.push(button(isDaily ? "Free play" : "Play again", "btn", function () { showStartCard("free", false); }));
+    kids.push(button(isDaily ? "Practice run" : "Play again", "btn", function () { showStartCard("free", false); }));
     if (!isDaily && dailyAvailable()) {
       kids.push(button("back to today's daily", "link", function () { showStartCard("daily", false); }));
     }
@@ -653,6 +760,44 @@
     reelEls[1].textContent = SYMBOLS[LETTUCE];
     reelEls[2].textContent = STRIP3[LETTUCE];
   }
+
+  // ---- modes ------------------------------------------------------------
+  // Run mode picks up wherever the run was: a run in progress resumes, a
+  // finished daily shows its card, otherwise today's start card.
+  function enterRun() {
+    if (!run) run = loadRun();
+    clearRings();
+    setStatus("");
+    payoutEl.className = "payout";
+    if (run) { render(); showStartCard(run.mode, true); return; }
+    var d = Arcade.load("daily", null);
+    if (d && d.date === today) { showEndCard(d); return; }
+    showStartCard("daily", false);
+  }
+
+  function setUi(mode) {
+    if (spinning) return;
+    ui = mode;
+    Arcade.save("uiMode", mode);
+    document.body.classList.toggle("mode-spin", mode === "spin");
+    modeSpinBtn.classList.toggle("on", mode === "spin");
+    modeRunBtn.classList.toggle("on", mode === "run");
+    modeSpinBtn.setAttribute("aria-selected", mode === "spin" ? "true" : "false");
+    modeRunBtn.setAttribute("aria-selected", mode === "run" ? "true" : "false");
+    if (mode === "spin") {
+      // The run, if any, stays saved exactly where it is.
+      closeCard();
+      clearRings();
+      setStatus("");
+      payoutEl.className = "payout";
+      render();
+    } else {
+      enterRun();
+    }
+  }
+
+  modeSpinBtn.addEventListener("click", function () { if (ui !== "spin") setUi("spin"); });
+  modeRunBtn.addEventListener("click", function () { if (ui !== "run") setUi("run"); });
 
   // ---- input ------------------------------------------------------------
   function renderMute() {
@@ -678,15 +823,8 @@
   // ---- boot -------------------------------------------------------------
   function start() {
     renderMute();
-    run = loadRun();
-    function go() {
-      if (run) { render(); showStartCard(run.mode, true); return; }
-      var d = Arcade.load("daily", null);
-      if (d && d.date === today) { showEndCard(d); return; }
-      showStartCard("daily", false);
-    }
-    if (Arcade.load("seenRules", false) === true) go();
-    else showRulesCard(go);
+    // First boot opens on the toy. After that, wherever you left it.
+    setUi(Arcade.load("uiMode", "spin") === "run" ? "run" : "spin");
   }
 
   Arcade.boot(start);
