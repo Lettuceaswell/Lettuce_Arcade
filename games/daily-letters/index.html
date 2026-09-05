@@ -110,8 +110,9 @@
     line-height: 1.5;
   }
   .runs .w { color: var(--fg); font-weight: 600; }
-  .runs .two { opacity: 0.55; }
+  .runs .two { color: #c0392b; font-weight: 600; text-decoration: line-through; }
   .runs .sep { opacity: 0.4; margin: 0 4px; }
+  .runs .none { opacity: 0.55; }
 
   /* ---- rack ---- */
   .rack {
@@ -203,6 +204,7 @@
   .card-runs { text-align: center; color: var(--fg-dim); font-size: 0.95rem; letter-spacing: 0.06em; line-height: 1.5; }
   .card-runs .w { color: var(--fg); font-weight: 600; }
   .card-runs .two { opacity: 0.55; }
+  .card-runs .none { opacity: 0.55; }
   .card-runs .sep { opacity: 0.4; margin: 0 4px; }
   .card-score { font-size: 2rem; font-weight: 900; letter-spacing: 0.02em; margin-top: 4px; }
   .card-score.clean { color: var(--accent); }
@@ -307,9 +309,9 @@
     <h2>🔤 Daily Letters</h2>
     <p>Everyone gets the same 19 letters today. Weave as many as you can into one crossword. Fewest tiles left wins.</p>
     <ul>
-      <li>Words read left-to-right or top-to-bottom, 3+ letters.</li>
-      <li>No names, no abbreviations. Everything should connect.</li>
-      <li>The game doesn't check words. <b>Honor system.</b> Every run on your board is listed on your card, so what you spelled is there for anyone to see.</li>
+      <li>Words read left-to-right or top-to-bottom, 3+ letters. Two letters side by side is a run too, so no 2-letter runs anywhere.</li>
+      <li>Everything must connect. The game checks both of those before you can commit.</li>
+      <li>No names, no abbreviations. The game doesn't check words. <b>Honor system.</b> Every run on your board is listed on your card, so what you spelled is there for anyone to see.</li>
       <li>Tap a rack tile, then tap a square. Tap a placed tile to pick it up. The arrows slide the whole board.</li>
       <li>Dots under a letter mark how rare it is. More dots, harder to place.</li>
       <li><b>Commit</b> makes your card. You can reopen and re-commit as often as you like.</li>
@@ -590,10 +592,14 @@
       }
     }
 
-    var longest = 0, words = 0;
-    runs.forEach(function (w) { if (w.length > longest) longest = w.length; if (w.length >= 3) words++; });
+    var longest = 0, words = 0, shorts = 0;
+    runs.forEach(function (w) { if (w.length > longest) longest = w.length; if (w.length >= 3) words++; else shorts++; });
 
-    return { runs: runs, placed: placed, left: TILES - placed, words: words, longest: longest, groups: groups };
+    // A board can only be committed when every placed tile touches every
+    // other (one group) and no run is a 2-letter run. Words themselves are
+    // still honor system.
+    var legal = placed > 0 && groups === 1 && shorts === 0;
+    return { runs: runs, placed: placed, left: TILES - placed, words: words, longest: longest, groups: groups, shorts: shorts, legal: legal };
   }
 
   function rawBox() {
@@ -764,13 +770,17 @@
     runsEl.innerHTML = runsHTML(a.runs);
     leftNum.textContent = a.left;
 
-    if (a.placed > 0 && a.groups > 1) {
-      groupsPill.textContent = a.groups + " groups — should connect";
+    var why = [];
+    if (a.placed > 0 && a.groups > 1) why.push(a.groups + " groups — must connect");
+    if (a.shorts > 0) why.push(a.shorts === 1 ? "a 2-letter run — words are 3+" : a.shorts + " 2-letter runs — words are 3+");
+    if (why.length) {
+      groupsPill.textContent = why.join(" · ");
       groupsPill.hidden = false;
     } else groupsPill.hidden = true;
 
     commitBtn.textContent = a.left === 0 ? "Commit · Clean rack" : "Commit · " + a.left + " left";
-    commitBtn.classList.toggle("pulse", a.left === 0);
+    commitBtn.disabled = a.placed > 0 && !a.legal;
+    commitBtn.classList.toggle("pulse", a.left === 0 && a.legal);
 
     var box = rawBox();
     shiftBtns.L.disabled = !box || box.c0 === 0;
@@ -866,6 +876,10 @@
 
   commitBtn.addEventListener("click", function () {
     var a = analyze();
+    if (a.placed > 0 && !a.legal) {
+      flashHint(a.groups > 1 ? "Connect every tile first" : "No 2-letter runs");
+      return;
+    }
     var what = a.left === 0 ? "a clean rack" : a.left + " left";
     askConfirm("Lock in " + what + "?", "Your board locks and your card is made. You can reopen and re-commit any time.", "Lock in", commit);
   });
@@ -908,6 +922,7 @@
 
   function commit() {
     var a = analyze();
+    if (a.placed > 0 && !a.legal) { render(); return; }
     if (isDaily()) {
       var base = streakBase();
       profile.streak = {
@@ -998,7 +1013,7 @@
     }
 
     var cRuns = $("cRuns");
-    cRuns.innerHTML = runsHTML(a.runs) || '<span class="two">no runs</span>';
+    cRuns.innerHTML = runsHTML(a.runs) || '<span class="none">no runs</span>';
     var runsEnd = flipsEnd;
     if (doAnim) {
       var spans = cRuns.querySelectorAll("span");
