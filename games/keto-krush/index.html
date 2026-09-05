@@ -74,6 +74,108 @@
     box-shadow: 0 0 0 3px #ff5fd6 inset, 0 0 10px 2px rgba(255, 95, 214, 0.7);
   }
 
+  /* A powered-up tile says which way it fires: a faint line through the
+     emoji, horizontal / vertical / both, breathing slowly. Drawn on ::before
+     so it paints under the emoji and leaves ::after free for the hint. */
+  @keyframes specialBreathe {
+    0%, 100% { opacity: 0.35; }
+    50% { opacity: 0.9; }
+  }
+
+  .tile.special-row::before,
+  .tile.special-col::before,
+  .tile.special-cross::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    --mark: rgba(255, 255, 255, 0.9);
+    --mark-h: linear-gradient(var(--mark), var(--mark)) center / 74% 3px no-repeat;
+    --mark-v: linear-gradient(var(--mark), var(--mark)) center / 3px 74% no-repeat;
+    animation: specialBreathe 1400ms ease-in-out infinite;
+  }
+
+  .tile.special-row::before { --mark: #ffd23f; background: var(--mark-h); }
+  .tile.special-col::before { --mark: #4fd6ff; background: var(--mark-v); }
+  .tile.special-cross::before { --mark: #ff5fd6; background: var(--mark-h), var(--mark-v); }
+
+  /* The board wears the tier: a halo in the multiplier's colour, quiet in
+     ketosis, brighter in deep, and pulsing hard while fat-adapted so the
+     4x is visible while you're staring at the tiles. */
+  .board::before {
+    content: "";
+    position: absolute;
+    inset: -7px;
+    border-radius: 16px;
+    pointer-events: none;
+    box-shadow: 0 0 0 0 transparent;
+    transition: box-shadow 300ms ease;
+  }
+
+  body.ketosis .board::before { box-shadow: 0 0 0 2px rgba(74, 222, 128, 0.7), 0 0 14px 2px rgba(74, 222, 128, 0.35); }
+  body.deep .board::before { box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.85), 0 0 20px 4px rgba(56, 189, 248, 0.45); }
+  body.carbcrash .board::before { box-shadow: 0 0 0 2px rgba(255, 107, 107, 0.6), 0 0 12px 2px rgba(255, 107, 107, 0.3); }
+
+  @keyframes boardFrenzy {
+    0%, 100% { box-shadow: 0 0 0 3px rgba(192, 132, 252, 0.8), 0 0 18px 4px rgba(192, 132, 252, 0.4); }
+    50% { box-shadow: 0 0 0 5px rgba(233, 213, 255, 1), 0 0 34px 10px rgba(192, 132, 252, 0.8); }
+  }
+
+  body.frenzy .board::before { animation: boardFrenzy 700ms ease-in-out infinite; }
+
+  /* Tier-up burst: a big label that stamps over the board and fades. The
+     status line still carries the words; this is the part you can't miss. */
+  #burst {
+    position: fixed;
+    inset: 0;
+    z-index: 8000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+    opacity: 0;
+  }
+
+  #burst span {
+    font-size: 1.45rem;
+    font-weight: 900;
+    letter-spacing: 0.04em;
+    white-space: nowrap;
+    max-width: 94vw;
+    padding: 10px 22px;
+    border-radius: 16px;
+    color: #fff;
+    background: rgba(5, 41, 38, 0.92);
+    box-shadow: 0 0 0 3px var(--burst, #4ade80), 0 0 30px 8px var(--burst, #4ade80);
+    text-shadow: 0 2px 8px rgba(0, 0, 0, 0.6);
+  }
+
+  #burst.big span { font-size: 1.85rem; }
+
+  @keyframes burstIn {
+    0% { opacity: 0; transform: scale(0.4); }
+    18% { opacity: 1; transform: scale(1.12); }
+    30% { transform: scale(1); }
+    75% { opacity: 1; transform: scale(1); }
+    100% { opacity: 0; transform: scale(1.05) translateY(-12px); }
+  }
+
+  @keyframes burstFlash {
+    0% { background: var(--burst, #4ade80); opacity: 0.45; }
+    100% { background: var(--burst, #4ade80); opacity: 0; }
+  }
+
+  #burst.show { animation: burstIn 1400ms cubic-bezier(0.2, 0.9, 0.3, 1.1) both; }
+  #burst.big.show { animation-duration: 1900ms; }
+  #burst.show::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    animation: burstFlash 600ms ease-out both;
+  }
+  #burst.big.show::before { animation-duration: 900ms; }
+
   /* Protein tiles get their own ground so a scan for meat or cheese is a
      colour read, not an emoji hunt. Warm complements to the teal carbs. */
   .tile.meat { background: #b8433a; }
@@ -340,6 +442,11 @@
 
   @media (prefers-reduced-motion: reduce) {
     #moves.gain { animation: none; }
+    .tile.special-row::before, .tile.special-col::before, .tile.special-cross::before { animation: none; opacity: 0.7; }
+    body.frenzy .board::before { animation: none; box-shadow: 0 0 0 4px rgba(192, 132, 252, 0.9), 0 0 24px 6px rgba(192, 132, 252, 0.6); }
+    #burst.show { animation: none; opacity: 1; transition: opacity 200ms; }
+    #burst.show::before { animation: none; }
+    #burst.fade { opacity: 0; }
     .reveal.in, .reveal.stamp.in { animation: none; opacity: 1; }
     .arcclip.in { transition: none; }
     #overlay, .card { transition: none; }
@@ -362,7 +469,7 @@
 
 <div id="status" aria-live="polite"></div>
 <div id="scoreline"></div>
-<div id="movebar">Moves left: <span id="moves">25</span></div>
+<div id="movebar">Moves left: <span id="moves">30</span></div>
 <div id="ketosis"><div id="ketosis-fill"></div></div>
 <div id="ketosis-label"></div>
 
@@ -409,6 +516,8 @@
   </div>
 </div>
 
+<div id="burst" aria-hidden="true"><span></span></div>
+
 <button id="mute" class="btn" aria-label="Mute sound">🔊</button>
 
 <script src="/shared/arcade.js"></script>
@@ -420,7 +529,7 @@
       "🍖 🧀 protein climbs the ketosis meter. 🍕 🥐 🍪 carbs pay cash now but drain it.",
       "The higher the meter, the bigger the multiplier. Fill it for a frenzy. Chain reactions can't knock you down a tier.",
       "Four in a row leaves a special tile. Sweep it into a later clear to detonate it.",
-      "25 moves. Climbing the meter earns more."
+      "30 moves. Climbing the meter earns more."
     ],
     // No menu mid-cascade: restartRun would tear the board out from under
     // the animation. Once the run is over the card is up and busy is true,
@@ -450,9 +559,14 @@
   var TIERS = [
     { name: "crash",  min: 0,  mult: 0.5, drain: 1 },
     { name: "normal", min: 16, mult: 1,   drain: 1 },
-    { name: "keto",   min: 70, mult: 2,   drain: 3 },
-    { name: "deep",   min: 85, mult: 3,   drain: 5 }
+    { name: "keto",   min: 70, mult: 2,   drain: 2 },
+    { name: "deep",   min: 85, mult: 3,   drain: 3 }
   ];
+  // Drain was 3/5 on the top two bands (v17-v32). That was tuned against a
+  // 33% frenzy share that turned out to come from the carb waiver retired in
+  // v20, not from the drain. Under the shipped rules 2/3 lifts the share of
+  // runs that ever frenzy from 25% to 40% (skilled) and 13% to 22% (casual)
+  // at a flat run length. See gdd/keto-krush.md "Simulation audit".
   var KETOSIS_DRAIN_FLOOR = 40; // drain never pushes you below this: only
                                 // carbs can crash you, never attrition
   var SUGAR_RUSH = 1.5;     // score bonus on an all-carb clear step
@@ -462,27 +576,25 @@
   var POINTS_PER_TILE = 10; // the tiers are unreadable at a base of 1
 
   // ---- the move budget -----------------------------------------------------
-  // A refilling 6x6 board practically never locks: simulated to board lock,
-  // a perfect-protein run lasts a median of 1,033 moves (p90 3,246) and fires
-  // 73 frenzies. Nothing is scarce, so climbing costs nothing and the frenzy
-  // stops being a payoff — it's just the weather. The budget is the scarcity.
+  // A refilling 6x6 board practically never locks, so without a budget nothing
+  // is scarce, climbing costs nothing and the frenzy is just the weather. The
+  // budget is the scarcity, and refunds come only from the meter, so the thing
+  // the player fully controls decides how long they play.
   //
-  // Refunds come only from the meter, which makes the thing the player fully
-  // controls the thing that decides how long they play. They're tuned so a
-  // climb never quite pays for itself — the margin is thin and the cliff is
-  // real: raising the deep refund to 3 tips skilled play straight back into
-  // runaway (median 676 moves, max 5,001, only 14% of runs ending on the
-  // budget at all). At 2 the budget ends 90% of them.
-  //
-  // Simulated medians: ~31 moves casual, ~134 perfect-protein, ~170 for a
-  // player taking the *biggest* protein match rather than merely a protein
-  // one — matching well beats matching greedily, which is the right lesson.
-  var MOVE_BUDGET = 25;
+  // Measured (gdd/sim/keto-krush, 2,000 runs per bot, v33 rules): a casual
+  // round is ~34 moves, skilled play ~40, and the budget ends 90%+ of runs for
+  // everyone. The refund table is a gentle knob — deep refund 1..5 moves the
+  // skilled median by three moves. The cliffs are KETOSIS_PROTEIN_GAIN and
+  // KETOSIS_CARB_LOSS: one step either way roughly triples run length or
+  // collapses the frenzy rate. (Older comments here quoted 134/170-move
+  // medians and a refund cliff; those were measured with the v20 carb waiver
+  // still on.)
+  var MOVE_BUDGET = 30;
   var REFUND = { keto: 2, deep: 2, frenzy: 5 };
 
   // Bumping this resets the personal best: scores earned under an older
   // economy aren't comparable to scores earned under this one.
-  var ECON = 3;
+  var ECON = 4;
 
   var boardEl = document.getElementById("board");
   var statusEl = document.getElementById("status");
@@ -716,6 +828,29 @@
   // Fires the banner + sound when the meter crosses a band. Called after any
   // meter change — cascade gains, per-move drain, or frenzy expiry — so a
   // tier lost to upkeep announces itself the same way one lost to carbs does.
+  // The tier-up burst. Playtest: "I hit fat-adapted and didn't even realise
+  // it, I was looking at the board." The status line sits above the meter,
+  // outside the eye's focus mid-cascade, so a tier reached now stamps a
+  // label over the board itself. Ketosis and deep get a short one; the
+  // frenzy gets the big one with a screen flash.
+  var burstEl = $("burst");
+  var burstTimer = null;
+  function burst(text, colour, big) {
+    if (burstTimer) clearTimeout(burstTimer);
+    burstEl.className = "";
+    burstEl.classList.remove("fade");
+    void burstEl.offsetWidth; // restart the animation on back-to-back tier-ups
+    burstEl.firstElementChild.textContent = text;
+    burstEl.style.setProperty("--burst", colour);
+    burstEl.classList.toggle("big", !!big);
+    burstEl.classList.add("show");
+    var life = reducedMotion ? 1100 : (big ? 1900 : 1400);
+    burstTimer = setTimeout(function () {
+      if (reducedMotion) burstEl.classList.add("fade");
+      burstTimer = setTimeout(function () { burstEl.className = ""; }, 250);
+    }, life);
+  }
+
   function syncKetosisState(announce) {
     var next = currentStateName();
     if (next === ketosisState) return false;
@@ -730,8 +865,11 @@
     // deep crosses the same boundary and must not claim a refund it didn't get.
     var bonus = pendingRefund > 0 ? " · +" + pendingRefund + " moves" : "";
     pendingRefund = 0;
+    var rank = { crash: 0, normal: 1, keto: 2, deep: 3, frenzy: 4 };
+    var climbed = rank[next] > rank[prev];
     if (next === "frenzy") {
       frenzyInSound();
+      burst("⚡ FAT-ADAPTED ×4", TIER_COLORS.frenzy, true);
       // The 4x is already under the bar for the whole frenzy; the carb
       // immunity is stated nowhere else, so it keeps the banner slot.
       setStatus("⚡ Fat-adapted!" + bonus.replace(" · ", " ") + " · carbs can't touch you");
@@ -740,9 +878,11 @@
       setStatus("Back down to ketosis");
     } else if (next === "deep") {
       ketosisInSound();
+      if (climbed) burst("🔥 DEEP KETOSIS ×3", TIER_COLORS.deep, false);
       setStatus("🔥 Deep ketosis — 3x" + bonus);
     } else if (next === "keto") {
       ketosisInSound();
+      if (climbed) burst("🥑 KETOSIS ×2", TIER_COLORS.keto, false);
       setStatus("🥑 Ketosis — 2x" + bonus);
     } else if (next === "crash") {
       ketosisOutSound();
@@ -1166,8 +1306,12 @@
     return row;
   }
 
+  // No frenzy but the meter got within ten of it: say how close, as a
+  // number. Measured at 19-26% of skilled runs, and the card was silent on
+  // every one of them. A frenzy outranks the near miss, so it never shows
+  // next to a ⚡.
   function frenzyGlyphs(n) {
-    if (!n) return "—";
+    if (!n) return run.peak >= 90 ? (100 - run.peak) + " short" : "—";
     var s = "";
     for (var i = 0; i < Math.min(n, 5); i++) s += "⚡";
     return n > 5 ? s + " ×" + n : s;
@@ -1643,9 +1787,14 @@
       // cost meter, but never below the floor of the tier you hold going
       // into that step. Protein chains stay fully live — the lucky rocket
       // into a frenzy is one of the best moments in the game.
+      //
+      // v33: the same floor covers a special detonating on your own match.
+      // The row it wipes is luck too, and it was the main way protein players
+      // still crashed (83% of skilled runs). Measured: skill spread 1.40x ->
+      // 1.51x over casual, crash endings down, luck share unchanged.
       if (frenzyMoves === 0) {
         var loss = carbCount * KETOSIS_CARB_LOSS;
-        var floor = comboStep > 1 ? Math.min(ketosis, tierFor(ketosis).min) : 0;
+        var floor = (comboStep > 1 || triggeredSpecial) ? Math.min(ketosis, tierFor(ketosis).min) : 0;
         var before = ketosis;
         ketosis = Math.max(floor, Math.min(100, ketosis + proteinCount * KETOSIS_PROTEIN_GAIN - loss));
         run.carbLoss += Math.min(loss, Math.max(0, Math.min(100, before + proteinCount * KETOSIS_PROTEIN_GAIN) - ketosis));

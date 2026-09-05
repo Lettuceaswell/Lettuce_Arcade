@@ -3,3 +3,6 @@ Thumbs.db
 *.log
 .vscode/
 .idea/
+
+# Keto Krush sim: superseded raw results are reproducible from sim.js
+gdd/sim/keto-krush/results-v32/

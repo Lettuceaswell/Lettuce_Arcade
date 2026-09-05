@@ -2,8 +2,9 @@
 
 - **Slug:** `games/keto-krush/`
 - **Emoji:** 🍖
-- **Status:** shipped (v23) — ketosis economy, the move budget, and the end
-  card are built and tuned
+- **Status:** shipped (v33) — ketosis economy, the move budget, and the end
+  card are built; retuned from a simulation audit (drain 2/3, budget 30,
+  special-detonation floor) with tier-up ceremony and special-tile marks
 
 ## One-line pitch
 A match-3 where the board is a plate: fat and protein compound into a
@@ -151,6 +152,11 @@ Demanding, not grindy.
 
 ### Measured
 
+> **Superseded (2026-09-04).** These numbers were taken under the carb waiver
+> retired in v20 and before the v28 cascade floor. Under the shipped rules the
+> frenzy share for skilled play is ~4%, not 29%, and the crash tier is reached
+> in most runs by every strategy. See [Simulation audit](#simulation-audit-2026-09-04).
+
 Simulated 600 moves per strategy against the shipped build, plus 12 full runs
 to board-lock each:
 
@@ -208,6 +214,14 @@ the decision it was designed to be. Carbs now cost you *time*, not just
 multiplier.
 
 ### Measured
+
+> **Superseded (2026-09-04).** The 134 / 170 medians and the refund.deep
+> cliff were measured with the v20 carb waiver still on (confirmed by
+> reproducing them with the waiver re-enabled: 155 / 171). Under the shipped
+> rules skilled play lasts a median of 31–33 moves and refund.deep is one of
+> the flattest knobs in the game. The same stale figures live in a comment
+> above `MOVE_BUDGET` in the game source. See
+> [Simulation audit](#simulation-audit-2026-09-04).
 
 250 runs per strategy against the shipped rules:
 
@@ -397,19 +411,26 @@ No daily seed — this is a score-attack game, not a daily.
 
 ## Tuning knobs
 
-0. **Refund table (+2 / +2 / +5) and starting budget (25).** The knob that
-   decides whether the game is bounded at all, and the most fragile one here.
-   +3 on deep instead of +2 takes skilled play from a 134-move median to 676
-   with a 5,001 max. Change one value by one and re-measure before believing
-   it. Starting budget is the safe half of this pair: it moves the casual round
-   length roughly 1:1 and barely touches the ceiling.
+0. **Refund table (+2 / +2 / +5) and starting budget (25).** *Corrected
+   2026-09-04:* the refund cliff described here earlier was an artefact of the
+   retired carb waiver. Under shipped rules refund.deep 1→5 moves the skilled
+   median from 31 to 34 moves; refund.keto is slightly stronger (29/33/35 at
+   1/2/3) because the keto arm is reached far more often. Both are safe.
+   Starting budget is the steep-but-linear knob: 20/25/30/35 gives 26/33/38/43
+   median moves for skilled play and 22/27/33/39 for casual.
 1. **Drain rates (1/3/5).** The dial that decides how much of a chain is
-   upkeep versus progress, and the one that actually moved during tuning.
-   Shipped at 1/2/3, which left a perfect-play bot in frenzy 33% of the time
-   — the payoff had become the resting state. Raising the top two bands to
-   3/5 taxes the top of the climb specifically, where the problem was, and
-   dropped realistic play to 13% frenzy without weakening the incentive
-   (keto/carb ratio only moved 2.2× → 2.6×).
+   upkeep versus progress. Raised from 1/2/3 to 1/3/5 to fix a 33% frenzy
+   share that, in hindsight, came from the waiver rather than the drain.
+   *Under shipped rules this is the frenzy-rate knob:* 2/3 vs 3/5 vs 4/6 on
+   the top two bands gives 35% / 23% / 17% of skilled runs a frenzy, at a
+   flat 31–33 median moves. It moves the payoff rate without moving run length.
+1b. **Meter per tile (+4 protein / −3 carb).** *The real cliffs.* With 2 of 5
+   icons protein, a random refill tile is worth −0.2 meter on average, and
+   cascades are long, so the meter leaks on every chain. carbLoss 3→2 takes
+   skilled play from 33 to 85 median moves and quintuples score; proteinGain
+   4→5 does the same (66 moves). carbLoss 4 or proteinGain 3 collapses the
+   frenzy rate to 1–10%. Change either by one and re-measure; these are the
+   knobs the old refund warning was really about.
 2. **Sugar rush multiplier (1.5×).** How hard the temptation bites. Below
    ~1.3 carbs are never worth taking and the decision evaporates; above ~1.8
    the climb stops being worth starting.
@@ -424,29 +445,134 @@ No daily seed — this is a score-attack game, not a daily.
 6. **Protein share of the icon set (2 of 5).** The hard constraint on how
    often a climb is even available. Changing this changes everything above.
 
+## Simulation audit (2026-09-04)
+
+A headless port of the shipped rules (`gdd/sim/keto-krush/`, plain Node, no
+deps) verified move-for-move against the game's own script running in a
+stubbed DOM: ~5,000 moves across five choosers, zero divergences. Ten bots,
+2,000 runs each on identical seeds, plus a 10-knob sensitivity sweep. Raw
+numbers in `FINDINGS.md`; charts in `report.html`. This section is the
+interpretation.
+
+### Balance
+
+Pre-retune (v32) on the left of each cell, shipped v33 on the right.
+
+| Bot | Median score | vs random | Median moves | Runs with a frenzy |
+|---|---|---|---|---|
+| Random | 2,824 → 3,486 | 1.0× | 25 → 32 | 10% → 16% |
+| Casual (70% random / 30% best protein) | 3,245 → 4,062 | 1.15× → 1.17× | 27 → 34 | 13% → 22% |
+| Greedy (biggest match, ignores meter) | 3,423 → 4,273 | 1.2× → 1.2× | 27 → 32 | 13% → 22% |
+| Any protein | 4,123 → 5,390 | 1.5× → 1.55× | 33 → 39 | 23% → 38% |
+| Biggest protein (the hint) | 4,533 → 6,136 | 1.6× → 1.76× | 31 → 40 | 25% → 40% |
+| One-move lookahead (ceiling) | 6,238 → 8,805 | 2.2× → 2.5× | 31 → 42 | 28% → 43% |
+
+v33 luck share is unchanged: random beats the hint-follower on 19% of boards
+(was 20%), casual beats the ceiling on 13% (was 14%). Every bot still ends on
+the budget 91–93% of the time and no bot's p90 exceeds 100 moves. Full v33
+tables are in `FINDINGS.md` §7; the v32 raw results are kept in
+`results-v32/`. The v32 analysis below is left as written, since it is what
+motivated the retune.
+
+- **Skill matters, modestly.** Reading the meter is worth about 1.6× over
+  random, and perfect board-reading about 2.2×. Healthy for a family arcade,
+  but the old "2.6× over always-carbs" claim was waiver-era.
+- **Luck is a big share of the variance.** On the same board, random beats
+  the hint-follower 20% of the time, and casual beats the ceiling bot 14% of
+  the time. Greedy is only 1.2× random. Cascade luck sets most of the score.
+- **Run length is set by the budget, not by skill.** Every bot ends on the
+  budget 93–96% of the time and lasts 25–33 moves. Skilled play earns a
+  median of 8 refunded moves; casual earns 2. The "climb → release → land →
+  climb" loop practically never repeats: the best bot averages 0.5 frenzies
+  per run.
+- **The carb choice is a trap, not a dilemma.** At every tier, the best carb
+  move out-pays the best protein move *right now* 46–60% of the time (the
+  sugar rush and the 3-of-5 carb share both push this). But every "tempted"
+  bot that takes carbs when they pay more scores worse than the one that never
+  does, at every threshold up to 2×. The correct answer is always protein; the
+  temptation is numerically real and strategically always wrong. That's a fine
+  skill test, but it isn't the "agonizing near a tier boundary" the design
+  called for.
+- **The board forces carbs more the higher you climb.** Share of decision
+  points with no protein move at all: 21% in normal, 31% in keto, 38% in deep.
+  This, plus meter-negative cascades, is why holding a tier is hard.
+
+### Dopamine
+
+- **Reward rhythm is fine.** Median longest dry stretch is 5 moves for every
+  bot, p90 is 8–10, and there are about 4 reward events per 10 moves. Nothing
+  here needs fixing.
+- **Casual players do reach ketosis.** 94% of casual runs see a tier-up, at a
+  median of move 6. The old worry is answered.
+- **The frenzy is the problem.** It is the game's designed payoff, and 87% of
+  casual runs and 75% of skilled runs never see it. Inside a frenzy a move is
+  worth 3.7× a normal one (563 vs 153 pts), so the payoff is real when it
+  lands; it just rarely lands.
+- **Successful climbs are cascade lotteries.** Measured only over climbs that
+  reached 100, the trip from 70 to 100 takes a median of 3 moves, p90 6. The
+  design's "~5 clean protein matches, 7–9 realistic" is not what happens:
+  deliberate climbs mostly stall out, and the ones that succeed are rockets.
+  Good for surprise (a variable-ratio reward), bad for "the stat you
+  control decides your run."
+- **Near misses are common and invisible.** 19–26% of skilled runs peak at
+  90–99 and never frenzy, and 26% sit at 95–99 then fall back mid-run. Runs
+  essentially never *end* at 95–99 (0.1%), so there is no "one more move"
+  hook at the end; the near miss happens in the middle and nothing marks it.
+- **A quarter to a third of runs end in carb crash.** Final-move state is
+  crash for 24–31% of runs across *all* bots, including the protein ones, and
+  76–95% of runs crash at some point. The crash tier is not a carb-only-player
+  consequence; it is where a big carb cascade on the last few moves dumps
+  anyone. Ending at 0.5× is the weakest possible last impression.
+
+### Recommendations, and what shipped (v33)
+
+Developer guidance for the retune: a little more teeth, so learners feel
+their improvement, inside the measured skill/luck window; and keto often
+enough that the game earns its name.
+
+1. **Fix the stale numbers.** Shipped: this doc and the `MOVE_BUDGET` comment.
+2. **Lower the top-two drain to 2/3.** Shipped. The one knob that raises the
+   frenzy rate without touching run length; 1/3/5 was tuned against a
+   waiver-era problem.
+3. **Surface the near miss on the end card.** Shipped: the Fat-adapted
+   highlight reads "N short" when the peak was 90–99 and no frenzy fired.
+4. **Soften the crash ending.** Shipped as option (b): the v28 cascade floor
+   now also covers a special detonating on the player's own match. Two
+   candidates were simmed (`CANDIDATES.md`). The floor version lifted the
+   skill spread from 1.40× to 1.51× with luck unchanged. The stronger version
+   (detonated carbs cost nothing) hit 56% frenzy and a 569-move runaway for
+   the ceiling bot, and was rejected.
+5. **Move budget 25 → 30.** Shipped, on the developer's call for more room to
+   build a climb. Casual rounds go from 27 to 34 moves.
+6. **Ceremony.** Shipped: a tier-up label stamps over the board (big one with a
+   screen flash for fat-adapted), the board wears a halo in the tier colour
+   that pulses during a frenzy, and special tiles carry a breathing line
+   showing which way they fire. Playtest note that drove it: "I hit
+   fat-adapted and didn't even realise it, I was looking at the board."
+7. **Not done: decide what the sugar rush is for.** It's a pure score knob for
+   anyone who never takes carbs. Carbs are the only option 30–38% of the time
+   in keto/deep already. Needs a `tempted` sweep across sugarRush values,
+   which the sim supports but no pass has run.
+8. **Leave the refund table alone.** Gentle now.
+
+### Not yet trusted
+
+- Frenzy occupancy is under-counted by about one move in six because the last
+  frenzy move records as keto after the landing, same as the game's own arc.
+- The lookahead bot's value function is a guess; it's a ceiling estimate, not
+  a tight one.
+- Move-level stats (choice reality, tempted cross-check) rest on 60 runs per
+  bot, not the spec's 200, to keep results under 5 MB.
+
 ## Open questions
 
-- **Does the crash tier still earn its place?** Measured at 30% occupancy for
-  carb-only play but 0% for anything else — so it's live content, but only
-  for players ignoring the meter entirely. Worth watching whether anyone in
-  the family actually lands there in real play.
-- **Should specials favor the chain?** A 4+ protein run currently makes the
-  same special as a 4+ carb run. Making protein specials meter-positive on
-  detonation would deepen the climb, but risks over-rewarding a state that's
-  already the strongest in the game.
-- **Is a 29% frenzy share still too high for perfect play?** Realistic mixed
-  play sits at 13%, which reads right, but the ceiling is high. The frenzy
-  landing (knob 4) is the lever if it grates in practice.
-- **Does a casual 31-move run feel complete, or abrupt?** It's about two
-  minutes, and a player who never reaches ketosis earns only a couple of extra
-  moves — so the refund mechanic barely reaches them. Watch whether the
-  youngest players read "moves left" as pressure or as a wall. If it's a wall,
-  raise the starting budget rather than the refunds; the budget is the safe
-  knob and the refunds are the cliff.
-- **Should the budget be visible as a bar rather than a number?** A number is
-  precise and legible, but it doesn't convey "running out" at a glance the way
-  the meter does. Left as a number for now since the meter already owns the
-  bar vocabulary and two bars would compete.
+- **Should specials favor the chain?** A 4+ protein run makes the same
+  special as a 4+ carb run. The sim shows specials are a main way carbs
+  crash protein players, so protein-flavoured specials cut both ways.
+- **Does a casual 27-move run feel complete, or abrupt?** About two minutes.
+  The budget is the safe knob if it's a wall; refunds are gentle now too.
+- **Should the budget be visible as a bar rather than a number?** Left as a
+  number since the meter already owns the bar vocabulary.
 
 ### Resolved during build
 
