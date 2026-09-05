@@ -1,0 +1,23 @@
+{
+ "secondsPerSpin": 2.76,
+ "jackpotDrought": {
+  "median": 87,
+  "p90": 287,
+  "p99": 574,
+  "pNoneIn100": 0.448,
+  "pNoneIn300": 0.09
+ },
+ "matchDrought": {
+  "median": 22,
+  "p90": 71,
+  "p99": 142
+ },
+ "anyWinDrought": {
+  "median": 17,
+  "p90": 57
+ },
+ "pointsPerSpin": 6.6,
+ "pointsPerMinute": 143.5,
+ "minutesPerJackpotMedian": 4,
+ "minutesPerJackpotP90": 13.2
+}

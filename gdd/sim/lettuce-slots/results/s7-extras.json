@@ -1,0 +1,181 @@
+{
+ "nudge": {
+  "best 0": {
+   "pFiresInRun": 0,
+   "pFiresAfterSpin40": 0,
+   "medianFinalServedWhenFired": null
+  },
+  "best 175": {
+   "pFiresInRun": 0.417,
+   "pFiresAfterSpin40": 0.2,
+   "medianFinalServedWhenFired": 125
+  },
+  "best 291": {
+   "pFiresInRun": 0.658,
+   "pFiresAfterSpin40": 0.465,
+   "medianFinalServedWhenFired": 135
+  },
+  "best 376": {
+   "pFiresInRun": 0.793,
+   "pFiresAfterSpin40": 0.637,
+   "medianFinalServedWhenFired": 144
+  }
+ },
+ "nudgeNote": "policy hook only sees spins with bowl>0, so this undercounts slightly",
+ "ladder": {
+  "rates": {
+   "streak5": {
+    "shipped": [
+     0.905,
+     0.189,
+     0.021,
+     0.001
+    ],
+    "A 80/160/240/330": [
+     0.97,
+     0.404,
+     0.08,
+     0.011
+    ],
+    "B 100/175/250/350": [
+     0.905,
+     0.305,
+     0.065,
+     0.008
+    ],
+    "C 60/120/200/300/420": [
+     0.996,
+     0.782,
+     0.189,
+     0.021,
+     0.002
+    ]
+   },
+   "human7": {
+    "shipped": [
+     0.841,
+     0.295,
+     0.06,
+     0.006
+    ],
+    "A 80/160/240/330": [
+     0.922,
+     0.502,
+     0.159,
+     0.035
+    ],
+    "B 100/175/250/350": [
+     0.841,
+     0.421,
+     0.136,
+     0.026
+    ],
+    "C 60/120/200/300/420": [
+     0.963,
+     0.75,
+     0.295,
+     0.06,
+     0.009
+    ]
+   },
+   "optimal": {
+    "shipped": [
+     0.826,
+     0.437,
+     0.137,
+     0.011
+    ],
+    "A 80/160/240/330": [
+     0.872,
+     0.597,
+     0.29,
+     0.091
+    ],
+    "B 100/175/250/350": [
+     0.826,
+     0.54,
+     0.261,
+     0.069
+    ],
+    "C 60/120/200/300/420": [
+     0.94,
+     0.773,
+     0.437,
+     0.137,
+     0.021
+    ]
+   }
+  },
+  "dists": {
+   "streak5": {
+    "p10": 100,
+    "p25": 121,
+    "p50": 148,
+    "p75": 185,
+    "p90": 230,
+    "p95": 262,
+    "p99": 335,
+    "servedBySpin40Median": 75
+   },
+   "human7": {
+    "p10": 87,
+    "p25": 120,
+    "p50": 160,
+    "p75": 211,
+    "p90": 268,
+    "p95": 310,
+    "p99": 413,
+    "servedBySpin40Median": 74
+   },
+   "optimal": {
+    "p10": 69,
+    "p25": 127,
+    "p50": 185,
+    "p75": 254,
+    "p90": 322,
+    "p95": 371,
+    "p99": 455,
+    "servedBySpin40Median": 69
+   }
+  }
+ },
+ "lastSix": {
+  "sharpWithAllIn": 187.6,
+  "sharpWithoutAllIn": 187.6
+ },
+ "dpServeStreakBySpinsLeftTail": {
+  "1": 13,
+  "2": 12,
+  "3": 12,
+  "4": 11,
+  "5": 11,
+  "6": 11,
+  "7": 11,
+  "8": 11
+ },
+ "multipliers": {
+  "dpNoWins": 135.3,
+  "dpShipped": 192,
+  "human7NoWins": 134.1,
+  "human7Shipped": 171.4,
+  "sdNoWins": 43.7,
+  "sdShipped": 77.6
+ },
+ "human7": {
+  "emptyBunniesPerRun": 2.9,
+  "bunniesPerRun": 12.5,
+  "nearMissPerRun": 10,
+  "tensionPerRun": 15,
+  "tensionStaked20": 1.73,
+  "tensionStaked40": 0.35,
+  "matches": 1.99,
+  "jackpots": 0.515,
+  "serves": 5,
+  "minutes": 3.49
+ },
+ "heuristics": {
+  "bowl >= 6*streak": 191.1,
+  "bowl>=6*streak or win at streak>=4": 192.4,
+  "streak 8 or win at streak>=4": 179.8
+ }
+}

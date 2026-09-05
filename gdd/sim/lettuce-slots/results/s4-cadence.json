@@ -1,0 +1,31 @@
+{
+ "stakedTension20PerRun": {
+  "mean": 1.74,
+  "p10": 0,
+  "median": 2,
+  "p90": 4,
+  "zero": 0.186
+ },
+ "stakedTension40PerRun": {
+  "mean": 0.37,
+  "p10": 0,
+  "median": 0,
+  "p90": 1,
+  "zero": 0.746
+ },
+ "bigBusts20PerRun": {
+  "mean": 1.47,
+  "p10": 0,
+  "median": 1,
+  "p90": 3,
+  "zero": 0.206
+ },
+ "momentsPerRun": {
+  "mean": 5.71,
+  "p10": 2,
+  "median": 5,
+  "p90": 9,
+  "zero": 0.009
+ },
+ "note": "moments = staked tensions (bowl≥20) + matches + jackpots + busts eating ≥20; a run is ~3.4 min"
+}
