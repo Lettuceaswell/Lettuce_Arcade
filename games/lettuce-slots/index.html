@@ -162,6 +162,8 @@
   #readout { font-size: 1rem; color: var(--fg-dim); }
   #readout b { color: var(--fg); font-size: 1.15rem; }
   #readout .bowl { display: inline-block; }
+  #readout.record b:first-of-type { color: #ffe066; }
+  #readout .roll { color: #ffe066; }
   #readout .bowl.wobble { animation: wobble 0.5s ease-in-out infinite; }
   #readout .bowl.hop { animation: hop 320ms ease-out; }
   @keyframes wobble {
@@ -192,6 +194,9 @@
   }
   #sub { display: flex; flex-direction: column; align-items: center; gap: 5px; }
   #ladder i { background: #ffe066; }
+  /* Final five: the spins-left bar goes gold while leaves pay double. */
+  #spinbar.finale i { background: #ffe066; }
+  #sub.finale b { color: #ffe066; }
   #footer-wrap { display: flex; flex-direction: column; align-items: center; gap: 6px; }
   #footer.pulse { animation: footer-pulse 700ms ease-out; }
   @keyframes footer-pulse {
@@ -200,6 +205,23 @@
     100% { transform: scale(1); }
   }
   body.mode-spin #ladder { display: none; }
+
+  /* The bunny: a shake and a red flash at the edges. */
+  body.shake main { animation: shake 420ms ease-out; }
+  @keyframes shake {
+    0%, 100% { transform: translateX(0); }
+    15%  { transform: translateX(-9px) rotate(-0.6deg); }
+    35%  { transform: translateX(8px) rotate(0.5deg); }
+    55%  { transform: translateX(-6px); }
+    75%  { transform: translateX(4px); }
+  }
+  #vignette {
+    position: fixed; inset: 0; pointer-events: none; z-index: 9990;
+    box-shadow: inset 0 0 90px 30px rgba(255, 80, 60, 0.75);
+    opacity: 0;
+  }
+  #vignette.flash { animation: vignette 600ms ease-out; }
+  @keyframes vignette { 0% { opacity: 1; } 100% { opacity: 0; } }
 
   /* The bowl on its way from SERVE to the served total. */
   .fly {
@@ -218,12 +240,22 @@
     font-weight: 800;
     letter-spacing: 0.04em;
   }
-  #serve { height: 60px; font-size: 1.2rem; background: var(--bg-elevated); }
+  #serve { height: 60px; font-size: 1.2rem; background: var(--bg-elevated); transition: background 200ms, color 200ms; }
   #serve:disabled { opacity: 0.35; }
+  /* SERVE begs: the bowl would cross a rung or beat the best single serve. */
+  #serve.gold { background: #ffe066; color: #3a2d00; }
+  #serve.gold:not(:disabled) { animation: serve-beg 1.4s ease-in-out infinite; }
+  /* Cash out mid-crawl: live while the third reel turns with the bowl on the line. */
+  #serve.cashout { background: #ffe066; color: #3a2d00; opacity: 1; animation: serve-beg 0.7s ease-in-out infinite; }
+  @keyframes serve-beg {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(255, 224, 102, 0.55); }
+    50%      { box-shadow: 0 0 0 10px rgba(255, 224, 102, 0); }
+  }
   #spin { height: 72px; font-size: 1.5rem; transition: background 120ms; }
   /* Mid-spin the button stays live: a tap stops the next reel. */
   #spin.stop { background: var(--bg-elevated); letter-spacing: 0.12em; }
   #spin.stop.beat { animation: beat 140ms ease-out; }
+  #spin.auto { background: #ffe066; color: #3a2d00; letter-spacing: 0.12em; }
   @keyframes beat {
     0%   { transform: scale(1); }
     40%  { transform: scale(1.035); }
@@ -296,7 +328,8 @@
   @media (prefers-reduced-motion: reduce) {
     .payout.pop { animation: none; opacity: 1; }
     .reel.breathe, .reel.pass, #readout .bowl.wobble, #readout .bowl.hop,
-    #spin.stop.beat, #footer.pulse { animation: none; }
+    #spin.stop.beat, #footer.pulse, body.shake main, #vignette.flash,
+    #serve.gold, #serve.cashout { animation: none; }
     .fly { transition: none; }
   }
 </style>
@@ -334,6 +367,7 @@
 </main>
 
 <button id="mute" class="btn" aria-label="Mute sound">🔊</button>
+<div id="vignette" aria-hidden="true"></div>
 <div id="card" role="dialog" aria-modal="true"><div class="box" id="box"></div></div>
 
 <script src="/shared/arcade.js"></script>
@@ -346,6 +380,14 @@
   var LETTUCE = 4;
   var BUNNY = 5;
   var SPINS = 75;
+  var FINALE = 5;            // the last five spins pay double leaves
+  var PAIR_POINTS = 5;       // Spin mode: two matching on reels one and two
+  var PAIR_LEAF = 1;         // Run mode: the same pair adds one extra leaf
+  var POT_BASE = 500;        // Spin mode's progressive jackpot...
+  var POT_STEP = 2;          // ...grows by this every dry spin
+  var STREAK_STAMPS = [5, 10, 15, 20];
+  var RECORD_FLOOR = 20;     // a bowl has to be at least this big before beating it is a record
+  var HOLD_MS = 450;         // hold SPIN this long in Spin mode to auto-spin
   var LADDER = [
     { at: 0, name: "Side salad" },
     { at: 100, name: "Garden salad" },
@@ -366,14 +408,18 @@
     "Tap SPIN again while the reels turn to stop the next one. What lands was decided the moment you spun.",
     "# Spin",
     "The toy. Just spin — nothing is at stake and nothing ends.",
-    "One point a spin, fifty for a match, five hundred for 🥬🥬🥬.",
+    "One point a spin, five for a pair on the first two reels, fifty for a match.",
+    "🥬🥬🥬 pays the pot. The pot starts at " + POT_BASE + " and grows by " + POT_STEP + " every spin it isn't hit.",
+    "Hold SPIN to keep spinning. It stops the moment a pair shows, so you see the crawl.",
     "Points add up forever. No bunny in this mode.",
     "# Run",
     "The game. " + SPINS + " spins, then it's over.",
     "Every spin adds more to the bowl than the last: +1, +2, +3…",
     "SERVE keeps the bowl and starts the count again at +1.",
     "The 🐰 on the third reel eats whatever's in the bowl.",
-    "A MATCH doubles the bowl. 🥬🥬🥬 triples it and adds 50.",
+    "A pair on the first two reels adds an extra leaf. A MATCH doubles the bowl. 🥬🥬🥬 triples it and adds 50.",
+    "Two match and the third reel is crawling? SERVE is live: bank the bowl now and give up the double.",
+    "The last " + FINALE + " spins pay double leaves.",
     "Whatever's still in the bowl after the last spin is served. Serve more than anyone."
   ];
   // First run only: the status line teaches for the first three leaves of a
@@ -393,6 +439,10 @@
   function steady(count, ms) { var a = []; for (var i = 0; i < count; i++) a.push(ms); return a; }
   var REEL1 = steady(10, 60);                                      // lands  600ms
   var REEL2 = steady(17, 60);                                      // lands 1020ms
+  // Reel one landed 🥬: reel two slows on its last three ticks.
+  var REEL2_LEAF = steady(14, 60).concat([100, 150, 220]);          // lands ~1310ms
+  var REEL2_HOOK_FROM = 14;
+  var REEL_AUTO = steady(6, 45);                                    // hold-to-spin: every reel, fast
   var REEL3_NORMAL = steady(30, 60);                               // lands 1800ms
   var REEL3_TENSION = steady(18, 60)                               // lands ~3100ms
     .concat([80, 110, 150, 200, 260, 330, 410, 500]);
@@ -403,8 +453,8 @@
   // A tap this soon after SPIN is a double-tap, not a stop.
   var STOP_GRACE_MS = 150;
   var TICK_DOTS = 9;
-  var LEGEND_SPIN = "any three +50 · 🥬🥬🥬 +500";
-  var LEGEND_RUN = "any three ×2 · 🥬🥬🥬 ×3 +50 · 🐰 eats the bowl";
+  function legendSpin() { return "pair +" + PAIR_POINTS + " · three +50 · 🥬🥬🥬 pot " + pot(); }
+  var LEGEND_RUN = "pair +1 leaf · three ×2 · 🥬🥬🥬 ×3 · 🐰 eats the bowl";
 
   // ---- audio ------------------------------------------------------------
   var muted = Arcade.load("muted", false) === true;
@@ -429,6 +479,9 @@
   }
 
   var STOP_TONES = [440, 554, 659];
+  // Each leaf of a streak lands one semitone higher than the last.
+  function streakTone(streak) { tone(392 * Math.pow(2, Math.min(streak, 24) / 12), 0.14, 0.04, 0.17); }
+  function stampSound() { tone(659, 0.12, 0, 0.18); tone(988, 0.2, 0.1, 0.18); }
   function jackpotSound() { [523, 659, 784, 1047].forEach(function (f, i) { tone(f, 0.3, i * 0.11, 0.22); }); }
   function matchSound() { tone(523, 0.22, 0, 0.2); tone(784, 0.26, 0.12, 0.2); }
   function serveSound(amount) {
@@ -494,6 +547,7 @@
   var jackpots = num(Arcade.load("jackpots", 0));
   var matches = num(Arcade.load("matches", 0));
   var dry = num(Arcade.load("dry", 0));
+  function pot() { return POT_BASE + dry * POT_STEP; }
   function saveStats() {
     Arcade.save("points", points);
     Arcade.save("jackpots", jackpots);
@@ -515,6 +569,21 @@
   // One best for Run. v2/v3 kept a daily best and a free-play best; the
   // higher of the two carries over.
   var best = Math.max(num(Arcade.load("best", 0)), num(Arcade.load("bestDaily", 0)), num(Arcade.load("bestFree", 0)));
+  // Lifetime records that stamp mid-run: the biggest bowl ever held, the
+  // biggest single serve.
+  var bestBowl = num(Arcade.load("bestBowl", 0));
+  var bestServe = num(Arcade.load("bestServe", 0));
+  var shownBowl = 0;      // what the bowl number currently reads, for rolling
+  var rollTimer = null;
+  var cashout = false;    // SERVE is live mid-crawl
+  var cashed = false;     // ...and was taken this spin
+  var holding = false, auto = false, holdTimer = null;
+
+  function inFinale(r) { return r.spin >= SPINS - FINALE; }
+  function sinceBunny(r) {
+    var i = r.hist.lastIndexOf("b");
+    return i < 0 ? -1 : r.hist.length - 1 - i;
+  }
 
   function newSeedString() {
     // The only place Math.random touches a run, and it only picks the seed.
@@ -594,20 +663,41 @@
     modeSpinBtn.disabled = spinning;
     modeRunBtn.disabled = spinning;
     // The status line shows what pays whenever it has nothing else to say.
-    if (!spinning && statusEl.textContent === "") setStatus(ui === "spin" ? LEGEND_SPIN : LEGEND_RUN, "legend");
+    if (!spinning && statusEl.textContent === "") setStatus(ui === "spin" ? legendSpin() : LEGEND_RUN, "legend");
     if (ui === "spin") {
+      spinBtn.classList.toggle("auto", auto);
+      if (auto) spinBtn.textContent = "AUTO";
       readoutEl.innerHTML = "<b>" + plural(jackpots, "jackpot") + "</b> · " +
         matches.toLocaleString() + " match" + (matches === 1 ? "" : "es");
-      footerEl.innerHTML = "<b>" + dry.toLocaleString() + " since last 🥬</b> · " + points.toLocaleString() + " pts";
+      footerEl.innerHTML = "🥬 pot <b>" + pot().toLocaleString() + "</b> · " + dry.toLocaleString() + " dry · " + points.toLocaleString() + " pts";
       return;
     }
+    spinBtn.classList.remove("auto");
     if (!run) return;
     var left = SPINS - run.spin;
-    spinsLeftEl.textContent = left + (left === 1 ? " spin left" : " spins left");
+    var finale = inFinale(run);
+    var sb = sinceBunny(run);
+    spinsLeftEl.textContent = (finale ? "FINALE · leaves ×2 · " : "") + left + (left === 1 ? " spin left" : " spins left") +
+      (finale ? "" : sb < 0 ? " · no 🐰 yet" : sb === 0 ? " · 🐰 just now" : " · 🐰 " + sb + " ago");
+    $("sub").classList.toggle("finale", finale);
+    $("spinbar").classList.toggle("finale", finale);
     spinbarFill.style.width = (100 * left / SPINS) + "%";
-    readoutEl.innerHTML = "<span class=\"bowl\">🥗</span> <b>" + run.bowl + "</b> · streak <b>" + run.streak + "</b> · <b>+" + (run.streak + 1) + "</b> next";
-    serveBtn.textContent = "SERVE " + run.bowl;
-    serveBtn.disabled = spinning || run.bowl <= 0;
+    var nextLeaf = (run.streak + 1) * (finale ? 2 : 1);
+    readoutEl.innerHTML = "<span class=\"bowl\">🥗</span> <b id=\"bowlnum\">" + shownBowl + "</b> · streak <b>" + run.streak + "</b> · <b>+" + nextLeaf + "</b> next";
+    readoutEl.classList.toggle("record", run.bowl >= RECORD_FLOOR && run.bowl >= bestBowl);
+    rollBowl(run.bowl);
+    // SERVE begs when the bowl would cross a rung or beat the best single serve.
+    var nr0 = nextRung(run.served);
+    var crosses = run.bowl > 0 && nr0 && run.served + run.bowl >= nr0.at;
+    var record = run.bowl > 0 && bestServe > 0 && run.bowl > bestServe;
+    if (cashout) {
+      serveBtn.textContent = "SERVE " + run.bowl + " NOW";
+    } else {
+      serveBtn.textContent = "SERVE " + run.bowl + (crosses ? " → " + nr0.name : record ? " · record" : "");
+    }
+    serveBtn.classList.toggle("cashout", cashout);
+    serveBtn.classList.toggle("gold", !cashout && (crosses || record));
+    serveBtn.disabled = (spinning && !cashout) || run.bowl <= 0;
     // Events only: plain leaves are filler, and a strip that grows only when
     // something happens reads as a trophy shelf. Bunnies, matches, jackpots, serves.
     histEl.textContent = run.hist.filter(function (h) { return h !== "l"; }).slice(-16).map(function (h) { return GLYPH[h]; }).join("");
@@ -617,6 +707,25 @@
     footerEl.innerHTML = "served " + run.served + " · " + (nr
       ? "<b>" + nr.name + "</b> at " + nr.at + " · " + (nr.at - run.served) + " to go"
       : "<b>" + tierFor(run.served).name + "</b>");
+  }
+  // The bowl number rolls to its new value over half a second, a tick per
+  // step, so a doubling is something you watch rather than something you read.
+  function rollBowl(target) {
+    if (rollTimer) { clearInterval(rollTimer); rollTimer = null; }
+    var el0 = $("bowlnum");
+    if (!el0) { shownBowl = target; return; }
+    if (TURBO || REDUCED || shownBowl === target) { shownBowl = target; el0.textContent = target; return; }
+    var from = shownBowl, diff = target - from;
+    var steps = Math.min(10, Math.abs(diff)), n = 0;
+    el0.classList.add("roll");
+    rollTimer = setInterval(function () {
+      n += 1;
+      shownBowl = n >= steps ? target : Math.round(from + diff * n / steps);
+      var e = $("bowlnum");
+      if (e) e.textContent = shownBowl;
+      if (steps > 1) tone(diff > 0 ? 700 + n * 40 : 400 - n * 20, 0.04, 0, 0.06);
+      if (n >= steps) { clearInterval(rollTimer); rollTimer = null; if (e) e.classList.remove("roll"); }
+    }, 480 / steps);
   }
   function bowlEl() { return readoutEl.querySelector(".bowl"); }
   function setBowl(cls, on) { var b = bowlEl(); if (b) b.classList.toggle(cls, !!on); }
@@ -688,13 +797,16 @@
     var tension = (r1 === r2);
     var done = ui === "spin" ? resolveSpin : resolve;
 
-    // Presentation only. On half of near-misses, land reel 3 just past the
-    // target so the winning symbol is the last thing replaced. In Run, one
-    // past lettuce is the bunny, so a lettuce near-miss goes two past, onto
+    cashout = false;
+    cashed = false;
+
+    // Presentation only. Every near-miss lands reel 3 just past the target
+    // so the winning symbol is the last thing replaced. In Run, one past
+    // lettuce is the bunny, so a lettuce near-miss goes two past, onto
     // tomato: the reel crawls through the lettuce, then the bunny, then
     // stops. This may only ever change which losing symbol shows.
     var shown = r3;
-    if (tension && outcome === "miss" && Math.random() < 0.5) {
+    if (tension && outcome === "miss") {
       shown = (r1 + (strip[(r1 + 1) % strip.length] === "🐰" ? 2 : 1)) % strip.length;
       if (classify(r1, r2, shown) !== "miss") {
         console.error("near-miss reindex changed the outcome; showing the rolled symbol");
@@ -711,16 +823,26 @@
     }
 
     var leafPair = tension && r1 === LETTUCE;
-    var third = leafPair ? REEL3_TENSION_LEAF : tension ? REEL3_TENSION : REEL3_NORMAL;
+    var finale = ui === "run" && inFinale(run);
+    // The final five play the tension crawl on every spin.
+    var third = leafPair ? REEL3_TENSION_LEAF : (tension || finale) ? REEL3_TENSION : REEL3_NORMAL;
+    var leafHook = r1 === LETTUCE && !auto;
+    var second = auto ? REEL_AUTO : leafHook ? REEL2_LEAF : REEL2;
+    if (auto && !tension) third = REEL_AUTO;
 
     live = [];
-    live.push(spinReel(reelEls[0], SYMBOLS, REEL1, r1, beat, function () {
+    live.push(spinReel(reelEls[0], SYMBOLS, auto ? REEL_AUTO : REEL1, r1, beat, function () {
       tone(STOP_TONES[0], 0.09, 0, 0.16);
       pulseSpinBtn();
+      if (leafHook) reelEls[0].classList.add("leaf");
     }));
-    live.push(spinReel(reelEls[1], SYMBOLS, REEL2, r2, beat, function () {
+    live.push(spinReel(reelEls[1], SYMBOLS, second, r2, function (i) {
+      beat();
+      if (leafHook && i >= REEL2_HOOK_FROM) tone(440 + (i - REEL2_HOOK_FROM) * 60, 0.06, 0, 0.09);
+    }, function () {
       tone(STOP_TONES[1], 0.09, 0, 0.16);
       pulseSpinBtn();
+      if (!tension) reelEls[0].classList.remove("leaf");
       if (tension) {
         var tier = leafPair ? "leaf" : "hot";
         reelEls[0].classList.add("hot", "breathe", tier);
@@ -729,7 +851,12 @@
         var staked = ui === "run" && run.bowl > 0;
         if (leafPair) setStatus("TWO 🥬 — JACKPOT?" + (staked ? " bowl " + run.bowl + " ×3…" : ""), "leaf");
         else setStatus("TWO " + SYMBOLS[r1] + (staked ? " — bowl " + run.bowl + " on the line…" : " — one to go…"), "near");
-        if (staked) setBowl("wobble", true);
+        if (staked) {
+          setBowl("wobble", true);
+          // Cash out: SERVE is live until the third reel lands.
+          cashout = true;
+          render();
+        }
       }
     }));
     live.push(spinReel(reelEls[2], strip, third, shown, function (i, sym) {
@@ -753,6 +880,7 @@
       reelEls[2].classList.remove("pass");
       setBowl("wobble", false);
       clearBeat();
+      cashout = false;
       done(r1, r2, shown, outcome, tension);
     }));
   }
@@ -760,13 +888,15 @@
   // Spin mode: v1's economy, verbatim. Points only ever go up.
   function resolveSpin(r1, r2, r3, outcome, tension) {
     if (outcome === "jackpot") {
-      points += 500;
+      var won = pot();
+      points += won;
       jackpots += 1;
       dry = 0;
-      setStatus("JACKPOT! 🥬🥬🥬 +500", "jackpot");
-      showPayout("+500", "jackpot");
+      setStatus("JACKPOT! 🥬🥬🥬 +" + won.toLocaleString(), "jackpot");
+      showPayout("+" + won.toLocaleString(), "jackpot");
       reelEls.forEach(function (el) { el.classList.add("hot"); });
       jackpotSound();
+      Arcade.confetti(["#ffe066", "#7dff9a", "#eafffb"]);
     } else if (outcome === "match") {
       points += 50;
       matches += 1;
@@ -775,22 +905,37 @@
       showPayout("+50", "match");
       reelEls.forEach(function (el) { el.classList.add("hot"); });
       matchSound();
+    } else if (tension) {
+      // The pair pays. Two on the first reels, one off on the third.
+      points += 1 + PAIR_POINTS;
+      dry += 1;
+      setStatus("PAIR " + SYMBOLS[r1] + SYMBOLS[r1] + " +" + PAIR_POINTS + " · one off", "near");
+      reelEls.forEach(function (el) { el.classList.remove("leaf"); });
+      tone(587, 0.1, 0, 0.14);
     } else {
       points += 1;
       dry += 1;
-      setStatus(tension ? "so close — one off" : "", tension ? "near" : "");
-      if (tension) reelEls.forEach(function (el) { el.classList.remove("leaf"); });
+      setStatus("", "");
     }
     saveStats();
     if (outcome !== "miss") saveBrag();
     spinning = false;
     render();
+    // Hold-to-spin keeps going while the thumb is down and the reels are
+    // dull. A pair ends it: that crawl is for watching.
+    if (auto && holding && !tension) setTimeout(function () { if (auto && holding && !spinning && phase === "play" && ui === "spin") spin(); }, 180);
+    else if (auto) { auto = false; render(); }
   }
 
   function resolve(r1, r2, r3, outcome, tension) {
     run.spin += 1;
 
     run.hist.push(outcome === "bust" ? "b" : outcome === "jackpot" ? "j" : outcome === "match" ? "m" : "l");
+
+    // Note run.spin was already incremented, so "finale" here means this
+    // spin was one of the last five.
+    var finale = run.spin > SPINS - FINALE;
+    var mult = finale ? 2 : 1;
 
     if (outcome === "bust") {
       var lost = run.bowl;
@@ -803,24 +948,28 @@
       if (lost > 0) {
         setStatus("the bunny ate " + lost, "bust");
         showPayout("🐰 −" + lost, "bust");
+        bunnyCeremony();
       } else {
-        setStatus("he found an empty bowl", "bust");
+        setStatus(cashed ? "he found an empty bowl. phew." : "he found an empty bowl", "bust");
       }
       bunnySound();
     } else {
       run.streak += 1;
-      var leaf = run.streak;
-      run.bowl += leaf;
+      var leaf = run.streak * mult;
+      var extra = (tension && outcome === "miss") ? PAIR_LEAF * mult : 0;
+      run.bowl += leaf + extra;
+      var stampAt = STREAK_STAMPS.indexOf(run.streak) >= 0;
       if (outcome === "jackpot") {
         run.bowl = run.bowl * 3 + 50;
         run.jackpots += 1;
-        setStatus("JACKPOT! 🥬🥬🥬 — bowl " + run.bowl, "jackpot");
+        setStatus(cashed ? "JACKPOT — after you banked. ouch." : "JACKPOT! 🥬🥬🥬 — bowl " + run.bowl, "jackpot");
         showPayout("JACKPOT", "jackpot");
         reelEls.forEach(function (el) { el.classList.add("hot"); });
         jackpotSound();
+        Arcade.confetti(["#ffe066", "#7dff9a", "#eafffb"]);
       } else if (outcome === "match") {
         run.bowl = run.bowl * 2;
-        setStatus("MATCH — bowl doubled to " + run.bowl, "match");
+        setStatus(cashed ? "MATCH — it would've doubled" : "MATCH — bowl doubled to " + run.bowl, "match");
         showPayout("×2", "match");
         reelEls.forEach(function (el) { el.classList.add("hot"); });
         matchSound();
@@ -829,11 +978,25 @@
         // line. Keyed on the streak, not the spin, so an early bunny (which
         // explains itself) doesn't cancel the lesson.
         setStatus(COACH[run.streak - 1], "");
+        streakTone(run.streak);
       } else if (tension) {
-        setStatus("so close — one off · +" + leaf, "near");
+        setStatus("PAIR · +" + leaf + " +" + extra + " bonus" + (cashed ? " · one off, phew" : ""), "near");
+        streakTone(run.streak);
+        tone(587, 0.1, 0.12, 0.14);
+      } else if (stampAt) {
+        setStatus("🔥 streak " + run.streak + " · bowl " + run.bowl, "jackpot");
+        streakTone(run.streak);
       } else {
-        setStatus("+" + leaf + " leaf · bowl " + run.bowl, "");
+        setStatus((finale ? "FINALE ×2 · " : "") + "+" + leaf + " leaf · bowl " + run.bowl, finale ? "serve" : "");
+        streakTone(run.streak);
       }
+      if (stampAt) { Arcade.stampIn(readoutEl); stampSound(); }
+      // A bowl bigger than any you've ever held (once bowls are big enough to count).
+      if (run.bowl > bestBowl && bestBowl >= RECORD_FLOOR) {
+        Arcade.stampIn(readoutEl);
+        if (outcome === "miss" && !tension && !stampAt) setStatus("🏆 record bowl " + run.bowl, "jackpot");
+      }
+      if (run.bowl > bestBowl) { bestBowl = run.bowl; Arcade.save("bestBowl", bestBowl); }
     }
     if (outcome !== "jackpot") reelEls.forEach(function (el) { el.classList.remove("leaf"); });
 
@@ -881,8 +1044,19 @@
     setTimeout(function () { f.remove(); onLand(); }, 540);
   }
 
+  function bunnyCeremony() {
+    if (TURBO || REDUCED) return;
+    document.body.classList.remove("shake");
+    $("vignette").classList.remove("flash");
+    void document.body.offsetWidth;
+    document.body.classList.add("shake");
+    $("vignette").classList.add("flash");
+  }
+
   function serve() {
-    if (spinning || phase !== "play" || ui !== "run" || !run || run.bowl <= 0) return;
+    if (phase !== "play" || ui !== "run" || !run || run.bowl <= 0) return;
+    if (spinning && !cashout) return;
+    var mid = spinning; // cashing out mid-crawl
     var amount = run.bowl;
     var before = tierFor(run.served);
     run.served += amount;
@@ -891,10 +1065,13 @@
     saveRunStats();
     run.bowl = 0;
     run.streak = 0;
-    clearRings();
+    if (mid) { cashed = true; cashout = false; setBowl("wobble", false); }
+    else clearRings();
     var after = tierFor(run.served);
     var rung = after !== before;
-    setStatus(rung ? "🥗 " + after.name + "!" : "served " + amount, rung ? "jackpot" : "serve");
+    var record = amount > bestServe;
+    if (record) { bestServe = amount; Arcade.save("bestServe", bestServe); }
+    setStatus(rung ? "🥗 " + after.name + "!" : mid ? "banked " + amount + " — the reel spins on…" : record ? "🏆 record serve " + amount : "served " + amount, rung || record ? "jackpot" : "serve");
     serveSound(amount);
     saveRun();
     render();
@@ -958,7 +1135,7 @@
       kids.push(el("p", null, "your best " + best));
     }
     kids.push(button(resume ? "RESUME" : "START", "btn", function () {
-      if (!resume) newRun();
+      if (!resume) { newRun(); shownBowl = 0; }
       closeCard();
       clearRings();
       setStatus("");
@@ -1056,6 +1233,7 @@
   // otherwise the start card.
   function enterRun() {
     if (!run) run = loadRun();
+    shownBowl = run ? run.bowl : 0;
     clearRings();
     setStatus("");
     payoutEl.className = "payout";
@@ -1122,7 +1300,28 @@
   }
   muteBtn.addEventListener("click", function () { muted = !muted; Arcade.save("muted", muted); renderMute(); });
 
-  spinBtn.addEventListener("pointerdown", function (e) { e.preventDefault(); if (spinning) stopNext(); else spin(); });
+  // Tap: spin, or stop the next reel. Hold (Spin mode): keep spinning until
+  // the thumb lifts or a pair shows up.
+  spinBtn.addEventListener("pointerdown", function (e) {
+    e.preventDefault();
+    holding = true;
+    if (spinning) stopNext(); else spin();
+    clearTimeout(holdTimer);
+    holdTimer = setTimeout(function () {
+      if (holding && ui === "spin" && phase === "play") {
+        auto = true;
+        render();
+        if (!spinning) spin();
+      }
+    }, HOLD_MS);
+  });
+  function release() {
+    holding = false;
+    clearTimeout(holdTimer);
+    if (auto) { auto = false; render(); }
+  }
+  ["pointerup", "pointercancel"].forEach(function (n) { document.addEventListener(n, release); });
+  window.addEventListener("blur", release);
   serveBtn.addEventListener("click", serve);
 
   document.addEventListener("keydown", function (e) {

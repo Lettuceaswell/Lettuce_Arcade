@@ -5,7 +5,7 @@
 
   var Arcade = {};
 
-  Arcade.VERSION = 42;
+  Arcade.VERSION = 43;
 
   // ---- namespacing --------------------------------------------------
 
@@ -110,6 +110,7 @@
       ".arc-pin{position:fixed;top:calc(60px + env(safe-area-inset-top,0px));right:calc(8px + env(safe-area-inset-right,0px));" +
       "min-height:44px;padding:8px 14px;z-index:9999;background:rgba(0,0,0,0.5);color:var(--fg-dim);font-size:0.9rem;font-weight:800;letter-spacing:0.03em;" +
       "transition:background 200ms,color 200ms}" +
+      ".arc-pin[hidden]{display:none}" +
       ".arc-pin.lit{background:var(--accent);color:#06302d}" +
       ".arc-pin.nudge{animation:arc-nudge 1.6s ease-in-out 3}" +
       "@keyframes arc-nudge{0%,100%{transform:scale(1);box-shadow:0 0 0 0 rgba(74,222,197,0.5)}50%{transform:scale(1.05);box-shadow:0 0 0 8px rgba(74,222,197,0)}}" +
