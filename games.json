@@ -50,5 +50,12 @@
     "blurb": "Eight days, four sliders a day, locked one at a time. Your thumb is not as precise as you think.",
     "emoji": "💪",
     "beta": true
+  },
+  {
+    "slug": "unkle-lijahs-jetpack",
+    "title": "Unkle Lijah's Jetpack",
+    "blurb": "Fly the jetpack. He hangs under it. Catch the burger in order, don't touch the sauce.",
+    "emoji": "🍔",
+    "beta": true
   }
 ]

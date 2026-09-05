@@ -1,0 +1,887 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>Unkle Lijah's Jetpack — Lettuce Arcade</title>
+<meta name="theme-color" content="#083734">
+<link rel="stylesheet" href="/shared/arcade.css">
+<style>
+  /* Design direction for the first cut: flat vector shapes on a warm diner
+     sky. No image assets. Everything Lijah is drawn in code so the ragdoll
+     can bend it. */
+  :root {
+    --sky-top: #f7c46a;
+    --sky-bottom: #f18f5a;
+    --diner: #2b1a2e;
+    --bun: #e0a75b;
+    --patty: #6b3a24;
+    --cheese: #ffd23f;
+    --ketchup: #e63b2e;
+    --mustard: #f2c218;
+    --pickle: #5aa839;
+    --onion: #f0d9a8;
+  }
+  html, body { height: 100%; overflow: hidden; }
+  body {
+    display: flex;
+    flex-direction: column;
+    padding: calc(52px + var(--safe-top)) 0 var(--safe-bottom);
+    -webkit-user-select: none; user-select: none;
+    touch-action: none;
+  }
+
+  /* HUD: one row, under the shared buttons. */
+  #hud {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 0 14px 6px;
+    font-weight: 800; font-variant-numeric: tabular-nums;
+  }
+  #act { font-size: 0.85rem; letter-spacing: 0.08em; color: var(--fg-dim); text-transform: uppercase; }
+  #act.rush { color: #ffe066; }
+  #clock { font-size: 1.05rem; }
+  #banked { font-size: 1.15rem; }
+  #banked.pop { animation: pop 380ms ease-out; }
+  @keyframes pop { 0% { transform: scale(1); } 40% { transform: scale(1.35); color: #ffe066; } 100% { transform: scale(1); } }
+  #timebar { height: 5px; margin: 0 14px 4px; border-radius: 3px; background: rgba(0, 0, 0, 0.35); overflow: hidden; }
+  #timebar i { display: block; height: 100%; width: 100%; background: var(--accent); border-radius: 3px; }
+  #timebar.rush i { background: #ffe066; }
+
+  /* The play space: the upper two thirds. Walls are its edges. */
+  #stage { flex: 1; position: relative; min-height: 0; margin: 0 8px; }
+  canvas#play { position: absolute; inset: 0; width: 100%; height: 100%; border-radius: 18px; display: block; }
+  #toast {
+    position: absolute; left: 0; right: 0; top: 38%;
+    text-align: center; font-size: clamp(28px, 9vw, 44px); font-weight: 900;
+    pointer-events: none; opacity: 0; text-shadow: 0 3px 14px rgba(0, 0, 0, 0.5);
+  }
+  #toast.show { animation: toast 1s ease-out forwards; }
+  @keyframes toast {
+    0% { opacity: 0; transform: translateY(20px) scale(0.6); }
+    20% { opacity: 1; transform: translateY(0) scale(1.15); }
+    40% { transform: scale(1); }
+    100% { opacity: 0; transform: translateY(-40px); }
+  }
+  #toast.bank { color: #ffe066; }
+  #toast.spill { color: #ff8a7a; }
+  #toast.bell { color: #fff; }
+
+  /* The thrust pad: the bottom third. Inset from both edges so a thumb
+     never starts a drag inside iOS's back-swipe zone. */
+  #pad {
+    height: 30vh; min-height: 190px;
+    margin: 8px 24px 8px;
+    border-radius: 22px;
+    background: rgba(0, 0, 0, 0.35);
+    position: relative;
+    touch-action: none;
+  }
+  #pad .hint { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: var(--fg-dim); font-weight: 700; font-size: 0.95rem; opacity: 0.7; pointer-events: none; }
+  #pad.live .hint { opacity: 0; }
+  #stick { position: absolute; width: 96px; height: 96px; border-radius: 50%; border: 3px solid rgba(255, 255, 255, 0.25); transform: translate(-50%, -50%); display: none; pointer-events: none; }
+  #knob { position: absolute; width: 52px; height: 52px; border-radius: 50%; background: var(--accent); box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4); transform: translate(-50%, -50%); display: none; pointer-events: none; }
+  #pad.live #stick, #pad.live #knob { display: block; }
+
+  /* Cards. */
+  #card {
+    position: fixed; inset: 0; background: rgba(8, 55, 52, 0.96);
+    display: none; align-items: flex-start; justify-content: center;
+    padding: calc(56px + var(--safe-top)) 18px calc(20px + var(--safe-bottom));
+    z-index: 9998; overflow-y: auto;
+  }
+  #card.show { display: flex; }
+  /* margin:auto centres a short box and never clips a tall one. */
+  .box { width: 100%; max-width: 380px; margin: auto; display: flex; flex-direction: column; align-items: stretch; gap: 10px; text-align: center; }
+  .box h2 { font-size: 1.5rem; line-height: 1.2; }
+  .box p { color: var(--fg-dim); font-size: 0.98rem; }
+  .box .big { font-size: 2.4rem; font-weight: 900; }
+  .box .btn { min-height: 60px; font-size: 1.15rem; font-weight: 800; }
+  .box .btn.quiet { background: var(--bg-elevated); }
+  .box .btn.gold { background: #ffe066; color: #3a2d00; }
+  .box .btn:disabled { opacity: 0.45; }
+  .box .row { display: flex; gap: 8px; }
+  .box .row .btn { flex: 1; padding-left: 8px; padding-right: 8px; }
+  .box ul { text-align: left; color: var(--fg); padding-left: 1.2em; font-size: 0.98rem; }
+  .box li { margin: 5px 0; }
+  .box .panel { background: #052926; border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 18px; padding: 14px 16px; display: flex; flex-direction: column; gap: 8px; }
+  .box .panel-top { display: flex; justify-content: space-between; font-size: 0.9rem; color: var(--fg-dim); }
+  .box .panel-top .game { color: var(--fg); font-weight: 700; }
+  .box .hint { font-size: 0.8rem; color: var(--fg-dim); min-height: 1.1em; }
+  .box .foot { font-size: 0.72rem; color: var(--fg-dim); opacity: 0.75; }
+
+  /* Loadout: Lijah on top, the pack below. Portrait, so stacked. */
+  canvas#idle { width: 100%; height: 220px; border-radius: 18px; background: linear-gradient(var(--sky-top), var(--sky-bottom)); display: block; touch-action: none; }
+  .shop { display: flex; flex-direction: column; gap: 6px; text-align: left; }
+  .shop h3 { font-size: 0.85rem; letter-spacing: 0.08em; text-transform: uppercase; color: #ffe066; margin-top: 6px; }
+  .shop .item { display: flex; align-items: center; gap: 10px; min-height: 52px; padding: 6px 10px; border-radius: 12px; background: rgba(0, 0, 0, 0.25); }
+  .shop .item .sw { width: 26px; height: 26px; border-radius: 8px; flex: none; border: 2px solid rgba(255, 255, 255, 0.25); }
+  .shop .item .t { flex: 1; font-size: 0.95rem; font-weight: 700; }
+  .shop .item .t small { display: block; color: var(--fg-dim); font-weight: 600; font-size: 0.8rem; }
+  .shop .item .btn { min-height: 44px; min-width: 92px; font-size: 0.9rem; padding: 6px 10px; }
+  .shop .item.on { outline: 2px solid var(--accent); }
+  .pile { display: flex; justify-content: space-between; align-items: center; color: var(--fg-dim); font-weight: 700; }
+  .pile b { color: #ffe066; font-size: 1.3rem; }
+  canvas#pilecv { width: 100%; height: 56px; display: block; }
+
+  @media (prefers-reduced-motion: reduce) {
+    #banked.pop, #toast.show { animation: none; opacity: 1; }
+  }
+</style>
+</head>
+<body>
+<div id="hud">
+  <span id="act">Open</span>
+  <span id="clock">1:30</span>
+  <span id="banked">🍔 0</span>
+</div>
+<div id="timebar"><i></i></div>
+<div id="stage">
+  <canvas id="play"></canvas>
+  <div id="toast"></div>
+</div>
+<div id="pad">
+  <div class="hint">thumb here · slide to thrust</div>
+  <div id="stick"></div><div id="knob"></div>
+</div>
+<div id="card" role="dialog" aria-modal="true"><div class="box" id="box"></div></div>
+
+<script src="/shared/arcade.js"></script>
+<script>
+  Arcade.backButton();
+  Arcade.trapBack(); // dragging a thumb near the edge must never leave the game
+
+  // ---- constants --------------------------------------------------------
+  var RUN_SECONDS = 90;
+  var ACTS = [
+    { name: "Open", from: 0 },
+    { name: "Lunch", from: 30 },
+    { name: "Dinner Rush", from: 75 }
+  ];
+  var CATCH_AT_STACK_TOP = true;   // open call A
+  var BUZZER_FREE_BUN = true;      // open call B
+  var GRAVITY = 900;               // px/s²
+  var ROD = 74;                    // pack → head
+  var LAYER_H = 13;                // stack layer spacing
+  var HEAD_R = 17;
+
+  // Ingredient order. `next` says what may land on a stack whose top is `k`.
+  var ING = ["bun_b", "patty", "cheese", "bun_t"];
+  function nextLegal(top) {
+    if (!top) return ["bun_b"];
+    if (top === "bun_b" || top === "cheese") return top === "cheese" ? ["patty", "bun_t"] : ["patty"];
+    if (top === "patty") return ["cheese"];
+    return [];
+  }
+  var CONDIMENTS = ["ketchup", "mustard", "pickle", "onion"];
+
+  // Parts: every one is a trade. Numbers are multipliers on stock.
+  var PARTS = {
+    stock:  { name: "Stock pack",      blurb: "The one he came with.",               cost: 0,  thrust: 1,    catchR: 1,    stiff: 1,    swing: 1 },
+    brim:   { name: "Wide Brim",       blurb: "Bigger hat, easier catch. Higher pivot, more wobble.", cost: 12, thrust: 1, catchR: 1.4, stiff: 0.8, swing: 1.25 },
+    fins:   { name: "Stabilizer Fins", blurb: "Settles fast, swings less. Slower.", cost: 18, thrust: 0.78, catchR: 1, stiff: 1.6, swing: 0.7 },
+    burner: { name: "Afterburner",     blurb: "Much more thrust. Much wilder swing.", cost: 25, thrust: 1.45, catchR: 1, stiff: 0.85, swing: 1.5 }
+  };
+  var PAINTS = [
+    { id: "teal", name: "Diner teal", cost: 0, color: "#18aca4" },
+    { id: "red", name: "Ketchup red", cost: 6, color: "#e63b2e" },
+    { id: "mustard", name: "Mustard", cost: 6, color: "#f2c218" },
+    { id: "night", name: "Midnight", cost: 10, color: "#2b2d42" },
+    { id: "gold", name: "Gold", cost: 40, color: "#f5c542" }
+  ];
+  var EXHAUSTS = [
+    { id: "flame", name: "Flame", cost: 0, color: "#ff9f1c" },
+    { id: "blue", name: "Blue jet", cost: 8, color: "#4cc9f0" },
+    { id: "pink", name: "Bubblegum", cost: 8, color: "#ff7ab6" },
+    { id: "green", name: "Pickle juice", cost: 12, color: "#8be04e" }
+  ];
+  var HATS = [
+    { id: "cap", name: "Paper cap", cost: 0 },
+    { id: "none", name: "Bald and proud", cost: 3 },
+    { id: "chef", name: "Chef's toque", cost: 15 },
+    { id: "crown", name: "Crown", cost: 60 }
+  ];
+
+  var HELP = [
+    "# The idea",
+    "Unkle Lijah wears a jetpack. You fly the pack. He hangs under it and swings.",
+    "Burger parts fall. Catch them on his head in order: bottom bun, patty, cheese, top bun.",
+    "# Banking",
+    "The top bun banks the stack: one 🍔 per cheese layer.",
+    "After a cheese you can skip the top bun and stack another patty + cheese. Taller pays more and wobbles more.",
+    "# Condiments",
+    "Ketchup, mustard, pickles, onion rings. Touch one and the stack spills. Nothing else happens. Keep flying.",
+    "# The run",
+    RUN_SECONDS + " seconds. Open, Lunch, then the Dinner Rush. At the buzzer a free top bun banks a legal stack.",
+    "# Daily",
+    "Same run for the whole family, stock jetpack, once a day. Free Play uses whatever you've equipped."
+  ];
+
+  // Test hooks. All no-ops unless the URL asks.
+  var Q = new URLSearchParams(location.search);
+  var TURBO = Q.has("turbo");
+  var SPEED = TURBO ? 8 : Math.max(0.25, Math.min(16, Number(Q.get("speed")) || 1));
+  var BOT = TURBO || Q.has("bot");
+  var FORCED_SEED = Q.get("seed");
+  var REDUCED = Arcade.reducedMotion ? Arcade.reducedMotion() : false;
+
+  // ---- schedule (pure) --------------------------------------------------
+  // @schedule-begin
+  // makeSchedule(rng, opts) → sorted [{ t, kind, x, vx, col }]. `rng` is a
+  // () → [0,1) function. `x` is 0..1 of the play width. `col` marks the
+  // items of a clean column. This block is lifted verbatim by the sim in
+  // gdd/sim/unkle-lijahs-jetpack/, so it must stay self-contained.
+  function makeSchedule(rng, opts) {
+    opts = opts || {};
+    var RUN = 90;
+    var acts = [
+      { from: 0,  to: 30, gap: 1.35, cond: opts.firstRun ? 0 : 0.12 },
+      { from: 30, to: 75, gap: 0.85, cond: 0.36 },
+      { from: 75, to: 90, gap: 0.42, cond: 0.4 }
+    ];
+    // Equal weights: a rarer top bun sounded like tension and played like
+    // waiting. Greed is taxed by the wobble and the sauce, not by scarcity.
+    var ingW = [["bun_b", 25], ["patty", 25], ["cheese", 25], ["bun_t", 25]];
+    var conds = ["ketchup", "mustard", "pickle", "onion"];
+    function pick(w) {
+      var total = 0, i;
+      for (i = 0; i < w.length; i++) total += w[i][1];
+      var r = rng() * total;
+      for (i = 0; i < w.length; i++) { r -= w[i][1]; if (r < 0) return w[i][0]; }
+      return w[w.length - 1][0];
+    }
+    var out = [];
+    var t = 1.2;
+    acts.forEach(function (a) {
+      if (t < a.from) t = a.from;
+      while (t < a.to) {
+        var isCond = rng() < a.cond;
+        var kind = isCond ? conds[Math.floor(rng() * conds.length)] : pick(ingW);
+        var x = 0.08 + rng() * 0.84;
+        out.push({ t: +t.toFixed(3), kind: kind, x: +x.toFixed(3), vx: isCond && kind === "pickle" ? (rng() < 0.5 ? -1 : 1) : 0, col: false });
+        var r = rng();
+        var gap = a.gap * (0.45 + 1.1 * rng());
+        if (r < 0.14) gap = 0.16 + rng() * 0.16;          // a cluster
+        else if (r < 0.24) gap = a.gap * 2.4;             // a lull
+        t += gap;
+      }
+    });
+    // The rare clean column: bun, patty, cheese, top bun in one line.
+    var wantColumn = opts.firstRun || rng() < 0.09;
+    if (wantColumn) {
+      var ct = opts.firstRun ? 6 : 8 + rng() * 60;
+      var cx = 0.25 + rng() * 0.5;
+      // Clear a window around it so nothing lands in the column's lane.
+      out = out.filter(function (e) { return e.t < ct - 0.6 || e.t > ct + 2.6 || Math.abs(e.x - cx) > 0.22; });
+      ["bun_b", "patty", "cheese", "bun_t"].forEach(function (k, i) {
+        out.push({ t: +(ct + i * 0.58).toFixed(3), kind: k, x: +cx.toFixed(3), vx: 0, col: true });
+      });
+    }
+    out.sort(function (a, b) { return a.t - b.t; });
+    return out;
+  }
+  // @schedule-end
+
+  // ---- elements ---------------------------------------------------------
+  function $(id) { return document.getElementById(id); }
+  var cv = $("play"), ctx = cv.getContext("2d");
+  var padEl = $("pad"), stickEl = $("stick"), knobEl = $("knob");
+  var actEl = $("act"), clockEl = $("clock"), bankedEl = $("banked"), timebar = $("timebar"), timefill = timebar.firstElementChild;
+  var toastEl = $("toast"), cardEl = $("card"), boxEl = $("box");
+  var W = 360, H = 520, DPR = 1;
+
+  function resize() {
+    var r = cv.getBoundingClientRect();
+    DPR = Math.min(2, window.devicePixelRatio || 1);
+    W = Math.max(200, r.width); H = Math.max(200, r.height);
+    cv.width = Math.round(W * DPR); cv.height = Math.round(H * DPR);
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  }
+  window.addEventListener("resize", resize);
+
+  // ---- save -------------------------------------------------------------
+  function num(v) { var n = Number(v); return isFinite(n) ? n : 0; }
+  var burgers = num(Arcade.load("burgers", 0));
+  var bestDaily = num(Arcade.load("bestDaily", 0));
+  var bestFree = num(Arcade.load("bestFree", 0));
+  var runs = num(Arcade.load("runs", 0));
+  var spills = num(Arcade.load("spills", 0));
+  var firstRun = Arcade.load("firstRun", true) !== false;
+  var equipped = Arcade.load("equipped", "stock"); if (!PARTS[equipped]) equipped = "stock";
+  var owned = Arcade.load("owned", ["stock", "teal", "flame", "cap"]); if (!Array.isArray(owned)) owned = ["stock", "teal", "flame", "cap"];
+  var paint = Arcade.load("paint", "teal"), exhaust = Arcade.load("exhaust", "flame"), hat = Arcade.load("hat", "cap");
+  function saveAll() {
+    Arcade.save("burgers", burgers); Arcade.save("bestDaily", bestDaily); Arcade.save("bestFree", bestFree);
+    Arcade.save("runs", runs); Arcade.save("spills", spills); Arcade.save("firstRun", firstRun);
+    Arcade.save("equipped", equipped); Arcade.save("owned", owned);
+    Arcade.save("paint", paint); Arcade.save("exhaust", exhaust); Arcade.save("hat", hat);
+    Arcade.brag(bestDaily > 0 ? "Best Daily " + bestDaily + " 🍔" : burgers > 0 ? burgers + " 🍔 banked" : "");
+    if (runs > 0) Arcade.stats([
+      "# Runs", ["Best Daily", bestDaily], ["Best Free Play", bestFree], ["Runs", runs], ["Spills", spills],
+      "# Pack", ["Burgers banked", burgers], ["Equipped", PARTS[equipped].name]
+    ]); else Arcade.stats(null);
+  }
+  function has(id) { return owned.indexOf(id) >= 0; }
+  function findC(list, id) { for (var i = 0; i < list.length; i++) if (list[i].id === id) return list[i]; return list[0]; }
+
+  // ---- physics ----------------------------------------------------------
+  // Two Verlet points (pack, head) joined by a rod, then a chain of layer
+  // points above the head. The pack is driven; everything else hangs.
+  var pack, head, layers, debris, items, run, thrust, params;
+  var phase = "card"; // card | play | buzzer
+  var last = 0, acc = 0;
+  var DT = 1 / 120;
+
+  function mkPoint(x, y) { return { x: x, y: y, px: x, py: y }; }
+  function partParams(id) {
+    var p = PARTS[id] || PARTS.stock;
+    return { thrust: 1900 * p.thrust, catchR: 24 * p.catchR, stiff: 0.32 * p.stiff, swingDamp: 0.985 + (1 - p.swing) * 0.01, pivot: p.catchR > 1 ? 6 : 0 };
+  }
+
+  function resetLijah() {
+    pack = { x: W / 2, y: H * 0.42, vx: 0, vy: 0 };
+    head = mkPoint(W / 2, H * 0.42 + ROD);
+    layers = [];
+    debris = [];
+    items = [];
+  }
+
+  function stepPhysics(dt) {
+    var tx = thrust.x * params.thrust, ty = thrust.y * params.thrust;
+    if (BOT && phase === "play") { var b = botThrust(); tx = b.x * params.thrust; ty = b.y * params.thrust; }
+    // pack: gravity vs thrust, drag, walls, never lands
+    pack.vx += tx * dt; pack.vy += (GRAVITY + ty) * dt;
+    pack.vx *= Math.pow(0.35, dt); pack.vy *= Math.pow(0.35, dt);
+    pack.x += pack.vx * dt; pack.y += pack.vy * dt;
+    if (pack.x < 26) { pack.x = 26; pack.vx = Math.abs(pack.vx) * 0.3; }
+    if (pack.x > W - 26) { pack.x = W - 26; pack.vx = -Math.abs(pack.vx) * 0.3; }
+    if (pack.y < 30) { pack.y = 30; pack.vy = Math.max(0, pack.vy); }
+    var floorY = H - 40 - ROD;
+    if (pack.y > floorY) { pack.y = floorY; pack.vy = Math.min(0, pack.vy) * 0.2; }
+
+    // head: verlet with gravity, then rod constraint to the pack
+    verlet(head, dt, params.swingDamp);
+    constrain(head, pack.x, pack.y - params.pivot, ROD);
+    // Lijah is a body, not a point: keep him below the pack a little.
+    if (head.y < pack.y + ROD * 0.35) head.y = pack.y + ROD * 0.35;
+
+    // stack: each layer hangs upward off the one below via a stiff spring
+    // to the upright position, plus a distance constraint. Taller = floppier.
+    var prevX = head.x, prevY = head.y - HEAD_R;
+    for (var i = 0; i < layers.length; i++) {
+      var L = layers[i];
+      verlet(L, dt, 0.96);
+      var upX = prevX, upY = prevY - LAYER_H;
+      var k = params.stiff / (1 + i * 0.35);
+      L.x += (upX - L.x) * k; L.y += (upY - L.y) * k;
+      constrain(L, prevX, prevY, LAYER_H);
+      prevX = L.x; prevY = L.y;
+    }
+    // debris
+    for (var d = debris.length - 1; d >= 0; d--) {
+      var D = debris[d];
+      D.vy += GRAVITY * dt; D.x += D.vx * dt; D.y += D.vy * dt; D.rot += D.vr * dt;
+      if (D.y > H + 40) debris.splice(d, 1);
+    }
+  }
+  function verlet(p, dt, damp) {
+    var vx = (p.x - p.px) * damp, vy = (p.y - p.py) * damp;
+    p.px = p.x; p.py = p.y;
+    p.x += vx; p.y += vy + GRAVITY * dt * dt;
+  }
+  function constrain(p, ax, ay, len) {
+    var dx = p.x - ax, dy = p.y - ay, d = Math.sqrt(dx * dx + dy * dy) || 0.0001;
+    var f = (d - len) / d;
+    p.x -= dx * f; p.y -= dy * f;
+  }
+  function topOfStack() {
+    if (layers.length) { var L = layers[layers.length - 1]; return { x: L.x, y: L.y - LAYER_H / 2 }; }
+    return { x: head.x, y: head.y - HEAD_R };
+  }
+  function catchPoint() { return CATCH_AT_STACK_TOP ? topOfStack() : { x: head.x, y: head.y - HEAD_R }; }
+
+  // ---- items ------------------------------------------------------------
+  var SPEEDS = { bun_b: 230, patty: 240, cheese: 235, bun_t: 225, ketchup: 520, mustard: 140, pickle: 250, onion: 135 };
+  function spawn(e) {
+    var it = { kind: e.kind, x: e.x * W, y: -24, vx: 0, vy: SPEEDS[e.kind], r: 15, age: 0, col: e.col, wob: Math.random() * 6.28 };
+    if (e.kind === "pickle") it.vx = 220 * (e.vx || 1);
+    if (e.kind === "mustard") it.r = 14;
+    if (e.kind === "onion") it.r = 17;
+    items.push(it);
+  }
+  function stepItems(dt) {
+    var cp = catchPoint();
+    var legal = nextLegal(layers.length ? layers[layers.length - 1].kind : null);
+    for (var i = items.length - 1; i >= 0; i--) {
+      var it = items[i];
+      it.age += dt;
+      if (it.kind === "mustard") it.vx = Math.sin(it.age * 2.1 + it.wob) * 70;
+      if (it.kind === "onion" && it.age > 1.1 && it.age < 2.2) {
+        var tgt = topOfStack();
+        it.vx += Math.max(-350, Math.min(350, (tgt.x - it.x) * 3)) * dt;
+        it.vy += Math.max(-200, Math.min(200, (tgt.y - it.y) * 1.5)) * dt;
+      }
+      it.x += it.vx * dt; it.y += it.vy * dt;
+      if (it.kind === "pickle") {
+        if (it.x < it.r) { it.x = it.r; it.vx = Math.abs(it.vx); }
+        if (it.x > W - it.r) { it.x = W - it.r; it.vx = -Math.abs(it.vx); }
+      } else if (it.x < it.r) it.x = it.r; else if (it.x > W - it.r) it.x = W - it.r;
+      if (it.y > H + 30) { items.splice(i, 1); continue; }
+      var isCond = CONDIMENTS.indexOf(it.kind) >= 0;
+      if (run.flail > 0) continue;
+      if (isCond) {
+        if (touchesLijah(it)) { spill(it); items.splice(i, 1); }
+        continue;
+      }
+      // ingredient: catch at the catch point if legal, bounce otherwise
+      var dx = it.x - cp.x, dy = it.y - cp.y;
+      if (it.vy > 0 && dy > -12 && dy < 18 && Math.abs(dx) < params.catchR + it.r * 0.5) {
+        if (legal.indexOf(it.kind) >= 0) { catchItem(it); items.splice(i, 1); }
+        else if (!it.bounced) { it.bounced = true; it.vy = -140; it.vx = dx > 0 ? 160 : -160; }
+      }
+    }
+  }
+  function touchesLijah(it) {
+    var pts = [{ x: head.x, y: head.y, r: HEAD_R }];
+    layers.forEach(function (L) { pts.push({ x: L.x, y: L.y, r: 13 }); });
+    for (var i = 0; i < pts.length; i++) {
+      var dx = it.x - pts[i].x, dy = it.y - pts[i].y, rr = it.r + pts[i].r - 4;
+      if (dx * dx + dy * dy < rr * rr) return true;
+    }
+    return false;
+  }
+  function catchItem(it) {
+    var top = topOfStack();
+    var L = mkPoint(top.x, top.y - LAYER_H / 2);
+    L.kind = it.kind;
+    layers.push(L);
+    run.caught += 1;
+    if (it.kind === "bun_t") bank();
+  }
+  function stackValue() { var n = 0; layers.forEach(function (L) { if (L.kind === "cheese") n += 1; }); return n; }
+  function stackLegal() { return layers.length >= 3 && layers[layers.length - 1].kind === "cheese"; }
+  function bank() {
+    var v = stackValue();
+    run.score += v;
+    burgers += v;
+    layers = [];
+    toast("+" + v + " 🍔" + (v >= 3 ? " TRIPLE" : v === 2 ? " DOUBLE" : ""), "bank");
+    bankedEl.textContent = "🍔 " + run.score;
+    bankedEl.classList.remove("pop"); void bankedEl.offsetWidth; bankedEl.classList.add("pop");
+    if (v >= 2) Arcade.confetti(["#ffe066", "#e0a75b", "#ffd23f", "#fff"]);
+    saveAll();
+  }
+  function spill(cond) {
+    run.spills += 1; spills += 1;
+    layers.forEach(function (L, i) {
+      debris.push({ kind: L.kind, x: L.x, y: L.y, vx: (Math.random() - 0.5) * 420 + (L.x - cond.x) * 6, vy: -220 - i * 60, rot: 0, vr: (Math.random() - 0.5) * 12 });
+    });
+    debris.push({ kind: cond.kind, x: cond.x, y: cond.y, vx: (Math.random() - 0.5) * 200, vy: -160, rot: 0, vr: 8 });
+    layers = [];
+    run.flail = 0.5;
+    head.px = head.x + (Math.random() - 0.5) * 30; // a jolt
+    toast("SPILL", "spill");
+    if (!REDUCED) { $("stage").style.transform = "translateX(6px)"; setTimeout(function () { $("stage").style.transform = ""; }, 90); }
+  }
+  function toast(text, cls) {
+    toastEl.textContent = text; toastEl.className = cls;
+    void toastEl.offsetWidth; toastEl.classList.add("show");
+  }
+
+  // ---- the run ----------------------------------------------------------
+  function startRun(mode) {
+    var seed = mode === "daily" ? "daily:" + Arcade.dailySeed() : FORCED_SEED ? "free:" + FORCED_SEED : "free:" + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+    var rng = Arcade.seededRandom(seed);
+    params = partParams(mode === "daily" ? "stock" : equipped);
+    run = {
+      mode: mode, seed: seed, t: 0, score: 0, caught: 0, spills: 0, flail: 0, bell: false, act: 0,
+      schedule: makeSchedule(rng, { firstRun: firstRun }), next: 0, slow: 1
+    };
+    items = [];
+    resize();
+    resetLijah();
+    thrust = { x: 0, y: 0 };
+    runs += 1;
+    phase = "play";
+    closeCard();
+    updateHud();
+    last = performance.now(); acc = 0;
+    requestAnimationFrame(frame);
+  }
+
+  function frame(now) {
+    if (phase === "card") return;
+    var elapsed = Math.min(0.1, (now - last) / 1000) * SPEED * run.slow;
+    last = now;
+    acc += elapsed;
+    while (acc >= DT) {
+      acc -= DT;
+      tick(DT);
+    }
+    draw();
+    requestAnimationFrame(frame);
+  }
+
+  function tick(dt) {
+    if (phase === "play") {
+      run.t += dt;
+      if (run.flail > 0) run.flail -= dt;
+      while (run.next < run.schedule.length && run.schedule[run.next].t <= run.t) spawn(run.schedule[run.next++]);
+      var act = run.t >= ACTS[2].from ? 2 : run.t >= ACTS[1].from ? 1 : 0;
+      if (act !== run.act) { run.act = act; if (act === 2) { toast("🔔 DINNER RUSH", "bell"); } updateHud(); }
+      if (run.t >= RUN_SECONDS) beginBuzzer();
+    } else if (phase === "buzzer") {
+      run.bz -= dt;
+      if (run.bz <= 0) finishRun();
+    }
+    stepPhysics(dt);
+    stepItems(dt);
+    if (phase === "play" && Math.floor(run.t) !== run.lastSec) { run.lastSec = Math.floor(run.t); updateHud(); }
+  }
+
+  function beginBuzzer() {
+    phase = "buzzer";
+    run.slow = REDUCED ? 1 : 0.3;
+    run.bz = REDUCED ? 0.6 : 0.7; // in slowed time ≈ 2.3s real
+    items = items.filter(function (it) { return CONDIMENTS.indexOf(it.kind) < 0; }); // nothing can spill you now
+    toast("BUZZER", "bell");
+    if (BUZZER_FREE_BUN && stackLegal()) {
+      var top = topOfStack();
+      items.push({ kind: "bun_t", x: top.x, y: top.y - 90, vx: 0, vy: 260, r: 15, age: 0, col: true, free: true });
+    }
+    updateHud();
+  }
+
+  function finishRun() {
+    phase = "card";
+    run.slow = 1;
+    if (run.mode === "daily") { Arcade.save("daily:" + Arcade.dailySeed(), run.score); if (run.score > bestDaily) bestDaily = run.score; }
+    else if (run.score > bestFree) bestFree = run.score;
+    firstRun = false;
+    saveAll();
+    showEndCard();
+  }
+
+  function updateHud() {
+    if (!run) return;
+    var left = Math.max(0, RUN_SECONDS - run.t);
+    clockEl.textContent = Math.floor(left / 60) + ":" + String(Math.floor(left % 60)).padStart(2, "0");
+    timefill.style.width = (100 * left / RUN_SECONDS) + "%";
+    actEl.textContent = phase === "buzzer" ? "Buzzer" : ACTS[run.act].name;
+    actEl.classList.toggle("rush", run.act === 2);
+    timebar.classList.toggle("rush", run.act === 2);
+    bankedEl.textContent = "🍔 " + run.score;
+  }
+
+  // ---- bot (test hook) --------------------------------------------------
+  function botThrust() {
+    var cp = catchPoint();
+    var legal = nextLegal(layers.length ? layers[layers.length - 1].kind : null);
+    // Banker's greed: take the top bun whenever it's legal.
+    var target = null, bestScore = -1e9;
+    var dodge = null, dodgeT = 1e9;
+    items.forEach(function (it) {
+      if (CONDIMENTS.indexOf(it.kind) >= 0) {
+        if (it.y > head.y) return;
+        var tt = (head.y - it.y) / Math.max(60, it.vy);
+        var px = it.x + it.vx * tt;
+        if (tt < 1.3 && Math.abs(px - head.x) < 60 && tt < dodgeT) { dodgeT = tt; dodge = px; }
+        return;
+      }
+      if (legal.indexOf(it.kind) < 0 || it.y > cp.y - 4) return;
+      var t = (cp.y - it.y) / it.vy;
+      var reach = Math.abs(it.x + it.vx * t - pack.x) / Math.max(0.2, t); // px/s needed
+      if (reach > 320) return;
+      var sc = (it.kind === "bun_t" ? 1000 : 0) - t * 100 - reach * 0.5;
+      if (sc > bestScore) { bestScore = sc; target = it; target._t = t; }
+    });
+    var hoverY = H * 0.46;
+    var y = Math.max(-1, Math.min(1, (hoverY - pack.y) / 90 - pack.vy / 400)) - 0.48;
+    var wantX = target ? target.x + target.vx * target._t : W / 2;
+    if (dodge !== null) wantX = dodge > head.x ? Math.max(40, dodge - 110) : Math.min(W - 40, dodge + 110);
+    var lead = wantX + (wantX - cp.x) * 0.35;
+    var x = Math.max(-1, Math.min(1, (lead - pack.x) / 70 - pack.vx / 260));
+    return { x: x, y: y };
+  }
+
+  // ---- drawing ----------------------------------------------------------
+  function draw() {
+    ctx.clearRect(0, 0, W, H);
+    // sky
+    var g = ctx.createLinearGradient(0, 0, 0, H);
+    g.addColorStop(0, "#f7c46a"); g.addColorStop(1, "#f18f5a");
+    ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+    // walls + floor
+    ctx.fillStyle = "#2b1a2e";
+    ctx.fillRect(0, 0, 8, H); ctx.fillRect(W - 8, 0, 8, H);
+    ctx.fillRect(0, H - 18, W, 18);
+    ctx.fillStyle = "#3d2742";
+    for (var tx = 8; tx < W - 8; tx += 24) ctx.fillRect(tx, H - 18, 12, 18);
+
+    debris.forEach(function (D) { drawItem(D.kind, D.x, D.y, D.rot, 1); });
+    items.forEach(function (it) { drawItem(it.kind, it.x, it.y, it.kind === "pickle" ? it.age * 4 : 0, 1); });
+    drawLijah(ctx, pack, head, layers, thrust, params, false);
+
+    if (phase === "buzzer") { ctx.fillStyle = "rgba(43,26,46,0.25)"; ctx.fillRect(0, 0, W, H); }
+  }
+
+  function drawItem(kind, x, y, rot, s) {
+    ctx.save(); ctx.translate(x, y); ctx.rotate(rot || 0); ctx.scale(s, s);
+    ctx.lineWidth = 2; ctx.strokeStyle = "rgba(43,26,46,0.55)";
+    if (kind === "bun_b") {
+      ctx.fillStyle = "#e0a75b"; rr(-16, -6, 32, 12, 4); ctx.fill(); ctx.stroke();
+    } else if (kind === "bun_t") {
+      ctx.fillStyle = "#e0a75b"; ctx.beginPath(); ctx.arc(0, 4, 17, Math.PI, 0); ctx.closePath(); ctx.fill(); ctx.stroke();
+      ctx.fillStyle = "#fff3d6"; [-8, -2, 5].forEach(function (sx) { ctx.beginPath(); ctx.ellipse(sx, -5, 2.2, 1.2, 0.4, 0, 6.29); ctx.fill(); });
+    } else if (kind === "patty") {
+      ctx.fillStyle = "#6b3a24"; rr(-17, -6, 34, 12, 6); ctx.fill(); ctx.stroke();
+    } else if (kind === "cheese") {
+      ctx.fillStyle = "#ffd23f"; ctx.beginPath(); ctx.moveTo(-18, -5); ctx.lineTo(18, -5); ctx.lineTo(14, 6); ctx.lineTo(4, 2); ctx.lineTo(-6, 7); ctx.lineTo(-18, 3); ctx.closePath(); ctx.fill(); ctx.stroke();
+    } else if (kind === "ketchup") {
+      ctx.fillStyle = "#e63b2e"; ctx.beginPath(); ctx.moveTo(0, -18); ctx.quadraticCurveTo(14, 4, 0, 14); ctx.quadraticCurveTo(-14, 4, 0, -18); ctx.fill(); ctx.stroke();
+    } else if (kind === "mustard") {
+      ctx.fillStyle = "#f2c218"; ctx.beginPath(); ctx.moveTo(-14, 4); ctx.bezierCurveTo(-10, -14, 2, -10, 4, -2); ctx.bezierCurveTo(8, -12, 16, -2, 12, 6); ctx.bezierCurveTo(6, 12, -8, 12, -14, 4); ctx.fill(); ctx.stroke();
+    } else if (kind === "pickle") {
+      ctx.fillStyle = "#5aa839"; ctx.beginPath(); ctx.ellipse(0, 0, 17, 9, 0, 0, 6.29); ctx.fill(); ctx.stroke();
+      ctx.fillStyle = "#3e7f27"; [-9, -2, 6].forEach(function (sx) { ctx.beginPath(); ctx.arc(sx, (sx % 2) * 2, 2, 0, 6.29); ctx.fill(); });
+    } else if (kind === "onion") {
+      ctx.fillStyle = "#f0d9a8"; ctx.beginPath(); ctx.arc(0, 0, 17, 0, 6.29); ctx.arc(0, 0, 9, 0, 6.29, true); ctx.fill("evenodd"); ctx.stroke();
+      ctx.beginPath(); ctx.arc(0, 0, 9, 0, 6.29); ctx.stroke();
+    }
+    ctx.restore();
+  }
+  function rr(x, y, w, h, r) { ctx.beginPath(); ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r); ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath(); }
+
+  // Lijah, drawn from pack and head positions so the same code serves the
+  // run and the loadout idle. Pack on his back, body hanging to the head,
+  // arms trailing, stack on top.
+  function drawLijah(c, pk, hd, stack, th, prm, big) {
+    var s = big ? 1.5 : 1;
+    var angle = Math.atan2(hd.x - pk.x, -(hd.y - pk.y)); // lean
+    var paintC = findC(PAINTS, paint).color, exC = findC(EXHAUSTS, exhaust).color;
+    var power = Math.min(1, Math.hypot(th.x, th.y));
+    c.save(); c.translate(pk.x, pk.y); c.rotate(angle * 0.22); c.scale(s, s);
+    // exhaust
+    if (power > 0.05) {
+      c.fillStyle = exC; c.globalAlpha = 0.85;
+      var fl = 18 + power * 26 + Math.random() * 6;
+      c.beginPath(); c.moveTo(-10, 14); c.lineTo(0, 14 + fl); c.lineTo(10, 14); c.closePath(); c.fill();
+      c.globalAlpha = 1;
+    }
+    // pack
+    c.fillStyle = paintC; c.strokeStyle = "rgba(43,26,46,0.6)"; c.lineWidth = 2;
+    rrc(c, -16, -18, 32, 34, 8); c.fill(); c.stroke();
+    c.fillStyle = "rgba(255,255,255,0.35)"; rrc(c, -11, -13, 8, 22, 4); c.fill();
+    if (prm && prm.stiff > 0.4) { c.fillStyle = paintC; c.beginPath(); c.moveTo(-16, 4); c.lineTo(-30, 16); c.lineTo(-16, 14); c.fill(); c.beginPath(); c.moveTo(16, 4); c.lineTo(30, 16); c.lineTo(16, 14); c.fill(); }
+    // straps
+    c.strokeStyle = "#5a3d2b"; c.lineWidth = 4; c.beginPath(); c.moveTo(-12, -14); c.lineTo(-18, 20); c.moveTo(12, -14); c.lineTo(18, 20); c.stroke();
+    c.restore();
+
+    // body: shirt from pack to head, arms flung by lean
+    c.save(); c.scale(1, 1);
+    c.strokeStyle = "#2b6f8f"; c.lineWidth = 14 * s; c.lineCap = "round";
+    c.beginPath(); c.moveTo(pk.x, pk.y + 6 * s); c.lineTo(hd.x, hd.y - 4 * s); c.stroke();
+    c.strokeStyle = "#f0b48a"; c.lineWidth = 6 * s;
+    var ax = (hd.x - pk.x) * 0.6, ay = (hd.y - pk.y) * 0.6;
+    c.beginPath(); c.moveTo(pk.x + ax, pk.y + ay); c.lineTo(pk.x + ax - 22 * s - angle * 30, pk.y + ay + 10 * s); c.stroke();
+    c.beginPath(); c.moveTo(pk.x + ax, pk.y + ay); c.lineTo(pk.x + ax + 22 * s - angle * 30, pk.y + ay + 10 * s); c.stroke();
+    // legs dangling from the pack (he hangs, remember)
+    c.strokeStyle = "#3b3b58"; c.lineWidth = 7 * s;
+    c.beginPath(); c.moveTo(pk.x - 6 * s, pk.y + 12 * s); c.lineTo(pk.x - 10 * s + angle * 14, pk.y + 44 * s); c.stroke();
+    c.beginPath(); c.moveTo(pk.x + 6 * s, pk.y + 12 * s); c.lineTo(pk.x + 10 * s + angle * 14, pk.y + 44 * s); c.stroke();
+    // head
+    c.fillStyle = "#f0b48a"; c.strokeStyle = "rgba(43,26,46,0.6)"; c.lineWidth = 2;
+    c.beginPath(); c.arc(hd.x, hd.y, HEAD_R * s, 0, 6.29); c.fill(); c.stroke();
+    c.fillStyle = "#2b1a2e";
+    c.beginPath(); c.arc(hd.x - 6 * s, hd.y - 2 * s, 2.2 * s, 0, 6.29); c.arc(hd.x + 6 * s, hd.y - 2 * s, 2.2 * s, 0, 6.29); c.fill();
+    c.strokeStyle = "#2b1a2e"; c.lineWidth = 2 * s;
+    c.beginPath(); c.arc(hd.x, hd.y + 4 * s, 6 * s, 0.2, Math.PI - 0.2); c.stroke(); // grin
+    c.fillStyle = "#cfcfcf"; c.beginPath(); c.arc(hd.x, hd.y + 11 * s, 9 * s, 0, Math.PI); c.fill(); // beard
+    // hat
+    var hy = hd.y - HEAD_R * s;
+    if (hat === "cap") { c.fillStyle = "#fff"; c.strokeStyle = "rgba(43,26,46,0.5)"; rrc(c, hd.x - 14 * s, hy - 10 * s, 28 * s, 11 * s, 3); c.fill(); c.stroke(); }
+    else if (hat === "chef") { c.fillStyle = "#fff"; c.strokeStyle = "rgba(43,26,46,0.5)"; rrc(c, hd.x - 12 * s, hy - 8 * s, 24 * s, 9 * s, 2); c.fill(); c.stroke(); c.beginPath(); c.arc(hd.x - 7 * s, hy - 14 * s, 8 * s, 0, 6.29); c.arc(hd.x + 7 * s, hy - 14 * s, 8 * s, 0, 6.29); c.arc(hd.x, hy - 18 * s, 8 * s, 0, 6.29); c.fill(); }
+    else if (hat === "crown") { c.fillStyle = "#f5c542"; c.strokeStyle = "rgba(43,26,46,0.6)"; c.beginPath(); c.moveTo(hd.x - 14 * s, hy); c.lineTo(hd.x - 14 * s, hy - 14 * s); c.lineTo(hd.x - 7 * s, hy - 6 * s); c.lineTo(hd.x, hy - 16 * s); c.lineTo(hd.x + 7 * s, hy - 6 * s); c.lineTo(hd.x + 14 * s, hy - 14 * s); c.lineTo(hd.x + 14 * s, hy); c.closePath(); c.fill(); c.stroke(); }
+    // catch surface (brim) hint
+    if (prm && prm.catchR > 26 && !big) { c.strokeStyle = "rgba(255,255,255,0.5)"; c.lineWidth = 3; c.beginPath(); c.moveTo(hd.x - prm.catchR, hy - 2); c.lineTo(hd.x + prm.catchR, hy - 2); c.stroke(); }
+    // stack
+    stack.forEach(function (L, i) {
+      var prev = i ? stack[i - 1] : { x: hd.x, y: hd.y - HEAD_R * s };
+      var a = Math.atan2(L.x - prev.x, -(L.y - prev.y));
+      var saved = ctx; ctx = c; drawItem(L.kind, L.x, L.y, a, s); ctx = saved;
+    });
+    c.restore();
+  }
+  function rrc(c, x, y, w, h, r) { c.beginPath(); c.moveTo(x + r, y); c.arcTo(x + w, y, x + w, y + h, r); c.arcTo(x + w, y + h, x, y + h, r); c.arcTo(x, y + h, x, y, r); c.arcTo(x, y, x + w, y, r); c.closePath(); }
+
+  // ---- input: the thrust pad -------------------------------------------
+  var origin = null, DEAD = 10, RANGE = 60;
+  function setThrustFrom(e) {
+    var dx = e.clientX - origin.x, dy = e.clientY - origin.y;
+    var d = Math.hypot(dx, dy);
+    var m = d < DEAD ? 0 : Math.min(1, (d - DEAD) / RANGE);
+    thrust = d < 0.001 ? { x: 0, y: 0 } : { x: dx / d * m, y: dy / d * m * 1.1 };
+    // pushing up = thrust up (negative y): the pad reads like a stick
+    var r = padEl.getBoundingClientRect();
+    knobEl.style.left = (Math.max(0, Math.min(r.width, e.clientX - r.left))) + "px";
+    knobEl.style.top = (Math.max(0, Math.min(r.height, e.clientY - r.top))) + "px";
+  }
+  padEl.addEventListener("pointerdown", function (e) {
+    if (phase !== "play") return;
+    e.preventDefault();
+    padEl.setPointerCapture(e.pointerId);
+    origin = { x: e.clientX, y: e.clientY };
+    var r = padEl.getBoundingClientRect();
+    stickEl.style.left = (e.clientX - r.left) + "px"; stickEl.style.top = (e.clientY - r.top) + "px";
+    padEl.classList.add("live");
+    setThrustFrom(e);
+  });
+  padEl.addEventListener("pointermove", function (e) { if (origin) setThrustFrom(e); });
+  function padUp() { origin = null; thrust = { x: 0, y: 0 }; padEl.classList.remove("live"); }
+  padEl.addEventListener("pointerup", padUp);
+  padEl.addEventListener("pointercancel", padUp);
+  // keyboard for the desk
+  var keys = {};
+  document.addEventListener("keydown", function (e) {
+    if (phase === "card") { if (e.key === "Enter") { var b = boxEl.querySelector(".btn.primary"); if (b) b.click(); } return; }
+    keys[e.key] = true; keyThrust();
+  });
+  document.addEventListener("keyup", function (e) { keys[e.key] = false; keyThrust(); });
+  function keyThrust() {
+    var x = (keys.ArrowRight || keys.d ? 1 : 0) - (keys.ArrowLeft || keys.a ? 1 : 0);
+    var y = (keys.ArrowDown || keys.s ? 0.6 : 0) - (keys.ArrowUp || keys.w || keys[" "] ? 1 : 0);
+    if (x || y || !origin) thrust = { x: x * 0.8, y: y };
+  }
+
+  // ---- cards ------------------------------------------------------------
+  function el(tag, cls, text) { var e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
+  function button(label, cls, onClick) { var b = el("button", "btn " + (cls || ""), label); b.addEventListener("click", onClick); return b; }
+  function openCard(kids) { phase = "card"; boxEl.innerHTML = ""; kids.forEach(function (k) { boxEl.appendChild(k); }); cardEl.classList.add("show"); }
+  function closeCard() { cardEl.classList.remove("show"); }
+
+  function showStart() {
+    var today = Arcade.dailySeed();
+    var dailyDone = Arcade.load("daily:" + today, null);
+    var kids = [el("h2", null, "🍔 Unkle Lijah's Jetpack"), el("p", null, "Fly under the falling food. Catch it in order. Don't touch the sauce.")];
+    if (dailyDone == null) kids.push(button("DAILY · stock pack", "primary gold", function () { startRun("daily"); }));
+    else { var d = button("Daily done · " + dailyDone + " 🍔", "quiet", function () {}); d.disabled = true; kids.push(d); }
+    kids.push(button("FREE PLAY · " + PARTS[equipped].name, dailyDone == null ? "quiet" : "primary", function () { startRun("free"); }));
+    kids.push(button("Loadout · " + burgers + " 🍔", "quiet", showLoadout));
+    var ul = el("ul");
+    ["Bottom bun, patty, cheese, top bun. In that order, on his head.", "Top bun banks it. Stack more patty + cheese first for more.", "Condiments spill the stack. Nothing else happens."].forEach(function (t) { ul.appendChild(el("li", null, t)); });
+    kids.push(ul);
+    if (bestDaily || bestFree) kids.push(el("p", null, "best daily " + bestDaily + " · best free " + bestFree));
+    openCard(kids);
+    stopIdle();
+  }
+
+  function showEndCard() {
+    var r = run;
+    var best = r.mode === "daily" ? bestDaily : bestFree;
+    var panel = el("div", "panel");
+    var top = el("div", "panel-top"); top.appendChild(el("span", "game", "🍔 Unkle Lijah's Jetpack")); top.appendChild(el("span", null, Arcade.cardDate())); panel.appendChild(top);
+    panel.appendChild(el("p", null, (r.mode === "daily" ? "Daily" : "Free Play · " + PARTS[equipped].name) + (r.score >= best && r.score > 0 ? " · 🎉 best" : "")));
+    panel.appendChild(el("div", "big", r.score + " 🍔"));
+    panel.appendChild(el("p", null, r.caught + " caught · " + r.spills + " spill" + (r.spills === 1 ? "" : "s")));
+    panel.appendChild(el("div", "foot", "lettuce arcade"));
+    var hint = el("div", "hint");
+    var row = el("div", "row");
+    var share = el("button", "btn quiet", "Share");
+    Arcade.shareButton(share, hint, function () { return { text: "🍔 Unkle Lijah's Jetpack · " + (r.mode === "daily" ? "Daily " : "") + r.score + " burgers · " + r.spills + " spills", title: "Unkle Lijah's Jetpack" }; });
+    row.appendChild(share);
+    row.appendChild(button("Again", "primary", showStart));
+    openCard([panel, row, hint]);
+    if (r.score > 0 && r.score >= best) { Arcade.confetti(["#ffe066", "#e0a75b", "#ffd23f", "#fff"]); }
+  }
+
+  // ---- loadout ----------------------------------------------------------
+  var idleCv, idleTimer = null, iPack, iHead, iLayers;
+  function showLoadout() {
+    var kids = [el("h2", null, "Loadout")];
+    idleCv = el("canvas"); idleCv.id = "idle";
+    kids.push(idleCv);
+    var pile = el("div", "pile"); pile.appendChild(el("span", null, "banked")); var pb = el("b", null, burgers + " 🍔"); pile.appendChild(pb); kids.push(pile);
+    var pcv = el("canvas"); pcv.id = "pilecv"; kids.push(pcv);
+    var shop = el("div", "shop");
+    shop.appendChild(el("h3", null, "Pack parts · one equipped"));
+    Object.keys(PARTS).forEach(function (id) { shop.appendChild(shopItem(PARTS[id].name, PARTS[id].blurb, PARTS[id].cost, id, null, equipped === id, function () { equipped = id; })); });
+    shop.appendChild(el("h3", null, "Paint"));
+    PAINTS.forEach(function (p) { shop.appendChild(shopItem(p.name, null, p.cost, p.id, p.color, paint === p.id, function () { paint = p.id; })); });
+    shop.appendChild(el("h3", null, "Exhaust"));
+    EXHAUSTS.forEach(function (p) { shop.appendChild(shopItem(p.name, null, p.cost, p.id, p.color, exhaust === p.id, function () { exhaust = p.id; })); });
+    shop.appendChild(el("h3", null, "Hat"));
+    HATS.forEach(function (p) { shop.appendChild(shopItem(p.name, null, p.cost, p.id, null, hat === p.id, function () { hat = p.id; })); });
+    kids.push(shop);
+    kids.push(button("Back", "primary", showStart));
+    openCard(kids);
+    startIdle();
+    drawPile(pcv);
+  }
+  function shopItem(name, blurb, cost, id, swatch, on, equip) {
+    var row = el("div", "item" + (on ? " on" : ""));
+    if (swatch) { var sw = el("span", "sw"); sw.style.background = swatch; row.appendChild(sw); }
+    var t = el("div", "t", name); if (blurb) t.appendChild(el("small", null, blurb)); row.appendChild(t);
+    var b;
+    if (on) { b = button("Equipped", "quiet", function () {}); b.disabled = true; }
+    else if (has(id)) b = button("Equip", "", function () { equip(); saveAll(); showLoadout(); });
+    else { b = button(cost + " 🍔", "quiet", function () { if (burgers < cost) return; burgers -= cost; owned.push(id); equip(); saveAll(); showLoadout(); }); if (burgers < cost) b.disabled = true; }
+    row.appendChild(b);
+    return row;
+  }
+  function drawPile(pcv) {
+    var r = pcv.getBoundingClientRect(); var dpr = Math.min(2, window.devicePixelRatio || 1);
+    pcv.width = Math.round(r.width * dpr); pcv.height = Math.round(56 * dpr);
+    var c = pcv.getContext("2d"); c.setTransform(dpr, 0, 0, dpr, 0, 0);
+    var n = Math.min(burgers, 300), perRow = Math.floor(r.width / 14), saved = ctx; ctx = c;
+    for (var i = 0; i < n; i++) {
+      var row = Math.floor(i / perRow), col = i % perRow;
+      var x = 8 + col * 14 + (row % 2) * 7, y = 48 - row * 9;
+      ctx.save(); ctx.translate(x, y); ctx.scale(0.32, 0.32);
+      drawItem("bun_b", 0, 8, 0, 1); drawItem("patty", 0, 0, 0, 1); drawItem("cheese", 0, -6, 0, 1); drawItem("bun_t", 0, -14, 0, 1);
+      ctx.restore();
+    }
+    ctx = saved;
+  }
+  // Lijah idles on the loadout screen and flops when tugged.
+  function startIdle() {
+    stopIdle();
+    var r = idleCv.getBoundingClientRect(); var dpr = Math.min(2, window.devicePixelRatio || 1);
+    idleCv.width = Math.round(r.width * dpr); idleCv.height = Math.round(220 * dpr);
+    var c = idleCv.getContext("2d"); c.setTransform(dpr, 0, 0, dpr, 0, 0);
+    var iw = r.width;
+    iPack = { x: iw / 2, y: 60 }; iHead = mkPoint(iw / 2, 60 + ROD * 1.5); iLayers = [];
+    var prm = partParams(equipped), t = 0;
+    idleCv.addEventListener("pointerdown", function (e) { var rr2 = idleCv.getBoundingClientRect(); iHead.px = iHead.x - (e.clientX - rr2.left - iHead.x) * 0.4; iHead.py = iHead.y + 6; });
+    idleTimer = setInterval(function () {
+      t += 1 / 60;
+      iPack.x = iw / 2 + Math.sin(t * 0.9) * 10; iPack.y = 58 + Math.sin(t * 1.7) * 4;
+      verlet(iHead, 1 / 60, 0.99); constrain(iHead, iPack.x, iPack.y, ROD * 1.5);
+      c.clearRect(0, 0, iw, 220);
+      drawLijah(c, iPack, iHead, iLayers, { x: 0, y: -0.3 }, prm, true);
+    }, 1000 / 60);
+  }
+  function stopIdle() { if (idleTimer) { clearInterval(idleTimer); idleTimer = null; } }
+
+  // ---- menu -------------------------------------------------------------
+  Arcade.menuButton({
+    rules: HELP,
+    canOpen: function () { return phase !== "play"; },
+    actions: [{ label: "New run", confirm: "This run is gone. Nothing banked is lost.", onClick: function () { phase = "card"; showStart(); } }],
+    describeSave: function () { return burgers + " 🍔 banked · best daily " + bestDaily + " · " + PARTS[equipped].name + " equipped."; }
+  });
+
+  // ---- boot -------------------------------------------------------------
+  window.__lijah = { get params() { return params; }, get run() { return run; }, get layers() { return layers; }, get items() { return items; }, get head() { return head; }, get pack() { return pack; }, get cp() { return catchPoint(); }, get legal() { return nextLegal(layers.length ? layers[layers.length - 1].kind : null); }, makeSchedule: makeSchedule };
+  function start() {
+    resize();
+    saveAll();
+    resetLijah();
+    thrust = { x: 0, y: 0 };
+    params = partParams(equipped);
+    draw();
+    showStart();
+    if (TURBO) startRun(Q.get("mode") === "daily" ? "daily" : "free");
+  }
+  Arcade.boot(start);
+</script>
+</body>
+</html>
