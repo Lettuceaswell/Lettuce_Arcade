@@ -4,7 +4,8 @@
 - **Emoji:** 🏋️
 - **Status:** beta — full engine built (15 levels, Rival AI), listed under
   the index's "Beta games" button (`"beta": true` in `games.json`) until
-  playtests 1–3 pass.
+  playtests 1–3 pass. Levels 1–7 verified winnable by a headless bot
+  (see §12); the Rival arc (8–15) is not yet balanced.
 
 *(Working title. Alternates: Block by Block, The Circuit, Foot Traffic.)*
 
@@ -214,3 +215,39 @@ In order. Each test has one question and one thing you're allowed to change.
 - Whether **Fold** or **Collapse** reads better on a loss screen. Test 5 decides.
 - Whether the Rival should be one chain across all levels with a name and a personality, or an anonymous color. A named chain is more fun and costs nothing but text.
 - Whether **Branch** survives, or its job gets folded into a Lifer that trades movement for holding ground.
+
+---
+
+## 12. Headless simulation (2026-09-04)
+
+`gdd/sim/open-gym/` runs the real game script in Node with a stub DOM
+(`harness.js`), a competent greedy bot (`bot.js`), 15 levels × 30 seeds
+(`run.js` → `RESULTS.md`), and a per-turn trace (`node trace.js <level>
+<seed>`). Set `OG_OVERRIDE="LAPSE_TURNS = 8"` to test a knob without
+editing the game.
+
+What it found, and what changed in the game because of it:
+
+- **Every block started Sedentary**, so on turn 5 the whole map turned
+  Lapsed (defence 1) at once and Trials could never recruit again. Now
+  blocks start blank and each level seeds ~1 in 5 as Sedentary (§5 as
+  written). Blank hexes have their own colour.
+- **Lapsed could take the Gym**, after which nothing could ever be signed
+  and the game never ended. The Gym is now exempt from Lapsed spread, and
+  losing the Gym (to the Rival) is an immediate, explained loss. A
+  stalemate (nothing can recruit, nothing can merge, Momentum not growing)
+  is also an explained loss instead of an endless End Turn.
+- **`LAPSE_TURNS` 5 → 10.** With 5, levels 3–7 were 0/30 for the bot; with
+  10 they are 30/30 in a median 9 turns. This is the one balance number
+  the code no longer matches §5 on.
+- Moving or merging now spends a member's turn, like recruiting. Captured
+  Gyms stop being Gyms. Rival rule 3 prefers blocks with the most Rival
+  neighbours; rule 1 also stops Branch purchases.
+
+Still open (bot results, default settings): level 8 ≈ 1/3 wins, 9–15
+near 0. Mechanism in the traces: Lapsed spreads at 50% into every empty
+owned block, so a Member clears one block a turn and loses one a turn,
+while Load (6 for a Member) exceeds the income of the two or three blocks
+it can hold. Lowering `LAPSED_SPREAD` to 0.25 or 0.15 barely moved it, so
+the lever is elsewhere — Load, income per block, or Lapsed not taking
+owned blocks. Test 3 and Test 6 above are the right place to decide.
