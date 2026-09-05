@@ -130,7 +130,7 @@
   #ticks.hot i.on { background: #ffe066; }
   #ticks.leaf i.on { background: #7dff9a; }
 
-  /* Run only: the last sixteen spins, live, same glyphs as the end card. */
+  /* Run only: the run's events so far, live, same glyphs as the end card. */
   #hist {
     height: 1.3rem;
     font-size: 1rem;
@@ -608,7 +608,9 @@
     readoutEl.innerHTML = "<span class=\"bowl\">🥗</span> <b>" + run.bowl + "</b> · streak <b>" + run.streak + "</b> · <b>+" + (run.streak + 1) + "</b> next";
     serveBtn.textContent = "SERVE " + run.bowl;
     serveBtn.disabled = spinning || run.bowl <= 0;
-    histEl.textContent = run.hist.slice(-16).map(function (h) { return GLYPH[h] || "🟩"; }).join("");
+    // Events only: plain leaves are filler, and a strip that grows only when
+    // something happens reads as a trophy shelf. Bunnies, matches, jackpots, serves.
+    histEl.textContent = run.hist.filter(function (h) { return h !== "l"; }).slice(-16).map(function (h) { return GLYPH[h]; }).join("");
     var nr = nextRung(run.served);
     var prev = tierFor(run.served);
     ladderFill.style.width = (nr ? 100 * (run.served - prev.at) / (nr.at - prev.at) : 100) + "%";
