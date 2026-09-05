@@ -1091,7 +1091,17 @@
     canOpen: function () { return !spinning; },
     // Bailing is free: a run only counts once it's served, so nothing here
     // can touch the best. Drops straight onto a fresh start card.
-    actions: [{ label: "New run", confirm: "This run is gone. Your best stays.", onClick: function () {
+    actions: [{ label: "New run", confirm: "This run is gone. Your best stays.", pinned: true,
+      show: function () { return ui === "run" && !!run && phase === "play"; },
+      // Begging: fifteen spins in with nothing to show, or well behind the
+      // pace of the best run. Serving beats sulking.
+      nudge: function () {
+        if (!run || run.spin < 15) return false;
+        var have = run.served + run.bowl;
+        if (have === 0) return true;
+        return best > 0 && have < (best * run.spin / SPINS) * 0.4;
+      },
+      onClick: function () {
       run = null;
       rng = null;
       Arcade.save("run", null);

@@ -15,7 +15,7 @@
     min-height: 100vh;
     text-align: center;
     padding:
-      calc(56px + var(--safe-top))
+      calc(108px + var(--safe-top)) /* clears the ☰ and the pinned Restart button under it */
       calc(10px + var(--safe-right))
       calc(24px + var(--safe-bottom))
       calc(10px + var(--safe-left));
@@ -185,7 +185,9 @@
       "A branch costs 15, defends everything next to it at 2, and never moves."
     ],
     // Mid-level bail. Until now the only way to restart was to lose first.
-    actions: [{ label: "Restart level", confirm: "This level starts over from turn 1.", onClick: function () {
+    actions: [{ label: "Restart level", confirm: "This level starts over from turn 1.", pinned: true,
+      show: function () { return !!state && !document.getElementById("overlay").classList.contains("show"); },
+      onClick: function () {
       document.getElementById("overlay").classList.remove("show");
       hidePanel();
       loadLevel(levelIndex);

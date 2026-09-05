@@ -26,7 +26,7 @@
   }
 
   /* ---- header: sits under the shared buttons row ---- */
-  #head { margin-top: 48px; display: flex; justify-content: space-between; align-items: baseline; font-weight: 800; font-variant-numeric: tabular-nums; min-height: 28px; }
+  #head { margin-top: 100px; /* under the ☰ and the pinned New run button */ display: flex; justify-content: space-between; align-items: baseline; font-weight: 800; font-variant-numeric: tabular-nums; min-height: 28px; }
   #day { font-size: 0.95rem; letter-spacing: 0.08em; color: var(--fg-dim); }
   #score { font-size: 1.45rem; transform-origin: right center; transition: transform 160ms ease-out; }
   #score.bump { transform: scale(1.15); }
@@ -223,7 +223,9 @@
       "Your blob starts at 50 lbs, which is not a realistic weight for anything, and that's fine.",
       "Your thumb is not precise. Every lock lands somewhere inside the window it shows you, not on the line. The more you've locked, the wider the window gets."
     ],
-    actions: [{ label: "New run", confirm: "This run is gone. Your best score stays.", onClick: function () { newRun(); } }],
+    actions: [{ label: "New run", confirm: "This run is gone. Your best score stays.", pinned: true,
+      show: function () { return !!state && !busy && !$("overlay").classList.contains("show"); },
+      onClick: function () { newRun(); } }],
     describeSave: function () { return "Your best score, and the run you're in the middle of."; }
   });
 

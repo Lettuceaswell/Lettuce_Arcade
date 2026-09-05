@@ -535,7 +535,13 @@
     // the animation. Once the run is over the card is up and busy is true,
     // but restarting from there is exactly what "Play again" does.
     canOpen: function () { return !busy || runOver; },
-    actions: [{ label: "New board", confirm: "This board is gone. Your best stays.", onClick: function () { restartRun(); } }],
+    actions: [{ label: "New board", confirm: "This board is gone. Your best stays.", pinned: true,
+      show: function () { return !runOver && !busy; },
+      // Begging: a third of the moves gone and the score well off the pace of the high score.
+      nudge: function () {
+        return movesTaken >= 10 && highScore > 0 && score < (highScore * movesTaken / MOVE_BUDGET) * 0.4;
+      },
+      onClick: function () { restartRun(); } }],
     describeSave: function () { return "High score, best combo, cleared boards and your stats in Keto Krush."; }
   });
 
@@ -912,7 +918,9 @@
 
   // ---- layout --------------------------------------------------------------
   function computeLayout() {
-    var maxBoardWidth = Math.min(window.innerWidth - 24, 460);
+    // 28px clear on each side: iOS's back-swipe starts within ~20px of the
+    // edge, and a tile there was a run-ender.
+    var maxBoardWidth = Math.min(window.innerWidth - 56, 460);
     var cell = Math.floor((maxBoardWidth - GAP * (N - 1)) / N);
     if (cell < 44) cell = 44; // hard floor: minimum 44x44 tap target
     CELL = cell;
@@ -1902,6 +1910,8 @@
   var SWIPE_THRESHOLD = 20;
 
   boardEl.addEventListener("pointerdown", function (e) {
+    // Never start a swipe from the edge zone; that gesture belongs to the browser.
+    if (e.clientX < 24 || e.clientX > window.innerWidth - 24) return;
     clearHint();
     if (hintTimer) clearTimeout(hintTimer);
     var el = e.target.closest(".tile");
@@ -1980,6 +1990,7 @@
     scheduleHint();
   }
 
+  Arcade.trapBack();
   Arcade.boot(start);
 </script>
 </body>

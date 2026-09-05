@@ -5,7 +5,7 @@
 
   var Arcade = {};
 
-  Arcade.VERSION = 39;
+  Arcade.VERSION = 40;
 
   // ---- namespacing --------------------------------------------------
 
@@ -106,7 +106,13 @@
       ".arc-stat{display:flex;justify-content:space-between;align-items:baseline;gap:12px;padding:7px 0;border-bottom:1px solid rgba(255,255,255,0.08);font-size:1rem}" +
       ".arc-stat span:first-child{color:var(--fg-dim)}" +
       ".arc-stat span:last-child{color:#ffe066;font-weight:800;font-variant-numeric:tabular-nums;text-align:right}" +
-      ".arc-stats .note{color:var(--fg-dim);font-size:0.9rem;margin-top:12px;text-align:center}";
+      ".arc-stats .note{color:var(--fg-dim);font-size:0.9rem;margin-top:12px;text-align:center}" +
+      ".arc-pin{position:fixed;top:calc(60px + env(safe-area-inset-top,0px));right:calc(8px + env(safe-area-inset-right,0px));" +
+      "min-height:44px;padding:8px 14px;z-index:9999;background:rgba(0,0,0,0.5);color:var(--fg-dim);font-size:0.9rem;font-weight:800;letter-spacing:0.03em;" +
+      "transition:background 200ms,color 200ms}" +
+      ".arc-pin.nudge{background:var(--accent);color:#06302d;animation:arc-nudge 1.6s ease-in-out infinite}" +
+      "@keyframes arc-nudge{0%,100%{transform:scale(1);box-shadow:0 0 0 0 rgba(74,222,197,0.5)}50%{transform:scale(1.05);box-shadow:0 0 0 8px rgba(74,222,197,0)}}" +
+      "@media(prefers-reduced-motion:reduce){.arc-pin.nudge{animation:none}}";
     document.head.appendChild(css);
   }
 
@@ -180,11 +186,15 @@
       fill(kids);
     }
 
+    // The confirm button arms after a beat so a double-tap can't fire it.
     function showConfirm(a) {
+      var go = button(a.label, "btn danger", function () { close(); a.onClick(); });
+      go.disabled = true;
+      setTimeout(function () { go.disabled = false; }, 700);
       fill([
         el("h2", null, a.label + "?"),
         el("p", null, String(a.confirm)),
-        button(a.label, "btn danger", function () { close(); a.onClick(); }),
+        go,
         el("div", "spacer"),
         button("Cancel", "btn", showMain)
       ]);
@@ -214,6 +224,36 @@
     });
     btn.setAttribute("aria-label", "Menu");
     document.body.appendChild(btn);
+
+    // A pinned action gets its own button under the ☰, straight to its
+    // confirmation. { pinned: true, show: fn, nudge: fn } — `show` hides it
+    // when there's nothing to restart, `nudge` lights it up when the game
+    // judges the run in progress a lost cause and a fresh one would be more
+    // fun. Both are polled, so games needn't call anything.
+    var pins = (opts.actions || []).filter(function (a) { return a.pinned; });
+    if (pins.length) {
+      var pinEls = pins.map(function (a) {
+        var pb = button("↻ " + a.label, "btn arc-pin", function () {
+          if (opts.canOpen && !opts.canOpen()) return;
+          if (a.confirm) showConfirm(a); else { a.onClick(); return; }
+          sheet.classList.add("show");
+          if (opts.onOpen) opts.onOpen();
+        });
+        pb.hidden = true;
+        document.body.appendChild(pb);
+        return pb;
+      });
+      function pollPins() {
+        pins.forEach(function (a, i) {
+          var on = true, nudge = false;
+          try { on = a.show ? !!a.show() : true; nudge = on && a.nudge ? !!a.nudge() : false; } catch (e) { on = false; }
+          pinEls[i].hidden = !on;
+          pinEls[i].classList.toggle("nudge", nudge);
+        });
+      }
+      pollPins();
+      setInterval(pollPins, 1200);
+    }
 
     document.addEventListener("keydown", function (e) {
       if (e.key === "Escape" && sheet.classList.contains("show")) close();
@@ -477,6 +517,22 @@
     sheet.appendChild(box);
     document.body.appendChild(sheet);
     return sheet;
+  };
+
+  // ---- back-swipe trap ------------------------------------------------------
+  //
+  // iOS Safari's edge swipe goes back in history, and on a swipe-driven game
+  // it's a run-ender. A game that opts in pushes one extra entry so the swipe
+  // lands on the game itself; the ← Arcade link is a real navigation and
+  // still works. Only for games where the swipe is a genuine hazard.
+  Arcade.trapBack = function () {
+    try {
+      if (!history.pushState) return;
+      history.pushState({ arcTrap: true }, "");
+      window.addEventListener("popstate", function () {
+        if (!(history.state && history.state.arcTrap)) history.pushState({ arcTrap: true }, "");
+      });
+    } catch (e) { /* history unavailable; play on */ }
   };
 
   // ---- boot / audio unlock --------------------------------------------------

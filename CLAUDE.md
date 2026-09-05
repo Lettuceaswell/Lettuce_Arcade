@@ -17,6 +17,15 @@ Cloudflare Pages as-is.
   mute button sits it at `right: 60px` so the menu keeps the corner. The
   arcade index (`index.html`) does none of this — it has no back button, no
   menu, and doesn't need a tap-to-start gate.
+- A game with a run that can go stale (a bad board, a bowl the bunny keeps
+  eating) marks its restart action `pinned: true` so it gets its own
+  "↻ New run" button under the ☰, outside the menu. Give it `show` (when a
+  run exists) and, if the game can tell, `nudge` (when the run is a lost
+  cause) so the button lights up and begs. It still confirms, and the
+  confirm arms after a beat. Keep the top ~110px on the right clear for it.
+- Games that are played by swiping (Keto Krush) call `Arcade.trapBack()`
+  and keep tiles out of the 24px edge zone, so iOS's back-swipe can't end a
+  run. Everywhere else, leave the swipe alone — it's how people get home.
 - Adding a game means: one new folder under `games/`, one new object
   appended to `games.json` (`slug`, `title`, `blurb`, `emoji`, and optionally
   `icon` — a PNG inside the game's own folder, shown instead of the emoji).
