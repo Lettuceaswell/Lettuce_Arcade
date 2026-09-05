@@ -68,12 +68,12 @@
   .reels { display: flex; gap: 10px; }
 
   .reel {
-    width: clamp(76px, 26vw, 98px);
-    height: clamp(84px, 27vw, 106px);
+    width: clamp(84px, 28vw, 110px);
+    height: clamp(92px, 29vw, 118px);
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: clamp(48px, 16vw, 66px);
+    font-size: clamp(52px, 17vw, 72px);
     line-height: 1;
     background: var(--bg-elevated);
     border-radius: 16px;
@@ -81,14 +81,26 @@
     transition: opacity 120ms;
   }
   .reel.hot { border-color: #ffe066; }
+  .reel.hot.leaf { border-color: #7dff9a; box-shadow: 0 0 18px rgba(125, 255, 154, 0.35); }
   .reel.bunny { border-color: #ff8a7a; }
   .reel.fade { opacity: 0.35; }
+  /* The two matched reels breathe while the third one crawls. */
+  .reel.breathe { animation: breathe 0.9s ease-in-out infinite; }
+  @keyframes breathe {
+    0%, 100% { transform: scale(1); }
+    50%      { transform: scale(1.07); }
+  }
+  /* The bunny sliding past on a lettuce near-miss. */
+  .reel.pass { animation: pass 260ms ease-out; }
+  @keyframes pass {
+    0%   { border-color: #ff8a7a; background: #7a3a38; }
+    100% { border-color: transparent; }
+  }
 
   /* Floats over the reels so it can be loud without moving anything. */
   .payout {
     position: absolute;
-    left: 0; right: 0; top: 50%;
-    transform: translateY(-50%);
+    left: 0; right: 0; bottom: calc(100% - 10px);
     font-size: clamp(40px, 13vw, 60px);
     font-weight: 900;
     line-height: 1;
@@ -101,11 +113,33 @@
   .payout.bust { color: #ff8a7a; }
   .payout.pop { animation: payout-pop 1.15s ease-out forwards; }
   @keyframes payout-pop {
-    0%   { opacity: 0; transform: translateY(-50%) scale(0.5); }
-    18%  { opacity: 1; transform: translateY(-58%) scale(1.3); }
-    34%  { opacity: 1; transform: translateY(-54%) scale(1.05); }
-    100% { opacity: 0; transform: translateY(-120%) scale(1.02); }
+    0%   { opacity: 0; transform: translateY(30%) scale(0.5); }
+    18%  { opacity: 1; transform: translateY(-10%) scale(1.3); }
+    34%  { opacity: 1; transform: translateY(-4%) scale(1.05); }
+    100% { opacity: 0; transform: translateY(-70%) scale(1.02); }
   }
+
+  /* Heartbeat: one dot lights per reel tick, slowing with the tension tail. */
+  #ticks { display: flex; gap: 7px; height: 8px; margin-top: 2px; }
+  #ticks i {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: rgba(255, 255, 255, 0.12);
+    transition: background 90ms, transform 90ms;
+  }
+  #ticks i.on { background: var(--accent); transform: scale(1.35); }
+  #ticks.hot i.on { background: #ffe066; }
+  #ticks.leaf i.on { background: #7dff9a; }
+
+  /* Run only: the last sixteen spins, live, same glyphs as the end card. */
+  #hist {
+    height: 1.3rem;
+    font-size: 1rem;
+    line-height: 1.3rem;
+    letter-spacing: 0.06em;
+    color: var(--fg-dim);
+    opacity: 0.85;
+  }
+  body.mode-spin #hist { display: none; }
 
   /* Fixed height so results never reflow the reels. */
   #status {
@@ -120,11 +154,64 @@
   #status.jackpot { color: #ffe066; font-size: 1.3rem; }
   #status.match   { color: var(--accent); }
   #status.near    { color: #ffb4a2; }
+  #status.leaf    { color: #7dff9a; font-size: 1.2rem; }
+  #status.legend  { color: var(--fg-dim); opacity: 0.6; font-weight: 600; font-size: 0.95rem; }
   #status.bust    { color: #ff8a7a; }
   #status.serve   { color: var(--accent); }
 
   #readout { font-size: 1rem; color: var(--fg-dim); }
   #readout b { color: var(--fg); font-size: 1.15rem; }
+  #readout .bowl { display: inline-block; }
+  #readout .bowl.wobble { animation: wobble 0.5s ease-in-out infinite; }
+  #readout .bowl.hop { animation: hop 320ms ease-out; }
+  @keyframes wobble {
+    0%, 100% { transform: rotate(-12deg); }
+    50%      { transform: rotate(12deg); }
+  }
+  @keyframes hop {
+    0%   { transform: translateY(0) scale(1); }
+    40%  { transform: translateY(-8px) scale(1.25); }
+    100% { transform: translateY(0) scale(1); }
+  }
+
+  /* Thin bars: spins left under the counter, ladder progress above the footer. */
+  .bar {
+    width: min(360px, 82vw);
+    height: 5px;
+    border-radius: 3px;
+    background: rgba(0, 0, 0, 0.35);
+    overflow: hidden;
+  }
+  .bar i {
+    display: block;
+    height: 100%;
+    width: 0;
+    border-radius: 3px;
+    background: var(--accent);
+    transition: width 320ms ease-out;
+  }
+  #sub { display: flex; flex-direction: column; align-items: center; gap: 5px; }
+  #ladder i { background: #ffe066; }
+  #footer-wrap { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+  #footer.pulse { animation: footer-pulse 700ms ease-out; }
+  @keyframes footer-pulse {
+    0%   { transform: scale(1); color: var(--fg-dim); }
+    30%  { transform: scale(1.12); color: #ffe066; }
+    100% { transform: scale(1); }
+  }
+  body.mode-spin #ladder { display: none; }
+
+  /* The bowl on its way from SERVE to the served total. */
+  .fly {
+    position: fixed;
+    z-index: 9997;
+    font-size: 1.4rem;
+    font-weight: 900;
+    color: #ffe066;
+    text-shadow: 0 2px 10px rgba(0, 0, 0, 0.6);
+    pointer-events: none;
+    transition: transform 520ms cubic-bezier(0.2, 0.7, 0.3, 1), opacity 520ms;
+  }
 
   #serve, #spin {
     width: min(360px, 82vw);
@@ -133,7 +220,15 @@
   }
   #serve { height: 60px; font-size: 1.2rem; background: var(--bg-elevated); }
   #serve:disabled { opacity: 0.35; }
-  #spin { height: 72px; font-size: 1.5rem; }
+  #spin { height: 72px; font-size: 1.5rem; transition: background 120ms; }
+  /* Mid-spin the button stays live: a tap stops the next reel. */
+  #spin.stop { background: var(--bg-elevated); letter-spacing: 0.12em; }
+  #spin.stop.beat { animation: beat 140ms ease-out; }
+  @keyframes beat {
+    0%   { transform: scale(1); }
+    40%  { transform: scale(1.035); }
+    100% { transform: scale(1); }
+  }
 
   #footer { font-size: 0.95rem; color: var(--fg-dim); font-weight: 600; }
   #footer b { color: var(--fg); }
@@ -200,6 +295,9 @@
 
   @media (prefers-reduced-motion: reduce) {
     .payout.pop { animation: none; opacity: 1; }
+    .reel.breathe, .reel.pass, #readout .bowl.wobble, #readout .bowl.hop,
+    #spin.stop.beat, #footer.pulse { animation: none; }
+    .fly { transition: none; }
   }
 </style>
 </head>
@@ -210,7 +308,7 @@
     <button id="mode-spin" role="tab" aria-selected="true">Spin</button>
     <button id="mode-run" role="tab" aria-selected="false">Run</button>
   </div>
-  <div id="sub"><b id="spins-left"></b></div>
+  <div id="sub"><b id="spins-left"></b><div class="bar" id="spinbar" aria-hidden="true"><i></i></div></div>
 
   <div class="stage" aria-hidden="true">
     <div class="reels">
@@ -220,6 +318,8 @@
     </div>
     <div class="payout" id="payout"></div>
   </div>
+  <div id="ticks" aria-hidden="true"></div>
+  <div id="hist" aria-hidden="true"></div>
 
   <div id="status" aria-live="polite"></div>
   <div id="readout"></div>
@@ -227,7 +327,10 @@
   <button id="serve" class="btn" disabled>SERVE 0</button>
   <button id="spin" class="btn">SPIN</button>
 
-  <div id="footer"></div>
+  <div id="footer-wrap">
+    <div class="bar" id="ladder" aria-hidden="true"><i></i></div>
+    <div id="footer"></div>
+  </div>
 </main>
 
 <button id="mute" class="btn" aria-label="Mute sound">🔊</button>
@@ -259,6 +362,8 @@
   // The whole rulebook, behind the ☰ menu, for whoever asks. Two modes, two
   // sections: the pill at the top of the screen switches between them.
   var HELP = [
+    "# Any time",
+    "Tap SPIN again while the reels turn to stop the next one. What lands was decided the moment you spun.",
     "# Spin",
     "The toy. Just spin — nothing is at stake and nothing ends.",
     "One point a spin, fifty for a match, five hundred for 🥬🥬🥬.",
@@ -291,7 +396,15 @@
   var REEL3_NORMAL = steady(30, 60);                               // lands 1800ms
   var REEL3_TENSION = steady(18, 60)                               // lands ~3100ms
     .concat([80, 110, 150, 200, 260, 330, 410, 500]);
+  // Two lettuce is the only pair that can pay the jackpot, so it crawls longer.
+  var REEL3_TENSION_LEAF = steady(18, 60)                          // lands ~3900ms
+    .concat([80, 110, 150, 200, 260, 330, 410, 500, 600, 700]);
   var TENSION_TAIL_FROM = 18;
+  // A tap this soon after SPIN is a double-tap, not a stop.
+  var STOP_GRACE_MS = 150;
+  var TICK_DOTS = 9;
+  var LEGEND_SPIN = "any three +50 · 🥬🥬🥬 +500";
+  var LEGEND_RUN = "any three ×2 · 🥬🥬🥬 ×3 +50 · 🐰 eats the bowl";
 
   // ---- audio ------------------------------------------------------------
   var muted = Arcade.load("muted", false) === true;
@@ -333,6 +446,39 @@
   var modeSpinBtn = $("mode-spin"), modeRunBtn = $("mode-run");
   var readoutEl = $("readout"), footerEl = $("footer"), spinsLeftEl = $("spins-left");
   var cardEl = $("card"), boxEl = $("box");
+  var ticksEl = $("ticks"), histEl = $("hist");
+  var spinbarFill = $("spinbar").firstElementChild, ladderFill = $("ladder").firstElementChild;
+  for (var d = 0; d < TICK_DOTS; d++) ticksEl.appendChild(document.createElement("i"));
+  var tickDots = ticksEl.children, tickAt = -1;
+
+  // ---- heartbeat + skill stop ------------------------------------------
+  // One dot lights per reel tick, on any reel, so the row's rhythm is the
+  // spin's rhythm: fast while everything moves, slowing with the tension tail.
+  function beat() {
+    if (tickAt >= 0) tickDots[tickAt].classList.remove("on");
+    tickAt = (tickAt + 1) % TICK_DOTS;
+    tickDots[tickAt].classList.add("on");
+  }
+  function clearBeat() {
+    if (tickAt >= 0) tickDots[tickAt].classList.remove("on");
+    tickAt = -1;
+    ticksEl.className = "";
+  }
+  function pulseSpinBtn() {
+    spinBtn.classList.remove("beat");
+    void spinBtn.offsetWidth;
+    spinBtn.classList.add("beat");
+  }
+  // The reels still in motion, in landing order. A tap mid-spin lands the
+  // first one now. Outcomes were drawn before anything moved, so this only
+  // ever changes how long the reveal takes.
+  var live = [];
+  var spinStartedAt = 0;
+  function stopNext() {
+    if (!spinning || Date.now() - spinStartedAt < STOP_GRACE_MS) return;
+    var r = live.shift();
+    if (r) r.stop();
+  }
 
   // ---- state ------------------------------------------------------------
   function num(v) { var n = Number(v); return isFinite(n) ? n : 0; }
@@ -442,26 +588,36 @@
 
   // ---- render -----------------------------------------------------------
   function render() {
-    spinBtn.disabled = spinning;
+    // Mid-spin the button is the STOP button, never disabled.
+    spinBtn.textContent = spinning ? "STOP" : "SPIN";
+    spinBtn.classList.toggle("stop", spinning);
     modeSpinBtn.disabled = spinning;
     modeRunBtn.disabled = spinning;
+    // The status line shows what pays whenever it has nothing else to say.
+    if (!spinning && statusEl.textContent === "") setStatus(ui === "spin" ? LEGEND_SPIN : LEGEND_RUN, "legend");
     if (ui === "spin") {
       readoutEl.innerHTML = "<b>" + plural(jackpots, "jackpot") + "</b> · " +
         matches.toLocaleString() + " match" + (matches === 1 ? "" : "es");
-      footerEl.innerHTML = "<b>" + points.toLocaleString() + " pts</b> · " + dry.toLocaleString() + " since last 🥬";
+      footerEl.innerHTML = "<b>" + dry.toLocaleString() + " since last 🥬</b> · " + points.toLocaleString() + " pts";
       return;
     }
     if (!run) return;
     var left = SPINS - run.spin;
     spinsLeftEl.textContent = left + (left === 1 ? " spin left" : " spins left");
-    readoutEl.innerHTML = "🥗 <b>" + run.bowl + "</b> · streak <b>" + run.streak + "</b> · <b>+" + (run.streak + 1) + "</b> next";
+    spinbarFill.style.width = (100 * left / SPINS) + "%";
+    readoutEl.innerHTML = "<span class=\"bowl\">🥗</span> <b>" + run.bowl + "</b> · streak <b>" + run.streak + "</b> · <b>+" + (run.streak + 1) + "</b> next";
     serveBtn.textContent = "SERVE " + run.bowl;
     serveBtn.disabled = spinning || run.bowl <= 0;
+    histEl.textContent = run.hist.slice(-16).map(function (h) { return GLYPH[h] || "🟩"; }).join("");
     var nr = nextRung(run.served);
+    var prev = tierFor(run.served);
+    ladderFill.style.width = (nr ? 100 * (run.served - prev.at) / (nr.at - prev.at) : 100) + "%";
     footerEl.innerHTML = "served " + run.served + " · " + (nr
       ? "<b>" + nr.name + "</b> at " + nr.at + " · " + (nr.at - run.served) + " to go"
       : "<b>" + tierFor(run.served).name + "</b>");
   }
+  function bowlEl() { return readoutEl.querySelector(".bowl"); }
+  function setBowl(cls, on) { var b = bowlEl(); if (b) b.classList.toggle(cls, !!on); }
 
   function setStatus(text, cls) { statusEl.textContent = text; statusEl.className = cls || ""; }
 
@@ -472,35 +628,43 @@
     payoutEl.classList.add("pop");
   }
 
-  function clearRings() { reelEls.forEach(function (el) { el.classList.remove("hot", "bunny"); }); }
+  function clearRings() { reelEls.forEach(function (el) { el.classList.remove("hot", "bunny", "leaf", "breathe", "pass"); }); }
 
   // ---- reel animation ---------------------------------------------------
   // Walks the strip one slot per tick, starting at (final - ticks) so the reel
   // arrives on finalIndex with every intermediate step contiguous.
+  // Returns a handle whose stop() lands the reel on finalIndex right now.
   function spinReel(el, strip, intervals, finalIndex, onTick, onDone) {
     var n = strip.length;
+    var timer = null, landed = false;
+    function land() {
+      if (landed) return;
+      landed = true;
+      clearTimeout(timer);
+      el.textContent = strip[finalIndex];
+      el.classList.remove("fade");
+      onDone();
+    }
     if (REDUCED) {
       // Reduced motion: a short fade instead of the walk; sounds and words stay.
       el.classList.add("fade");
-      setTimeout(function () {
-        el.textContent = strip[finalIndex];
-        el.classList.remove("fade");
-        onDone();
-      }, Math.min(900, intervals.length * 20));
-      return;
+      timer = setTimeout(land, Math.min(900, intervals.length * 20));
+      return { stop: land };
     }
     var ticks = intervals.length;
     var idx = ((finalIndex - ticks) % n + n) % n;
     function step(i) {
-      setTimeout(function () {
+      timer = setTimeout(function () {
+        if (landed) return;
         idx = (idx + 1) % n;
         el.textContent = strip[idx];
-        if (onTick) onTick(i);
+        if (onTick) onTick(i, strip[idx]);
         if (i + 1 < ticks) step(i + 1);
-        else onDone();
+        else land();
       }, intervals[i]);
     }
     step(0);
+    return { stop: land };
   }
 
   // ---- the spin ---------------------------------------------------------
@@ -508,10 +672,12 @@
     if (spinning || phase !== "play") return;
     if (ui === "run" && (!run || run.spin >= SPINS)) return;
     spinning = true;
-    render();
+    spinStartedAt = Date.now();
     setStatus("");
+    render();
     payoutEl.className = "payout";
     clearRings();
+    clearBeat();
 
     var strip = strip3();
     var d = ui === "spin" ? toyDraw() : draw();
@@ -542,26 +708,51 @@
       return;
     }
 
-    var third = tension ? REEL3_TENSION : REEL3_NORMAL;
+    var leafPair = tension && r1 === LETTUCE;
+    var third = leafPair ? REEL3_TENSION_LEAF : tension ? REEL3_TENSION : REEL3_NORMAL;
 
-    spinReel(reelEls[0], SYMBOLS, REEL1, r1, null, function () {
+    live = [];
+    live.push(spinReel(reelEls[0], SYMBOLS, REEL1, r1, beat, function () {
       tone(STOP_TONES[0], 0.09, 0, 0.16);
-    });
-    spinReel(reelEls[1], SYMBOLS, REEL2, r2, null, function () {
+      pulseSpinBtn();
+    }));
+    live.push(spinReel(reelEls[1], SYMBOLS, REEL2, r2, beat, function () {
       tone(STOP_TONES[1], 0.09, 0, 0.16);
+      pulseSpinBtn();
       if (tension) {
-        reelEls[0].classList.add("hot");
-        reelEls[1].classList.add("hot");
-        var stake = ui === "run" && run.bowl > 0 ? " — bowl " + run.bowl + " on the line…" : " — one to go…";
-        setStatus("TWO " + SYMBOLS[r1] + stake, "near");
+        var tier = leafPair ? "leaf" : "hot";
+        reelEls[0].classList.add("hot", "breathe", tier);
+        reelEls[1].classList.add("hot", "breathe", tier);
+        ticksEl.className = tier;
+        var staked = ui === "run" && run.bowl > 0;
+        if (leafPair) setStatus("TWO 🥬 — JACKPOT?" + (staked ? " bowl " + run.bowl + " ×3…" : ""), "leaf");
+        else setStatus("TWO " + SYMBOLS[r1] + (staked ? " — bowl " + run.bowl + " on the line…" : " — one to go…"), "near");
+        if (staked) setBowl("wobble", true);
       }
-    });
-    spinReel(reelEls[2], strip, third, shown, function (i) {
-      if (tension && i >= TENSION_TAIL_FROM) tone(300, 0.05, 0, 0.08);
+    }));
+    live.push(spinReel(reelEls[2], strip, third, shown, function (i, sym) {
+      beat();
+      if (tension && i >= TENSION_TAIL_FROM) {
+        tone(leafPair ? 360 : 300, 0.05, 0, 0.08);
+        pulseSpinBtn();
+        // A lettuce near-miss in Run crawls past the bunny before it stops.
+        if (sym === "🐰") {
+          reelEls[2].classList.remove("pass");
+          void reelEls[2].offsetWidth;
+          reelEls[2].classList.add("pass");
+          tone(160, 0.08, 0, 0.1);
+        }
+      }
     }, function () {
       tone(STOP_TONES[2], 0.09, 0, 0.16);
+      live = [];
+      reelEls[0].classList.remove("breathe");
+      reelEls[1].classList.remove("breathe");
+      reelEls[2].classList.remove("pass");
+      setBowl("wobble", false);
+      clearBeat();
       done(r1, r2, shown, outcome, tension);
-    });
+    }));
   }
 
   // Spin mode: v1's economy, verbatim. Points only ever go up.
@@ -586,6 +777,7 @@
       points += 1;
       dry += 1;
       setStatus(tension ? "so close — one off" : "", tension ? "near" : "");
+      if (tension) reelEls.forEach(function (el) { el.classList.remove("leaf"); });
     }
     saveStats();
     if (outcome !== "miss") saveBrag();
@@ -641,6 +833,7 @@
         setStatus("+" + leaf + " leaf · bowl " + run.bowl, "");
       }
     }
+    if (outcome !== "jackpot") reelEls.forEach(function (el) { el.classList.remove("leaf"); });
 
     if (run.coach && (run.streak >= COACH.length || run.spin >= 10)) { run.coach = false; Arcade.save("coached", true); }
     if (run.bowl > run.biggest) run.biggest = run.bowl;
@@ -667,11 +860,29 @@
     saveRun();
     spinning = false;
     render();
+    if (outcome !== "bust") setBowl("hop", true);
+  }
+
+  // The bowl flies from the SERVE button down to the served total, and the
+  // total pulses when it lands. Reaching a rung of the ladder gets a stamp.
+  function flyBowl(amount, onLand) {
+    if (TURBO || REDUCED) { onLand(); return; }
+    var from = serveBtn.getBoundingClientRect(), to = footerEl.getBoundingClientRect();
+    var f = el("div", "fly", "🥗 +" + amount);
+    f.style.left = (from.left + from.width / 2) + "px";
+    f.style.top = (from.top + from.height / 2) + "px";
+    f.style.transform = "translate(-50%, -50%)";
+    document.body.appendChild(f);
+    void f.offsetWidth;
+    f.style.transform = "translate(-50%, -50%) translate(0, " + (to.top + to.height / 2 - (from.top + from.height / 2)) + "px) scale(0.7)";
+    f.style.opacity = "0";
+    setTimeout(function () { f.remove(); onLand(); }, 540);
   }
 
   function serve() {
     if (spinning || phase !== "play" || ui !== "run" || !run || run.bowl <= 0) return;
     var amount = run.bowl;
+    var before = tierFor(run.served);
     run.served += amount;
     run.hist.push("s");
     serves += 1;
@@ -679,10 +890,21 @@
     run.bowl = 0;
     run.streak = 0;
     clearRings();
-    setStatus("served " + amount, "serve");
+    var after = tierFor(run.served);
+    var rung = after !== before;
+    setStatus(rung ? "🥗 " + after.name + "!" : "served " + amount, rung ? "jackpot" : "serve");
     serveSound(amount);
     saveRun();
     render();
+    flyBowl(amount, function () {
+      footerEl.classList.remove("pulse");
+      void footerEl.offsetWidth;
+      footerEl.classList.add("pulse");
+      if (rung) {
+        Arcade.stampIn(footerEl);
+        Arcade.confetti(["#ffe066", "#4adec5", "#eafffb"]);
+      }
+    });
   }
 
   function finishRun() {
@@ -888,13 +1110,13 @@
   }
   muteBtn.addEventListener("click", function () { muted = !muted; Arcade.save("muted", muted); renderMute(); });
 
-  spinBtn.addEventListener("pointerdown", function (e) { e.preventDefault(); spin(); });
+  spinBtn.addEventListener("pointerdown", function (e) { e.preventDefault(); if (spinning) stopNext(); else spin(); });
   serveBtn.addEventListener("click", serve);
 
   document.addEventListener("keydown", function (e) {
     if (e.repeat) return;
     if (phase === "play") {
-      if (e.key === " " || e.code === "Space") { e.preventDefault(); spin(); }
+      if (e.key === " " || e.code === "Space") { e.preventDefault(); if (spinning) stopNext(); else spin(); }
       else if (e.key === "s" || e.key === "S") { e.preventDefault(); serve(); }
     } else if (e.key === "Enter") {
       var primary = boxEl.querySelector("#box .btn:not(.quiet)");
