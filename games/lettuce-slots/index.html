@@ -119,16 +119,37 @@
     100% { opacity: 0; transform: translateY(-70%) scale(1.02); }
   }
 
-  /* Heartbeat: one dot lights per reel tick, slowing with the tension tail. */
-  #ticks { display: flex; gap: 7px; height: 8px; margin-top: 2px; }
+  /* The strip map: three dots per stop of the third reel, in reel order.
+     The band is the reel's position and glides a dot at a time. Zones mark
+     the stops that matter: red for the bunny, green for lettuce when
+     🥬🥬🥬 is live, gold for the pair's symbol. Passing through a zone
+     flashes it; landing on it holds it lit. */
+  #ticks { display: flex; gap: 5px; height: 9px; margin-top: 3px; align-items: center; }
   #ticks i {
-    width: 8px; height: 8px; border-radius: 50%;
+    width: 7px; height: 7px; border-radius: 50%;
     background: rgba(255, 255, 255, 0.12);
-    transition: background 90ms, transform 90ms;
+    transition: background 70ms, transform 70ms, box-shadow 70ms;
   }
-  #ticks i.on { background: var(--accent); transform: scale(1.35); }
-  #ticks.hot i.on { background: #ffe066; }
-  #ticks.leaf i.on { background: #7dff9a; }
+  #ticks i.z-red   { background: rgba(255, 90, 70, 0.38); }
+  #ticks i.z-green { background: rgba(125, 255, 154, 0.38); }
+  #ticks i.z-gold  { background: rgba(255, 224, 102, 0.42); }
+  #ticks i.edge { background: rgba(255, 255, 255, 0.55); transform: scale(1.1); }
+  #ticks i.mid  { background: #ffffff; transform: scale(1.45); box-shadow: 0 0 8px rgba(255, 255, 255, 0.6); }
+  #ticks i.z-red.lit   { background: #ff5a46; box-shadow: 0 0 10px rgba(255, 90, 70, 0.9); transform: scale(1.35); }
+  #ticks i.z-green.lit { background: #7dff9a; box-shadow: 0 0 10px rgba(125, 255, 154, 0.9); transform: scale(1.35); }
+  #ticks i.z-gold.lit  { background: #ffe066; box-shadow: 0 0 10px rgba(255, 224, 102, 0.9); transform: scale(1.35); }
+  #ticks i.z-red.lit.mid, #ticks i.z-green.lit.mid, #ticks i.z-gold.lit.mid { transform: scale(1.6); }
+  /* Celebrations: a chase across every dot, coloured by what happened. */
+  #ticks.dance i { animation: dance 1.3s ease-in-out 1; animation-delay: calc(var(--i) * 45ms); }
+  #ticks.dance-green i { --c: #7dff9a; }
+  #ticks.dance-gold i { --c: #ffe066; }
+  #ticks.dance-red i { --c: #ff5a46; }
+  @keyframes dance {
+    0%, 100% { transform: scale(1); }
+    25% { transform: scale(1.9) translateY(-4px); background: var(--c); box-shadow: 0 0 10px var(--c); }
+    50% { transform: scale(0.8); }
+    75% { transform: scale(1.5); background: var(--c); }
+  }
 
   /* Run only: the run's events so far, live, same glyphs as the end card. */
   #hist {
@@ -329,7 +350,7 @@
     .payout.pop { animation: none; opacity: 1; }
     .reel.breathe, .reel.pass, #readout .bowl.wobble, #readout .bowl.hop,
     #spin.stop.beat, #footer.pulse, body.shake main, #vignette.flash,
-    #serve.gold, #serve.cashout { animation: none; }
+    #serve.gold, #serve.cashout, #ticks.dance i { animation: none; }
     .fly { transition: none; }
   }
 </style>
@@ -406,6 +427,7 @@
   var HELP = [
     "# Any time",
     "Tap SPIN again while the reels turn to stop the next one. What lands was decided the moment you spun.",
+    "The dots under the reels map the third reel: three dots a stop, in reel order. Red is the bunny. Green is 🥬 when 🥬🥬🥬 is live. Gold is your pair.",
     "# Spin",
     "The toy. Just spin — nothing is at stake and nothing ends.",
     "One point a spin, five for a pair on the first two reels, fifty for a match.",
@@ -452,7 +474,8 @@
   var TENSION_TAIL_FROM = 18;
   // A tap this soon after SPIN is a double-tap, not a stop.
   var STOP_GRACE_MS = 150;
-  var TICK_DOTS = 9;
+  var DOTS_PER_STOP = 3;
+  var STOP_SWEEP_MS = 14;    // per stop, when STOP fast-forwards the reel
   function legendSpin() { return "pair +" + PAIR_POINTS + " · three +50 · 🥬🥬🥬 pot " + pot(); }
   var LEGEND_RUN = "pair +1 leaf · three ×2 · 🥬🥬🥬 ×3 · 🐰 eats the bowl";
 
@@ -501,22 +524,95 @@
   var cardEl = $("card"), boxEl = $("box");
   var ticksEl = $("ticks"), histEl = $("hist");
   var spinbarFill = $("spinbar").firstElementChild, ladderFill = $("ladder").firstElementChild;
-  for (var d = 0; d < TICK_DOTS; d++) ticksEl.appendChild(document.createElement("i"));
-  var tickDots = ticksEl.children, tickAt = -1;
 
-  // ---- heartbeat + skill stop ------------------------------------------
-  // One dot lights per reel tick, on any reel, so the row's rhythm is the
-  // spin's rhythm: fast while everything moves, slowing with the tension tail.
-  function beat() {
-    if (tickAt >= 0) tickDots[tickAt].classList.remove("on");
-    tickAt = (tickAt + 1) % TICK_DOTS;
-    tickDots[tickAt].classList.add("on");
-  }
-  function clearBeat() {
-    if (tickAt >= 0) tickDots[tickAt].classList.remove("on");
-    tickAt = -1;
+  // ---- the strip map ----------------------------------------------------
+  // Dots = 3 × the third reel's stops, in reel order. `bandAt` is the dot
+  // under the reel's window (always a stop's middle dot when at rest).
+  var dots = [], bandAt = -1, bandTimers = [], zones = {}, held = -1;
+  function buildDots(n) {
+    ticksEl.innerHTML = "";
+    dots = [];
+    for (var d = 0; d < n * DOTS_PER_STOP; d++) {
+      var i = document.createElement("i");
+      i.style.setProperty("--i", d);
+      ticksEl.appendChild(i);
+      dots.push(i);
+    }
+    bandAt = -1; zones = {}; held = -1;
     ticksEl.className = "";
   }
+  function zoneClass(stop) { return zones[stop] ? "z-" + zones[stop] : null; }
+  // Mark a stop as a zone (colour) or clear it (null).
+  function setZone(stop, colour) {
+    if (colour) zones[stop] = colour; else delete zones[stop];
+    for (var k = 0; k < DOTS_PER_STOP; k++) {
+      var d = dots[stop * DOTS_PER_STOP + k];
+      if (!d) continue;
+      d.classList.remove("z-red", "z-green", "z-gold", "lit");
+      if (colour) d.classList.add("z-" + colour);
+    }
+  }
+  function stopOfDot(i) { return Math.floor(i / DOTS_PER_STOP); }
+  function centerOf(stop) { return stop * DOTS_PER_STOP + 1; }
+  function paintBand() {
+    var n = dots.length;
+    for (var i = 0; i < n; i++) {
+      var d = dots[i];
+      d.classList.remove("mid", "edge");
+      if (i !== held && stopOfDot(i) !== stopOfDot(held)) d.classList.remove("lit");
+    }
+    if (bandAt < 0 || !n) return;
+    dots[bandAt].classList.add("mid");
+    dots[(bandAt + 1) % n].classList.add("edge");
+    dots[(bandAt - 1 + n) % n].classList.add("edge");
+  }
+  // Move the band to dot i. Entering a zone's middle dot flashes the zone.
+  function bandTo(i, landing) {
+    var n = dots.length;
+    if (!n) return;
+    bandAt = ((i % n) + n) % n;
+    var stop = stopOfDot(bandAt);
+    if (zoneClass(stop) && bandAt === centerOf(stop)) flashZone(stop, landing);
+    paintBand();
+  }
+  function flashZone(stop, hold) {
+    var zc = zoneClass(stop);
+    if (!zc) return;
+    for (var k = 0; k < DOTS_PER_STOP; k++) dots[stop * DOTS_PER_STOP + k].classList.add("lit");
+    if (hold) { held = centerOf(stop); return; }
+    setTimeout(function () {
+      if (held === centerOf(stop)) return;
+      for (var k = 0; k < DOTS_PER_STOP; k++) dots[stop * DOTS_PER_STOP + k].classList.remove("lit");
+    }, 260);
+  }
+  function clearBandTimers() { bandTimers.forEach(clearTimeout); bandTimers = []; }
+  // The reel arrived at `stop`; the next tick is `dur` ms away. Land the
+  // band on this stop now, then glide two dots toward the next stop during
+  // the interval so the third dot (the centre) lands with the next symbol.
+  // dur 0 means this was the landing tick.
+  function bandGlide(stop, dur) {
+    clearBandTimers();
+    bandTo(centerOf(stop), dur === 0);
+    if (dur <= 0) return;
+    var base = bandAt, third = dur / 3;
+    for (var k = 1; k < DOTS_PER_STOP; k++) {
+      (function (k) { bandTimers.push(setTimeout(function () { bandTo(base + k, false); }, third * k)); })(k);
+    }
+  }
+  function dance(colour) {
+    ticksEl.classList.remove("dance", "dance-green", "dance-gold", "dance-red");
+    void ticksEl.offsetWidth;
+    ticksEl.classList.add("dance", "dance-" + colour);
+    setTimeout(function () { ticksEl.classList.remove("dance", "dance-" + colour); }, 1400);
+  }
+  // Fresh spin: rebuild for this mode's strip and set the standing zones.
+  function resetMap() {
+    clearBandTimers();
+    buildDots(strip3().length);
+    if (ui === "spin") setZone(LETTUCE, "green");   // 🥬🥬🥬 is always the jackpot here
+    else setZone(BUNNY, "red");                     // the bunny is always the bunny
+  }
+  function clearBeat() { /* kept for call sites: the map clears itself per spin */ }
   function pulseSpinBtn() {
     spinBtn.classList.remove("beat");
     void spinBtn.offsetWidth;
@@ -744,10 +840,14 @@
   // ---- reel animation ---------------------------------------------------
   // Walks the strip one slot per tick, starting at (final - ticks) so the reel
   // arrives on finalIndex with every intermediate step contiguous.
-  // Returns a handle whose stop() lands the reel on finalIndex right now.
+  // Returns a handle whose stop() fast-forwards the reel through its
+  // remaining stops (never a jump: the map would show the skip) and lands.
+  // onTick(i, symbol, stopIndex, nextIntervalMs).
   function spinReel(el, strip, intervals, finalIndex, onTick, onDone) {
     var n = strip.length;
-    var timer = null, landed = false;
+    var timer = null, landed = false, sweeping = false;
+    var ticks = intervals.length;
+    var idx = ((finalIndex - ticks) % n + n) % n;
     function land() {
       if (landed) return;
       landed = true;
@@ -756,26 +856,39 @@
       el.classList.remove("fade");
       onDone();
     }
+    function sweep() {
+      if (landed || sweeping) return;
+      sweeping = true;
+      clearTimeout(timer);
+      var remaining = ((finalIndex - idx) % n + n) % n;
+      if (remaining === 0) { land(); return; }
+      var k = 0;
+      function go() {
+        idx = (idx + 1) % n; k += 1;
+        el.textContent = strip[idx];
+        if (onTick) onTick(ticks - (remaining - k) - 1, strip[idx], idx, k < remaining ? STOP_SWEEP_MS : 0);
+        if (k < remaining) timer = setTimeout(go, STOP_SWEEP_MS); else land();
+      }
+      go();
+    }
     if (REDUCED) {
       // Reduced motion: a short fade instead of the walk; sounds and words stay.
       el.classList.add("fade");
-      timer = setTimeout(land, Math.min(900, intervals.length * 20));
-      return { stop: land };
+      timer = setTimeout(function () { if (onTick) onTick(ticks - 1, strip[finalIndex], finalIndex, 0); land(); }, Math.min(900, ticks * 20));
+      return { stop: function () { if (onTick) onTick(ticks - 1, strip[finalIndex], finalIndex, 0); land(); } };
     }
-    var ticks = intervals.length;
-    var idx = ((finalIndex - ticks) % n + n) % n;
     function step(i) {
       timer = setTimeout(function () {
-        if (landed) return;
+        if (landed || sweeping) return;
         idx = (idx + 1) % n;
         el.textContent = strip[idx];
-        if (onTick) onTick(i, strip[idx]);
+        if (onTick) onTick(i, strip[idx], idx, i + 1 < ticks ? intervals[i + 1] : 0);
         if (i + 1 < ticks) step(i + 1);
         else land();
       }, intervals[i]);
     }
     step(0);
-    return { stop: land };
+    return { stop: sweep };
   }
 
   // ---- the spin ---------------------------------------------------------
@@ -788,7 +901,7 @@
     render();
     payoutEl.className = "payout";
     clearRings();
-    clearBeat();
+    resetMap();
 
     var strip = strip3();
     var d = ui === "spin" ? toyDraw() : draw();
@@ -831,13 +944,12 @@
     if (auto && !tension) third = REEL_AUTO;
 
     live = [];
-    live.push(spinReel(reelEls[0], SYMBOLS, auto ? REEL_AUTO : REEL1, r1, beat, function () {
+    live.push(spinReel(reelEls[0], SYMBOLS, auto ? REEL_AUTO : REEL1, r1, null, function () {
       tone(STOP_TONES[0], 0.09, 0, 0.16);
       pulseSpinBtn();
       if (leafHook) reelEls[0].classList.add("leaf");
     }));
     live.push(spinReel(reelEls[1], SYMBOLS, second, r2, function (i) {
-      beat();
       if (leafHook && i >= REEL2_HOOK_FROM) tone(440 + (i - REEL2_HOOK_FROM) * 60, 0.06, 0, 0.09);
     }, function () {
       tone(STOP_TONES[1], 0.09, 0, 0.16);
@@ -847,7 +959,9 @@
         var tier = leafPair ? "leaf" : "hot";
         reelEls[0].classList.add("hot", "breathe", tier);
         reelEls[1].classList.add("hot", "breathe", tier);
-        ticksEl.className = tier;
+        // The pair's stop becomes a zone: green for lettuce, gold otherwise.
+        // (In Spin the lettuce zone is already standing.)
+        if (leafPair) setZone(LETTUCE, "green"); else setZone(r1, "gold");
         var staked = ui === "run" && run.bowl > 0;
         if (leafPair) setStatus("TWO 🥬 — JACKPOT?" + (staked ? " bowl " + run.bowl + " ×3…" : ""), "leaf");
         else setStatus("TWO " + SYMBOLS[r1] + (staked ? " — bowl " + run.bowl + " on the line…" : " — one to go…"), "near");
@@ -859,9 +973,9 @@
         }
       }
     }));
-    live.push(spinReel(reelEls[2], strip, third, shown, function (i, sym) {
-      beat();
-      if (tension && i >= TENSION_TAIL_FROM) {
+    live.push(spinReel(reelEls[2], strip, third, shown, function (i, sym, idx, nextMs) {
+      bandGlide(idx, nextMs);
+      if (tension && i >= TENSION_TAIL_FROM && nextMs > STOP_SWEEP_MS) {
         tone(leafPair ? 360 : 300, 0.05, 0, 0.08);
         pulseSpinBtn();
         // A lettuce near-miss in Run crawls past the bunny before it stops.
@@ -879,7 +993,6 @@
       reelEls[1].classList.remove("breathe");
       reelEls[2].classList.remove("pass");
       setBowl("wobble", false);
-      clearBeat();
       cashout = false;
       done(r1, r2, shown, outcome, tension);
     }));
@@ -896,6 +1009,7 @@
       showPayout("+" + won.toLocaleString(), "jackpot");
       reelEls.forEach(function (el) { el.classList.add("hot"); });
       jackpotSound();
+      dance("green");
       Arcade.confetti(["#ffe066", "#7dff9a", "#eafffb"]);
     } else if (outcome === "match") {
       points += 50;
@@ -905,6 +1019,7 @@
       showPayout("+50", "match");
       reelEls.forEach(function (el) { el.classList.add("hot"); });
       matchSound();
+      dance("gold");
     } else if (tension) {
       // The pair pays. Two on the first reels, one off on the third.
       points += 1 + PAIR_POINTS;
@@ -953,6 +1068,7 @@
         setStatus(cashed ? "he found an empty bowl. phew." : "he found an empty bowl", "bust");
       }
       bunnySound();
+      dance("red");
     } else {
       run.streak += 1;
       var leaf = run.streak * mult;
@@ -966,6 +1082,7 @@
         showPayout("JACKPOT", "jackpot");
         reelEls.forEach(function (el) { el.classList.add("hot"); });
         jackpotSound();
+        dance("green");
         Arcade.confetti(["#ffe066", "#7dff9a", "#eafffb"]);
       } else if (outcome === "match") {
         run.bowl = run.bowl * 2;
@@ -973,6 +1090,7 @@
         showPayout("×2", "match");
         reelEls.forEach(function (el) { el.classList.add("hot"); });
         matchSound();
+        dance("gold");
       } else if (run.coach && run.streak <= COACH.length) {
         // First run: the first three leaves of a streak teach in the status
         // line. Keyed on the streak, not the spin, so an early bunny (which
@@ -1244,6 +1362,7 @@
   function setUi(mode) {
     if (spinning) return;
     ui = mode;
+    resetMap();
     Arcade.save("uiMode", mode);
     document.body.classList.toggle("mode-spin", mode === "spin");
     modeSpinBtn.classList.toggle("on", mode === "spin");
