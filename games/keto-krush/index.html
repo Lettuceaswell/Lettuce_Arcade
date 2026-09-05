@@ -537,9 +537,10 @@
     canOpen: function () { return !busy || runOver; },
     actions: [{ label: "New board", confirm: "This board is gone. Your best stays.", pinned: true,
       show: function () { return !runOver && !busy; },
-      // Begging: a third of the moves gone and the score well off the pace of the high score.
+      // Begging: half the moves gone and the score far off the high score's
+      // pace. Boards build slowly, so this waits before it judges.
       nudge: function () {
-        return movesTaken >= 10 && highScore > 0 && score < (highScore * movesTaken / MOVE_BUDGET) * 0.4;
+        return movesTaken >= 15 && highScore > 0 && score < (highScore * movesTaken / MOVE_BUDGET) * 0.3;
       },
       onClick: function () { restartRun(); } }],
     describeSave: function () { return "High score, best combo, cleared boards and your stats in Keto Krush."; }

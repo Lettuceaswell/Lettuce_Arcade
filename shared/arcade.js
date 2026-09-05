@@ -5,7 +5,7 @@
 
   var Arcade = {};
 
-  Arcade.VERSION = 41;
+  Arcade.VERSION = 42;
 
   // ---- namespacing --------------------------------------------------
 
@@ -110,7 +110,8 @@
       ".arc-pin{position:fixed;top:calc(60px + env(safe-area-inset-top,0px));right:calc(8px + env(safe-area-inset-right,0px));" +
       "min-height:44px;padding:8px 14px;z-index:9999;background:rgba(0,0,0,0.5);color:var(--fg-dim);font-size:0.9rem;font-weight:800;letter-spacing:0.03em;" +
       "transition:background 200ms,color 200ms}" +
-      ".arc-pin.nudge{background:var(--accent);color:#06302d;animation:arc-nudge 1.6s ease-in-out infinite}" +
+      ".arc-pin.lit{background:var(--accent);color:#06302d}" +
+      ".arc-pin.nudge{animation:arc-nudge 1.6s ease-in-out 3}" +
       "@keyframes arc-nudge{0%,100%{transform:scale(1);box-shadow:0 0 0 0 rgba(74,222,197,0.5)}50%{transform:scale(1.05);box-shadow:0 0 0 8px rgba(74,222,197,0)}}" +
       "@media(prefers-reduced-motion:reduce){.arc-pin.nudge{animation:none}}";
     document.head.appendChild(css);
@@ -243,12 +244,26 @@
         document.body.appendChild(pb);
         return pb;
       });
+      // A lost cause lights the button steadily. The pulse is the attention
+      // grab, and it plays three beats when the verdict first lands and then
+      // at most once every 45s after that, so a think doesn't get nagged.
+      var NUDGE_EVERY = 45000;
+      var lastPulse = pins.map(function () { return 0; });
       function pollPins() {
+        var now = Date.now();
         pins.forEach(function (a, i) {
-          var on = true, nudge = false;
-          try { on = a.show ? !!a.show() : true; nudge = on && a.nudge ? !!a.nudge() : false; } catch (e) { on = false; }
-          pinEls[i].hidden = !on;
-          pinEls[i].classList.toggle("nudge", nudge);
+          var on = true, lit = false;
+          try { on = a.show ? !!a.show() : true; lit = on && a.nudge ? !!a.nudge() : false; } catch (e) { on = false; }
+          var pb = pinEls[i];
+          pb.hidden = !on;
+          pb.classList.toggle("lit", lit);
+          if (!lit) { pb.classList.remove("nudge"); lastPulse[i] = 0; return; }
+          if (now - lastPulse[i] >= NUDGE_EVERY) {
+            lastPulse[i] = now;
+            pb.classList.remove("nudge");
+            void pb.offsetWidth;
+            pb.classList.add("nudge");
+          }
         });
       }
       pollPins();
