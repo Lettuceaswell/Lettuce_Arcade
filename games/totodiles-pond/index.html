@@ -371,10 +371,26 @@
     box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
   }
 
+  .card-stack { display: flex; flex-direction: column; align-items: center; max-width: 340px; }
+  .card .head {
+    display: none;
+    justify-content: space-between;
+    gap: 10px;
+    font-size: 0.74rem;
+    color: var(--fg-dim);
+    margin: -6px -4px 12px;
+    text-align: left;
+  }
+  .card .head .cname { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding: 0; text-align: left; }
+  .card .head .when { opacity: 0.7; white-space: nowrap; }
+  .card.framed .head { display: flex; }
+  .card .me { display: none; width: 56px; height: 56px; image-rendering: pixelated; margin: 0 auto 6px; }
+  .card.framed .me { display: block; }
   .card .art { font-size: 2.6rem; line-height: 1; margin-bottom: 10px; }
   .card .body { font-size: 1.05rem; line-height: 1.45; }
   .card .sub { margin-top: 10px; font-size: 0.9rem; color: var(--fg-dim); }
-  .card .tap { margin-top: 16px; font-size: 0.8rem; opacity: 0.65; }
+  .card .sub.stamp { color: var(--fg); font-weight: 700; display: inline-block; }
+  .card-stack .tap { margin-top: 12px; font-size: 0.72rem; opacity: 0.5; color: var(--fg); }
 
   /* ---- readouts + buttons ---------------------------------------------- */
 
@@ -525,6 +541,9 @@
   .who .sub { font-size: 0.88rem; color: var(--fg-dim); margin-top: 2px; }
   .who .trait { margin-top: 8px; font-size: 0.92rem; }
   .who .trait b { color: #ffd166; }
+  .share-row { margin-top: 12px; }
+  .share-row .btn { min-height: 44px; min-width: 140px; }
+  .share-row .hint { margin: 6px 0 0; min-height: 0; }
 
   /* The escape from one-tap FEED/PLAY: offer him something that isn't his
      favourite. Lives here, next to what he likes, so it's findable. */
@@ -719,10 +738,14 @@
 </div>
 
 <div class="card-wrap" id="cardwrap">
-    <div class="card">
-      <div class="art" id="cardart"></div>
-      <div class="body" id="cardbody"></div>
-      <div class="sub" id="cardsub"></div>
+    <div class="card-stack">
+      <div class="card" id="card">
+        <div class="head"><span class="cname" id="cardwho"></span><span class="when" id="cardwhen"></span></div>
+        <img class="me" id="cardme" src="totodile.png" alt="" width="56" height="56">
+        <div class="art" id="cardart"></div>
+        <div class="body" id="cardbody"></div>
+        <div class="sub" id="cardsub"></div>
+      </div>
       <div class="tap">tap to continue</div>
     </div>
   </div>
@@ -740,6 +763,10 @@
         <div class="nm" id="whoname"></div>
         <div class="sub" id="whosub"></div>
         <div class="trait" id="whotrait"></div>
+        <div class="share-row">
+          <button class="btn" id="sharebtn">Share</button>
+          <div class="hint" id="sharehint"></div>
+        </div>
       </div>
 
       <h2>Today</h2>
@@ -1643,21 +1670,34 @@
 
   var cardQueue = [];
 
-  function showCard(art, body, sub) {
-    cardQueue.push({ art: art, body: body, sub: sub || "" });
+  // opts.framed: a card worth cropping — header (name · species · day, date)
+  // and his sprite ride along so a screenshot has him in it.
+  // opts.stamp: the +N 💧 line lands with a stamp.
+  function showCard(art, body, sub, opts) {
+    opts = opts || {};
+    cardQueue.push({ art: art, body: body, sub: sub || "", framed: !!opts.framed, stamp: !!opts.stamp });
     if (!$("cardwrap").classList.contains("on")) nextCard();
   }
 
   function nextCard() {
     if (cardQueue.length === 0) {
       $("cardwrap").classList.remove("on");
+      if (pendingEvo) { pendingEvo = false; showEvolution(); }
       return;
     }
     var c = cardQueue.shift();
+    // What he *looks like* right now — a pending evolution hasn't happened yet.
+    var st = STAGES[Math.min(S.stageSeen || 0, stage())];
+    $("card").className = "card" + (c.framed ? " framed" : "");
+    $("cardwho").textContent = S.name + " · " + st.name + " · day " + ageDays();
+    $("cardwhen").textContent = Arcade.cardDate();
+    if ($("cardme").getAttribute("src") !== st.file) $("cardme").src = st.file;
     $("cardart").textContent = c.art;
     $("cardbody").textContent = c.body;
     $("cardsub").textContent = c.sub;
+    $("cardsub").className = "sub" + (c.stamp ? " stamp" : "");
     $("cardwrap").classList.add("on");
+    if (c.stamp) Arcade.stampIn($("cardsub"));
   }
 
   $("cardwrap").addEventListener("click", nextCard);
@@ -1717,7 +1757,7 @@
       gift = giveKeepsake();
     }
 
-    showCard(ev.art, ev.txt, sub);
+    showCard(ev.art, ev.txt, sub, { framed: true, stamp: gained >= 5 });
     if (gift) {
       showCard(gift.ico, "He'd been keeping " + gift.name + " for you.", gift.note);
     }
@@ -1807,8 +1847,18 @@
       "it's in the Pond sheet from here on");
   }
 
+  // The evolution overlay never lands on top of an open card: if the drift,
+  // dream, or keepsake cards are still up, it waits for the last tap.
+  var pendingEvo = false;
+
   function checkEvolution() {
     checkTraitReveal();
+    if (stage() <= S.stageSeen) return;
+    if ($("cardwrap").classList.contains("on")) { pendingEvo = true; return; }
+    showEvolution();
+  }
+
+  function showEvolution() {
     var st = stage();
     if (st <= S.stageSeen) return;
     S.stageSeen = st;
@@ -2139,7 +2189,7 @@
       how === "dive"
         ? S.name + " came up out of " + tier.name + " with a " + find.name.toLowerCase() + "."
         : "The line pulled tight. A " + find.name.toLowerCase() + ", up from " + tier.name + ".",
-      (isNew ? "NEW! " : "") + "+" + gain + " 💧");
+      (isNew ? "NEW! " : "") + "+" + gain + " 💧", { framed: true, stamp: isNew });
 
     if (gift) showCard(gift.ico, "He wants you to have " + gift.name + ".", gift.note);
     react("Splash!", "happy");
@@ -2347,6 +2397,27 @@
 
   $("sheetclose").addEventListener("click", function () {
     $("sheetwrap").classList.remove("on");
+  });
+
+  Arcade.shareButton($("sharebtn"), $("sharehint"), function () {
+    var st = STAGES[stage()];
+    var tr = trait();
+    var found = FINDS.filter(function (f) { return S.found.indexOf(f.id) !== -1; });
+    var last = S.keepsakes.length ? byId(KEEPSAKES, S.keepsakes[S.keepsakes.length - 1].id) : null;
+    var tier = st.name + " · day " + ageDays();
+    return {
+      title: "Totodile's Pond",
+      text: S.name + " · " + tier + " · " + S.careDays + " care-days · " + found.length + " of " + FINDS.length + " found",
+      card: {
+        game: "🐊 Totodile's Pond", filename: "totodiles-pond", date: Arcade.cardDate(),
+        verdict: S.careDays >= 3 ? tr.name : mood(),
+        headline: S.name, headlineSize: 72,
+        tier: tier, tierColor: "#4adec5",
+        strip: found.map(function (f) { return f.ico; }).join(""),
+        rows: [["care-days", S.careDays], ["dives", S.dives], ["found", found.length + " of " + FINDS.length], ["💧", S.drops]],
+        note: last ? "he gave you " + last.name : ""
+      }
+    };
   });
 
   // ---- mute --------------------------------------------------------------------
