@@ -248,3 +248,18 @@ count is a pure scale. Flat growth proves the triangular bowl is the game.
 - `extra.js` — S7: nudge false positives, ladder candidates, last-6 test,
   multiplier share, one-line heuristics.
 - `results/` — raw JSON, all regenerable.
+
+### H10 — the match floor (sized, shipped at 10)
+
+A match pays max(×2, +floor). `node floor.js`, 4,000 runs per row, seed 7.
+
+| floor | optimal EV | human-7 mean / p50 / p90 | ≥Garden / ≥Chef / ≥Feast | timid mean |
+| --- | --- | --- | --- | --- |
+| 0 (before) | 192.0 | 169.7 / 158 / 264 | .84 / .28 / .06 | 90.8 |
+| 8 | 196.4 | 172.3 / 161 / 267 | .85 / .29 / .06 | 104.7 |
+| **10** | **198.6** | **173.5 / 162 / 269** | **.85 / .30 / .06** | **108.6** |
+| 15 | 205.2 | 177.0 / 165 / 275 | .86 / .32 / .07 | 118.5 |
+
+The ladder doesn't move at 10. The timid player gains the most because
+they serve small bowls, which is exactly where the floor bites. Fifteen
+starts closing the nerve-vs-timid gap the design wants open (2.1× → 1.7×).

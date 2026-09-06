@@ -62,7 +62,7 @@ function playRun(r, policy, rand) {
       st.bowl += DP.leafAdd(r, st.k);
       if (pair && r3 === r1) {
         if (r1 === 4) { st.bowl = Math.min(cap, st.bowl * r.jackMult + r.jackBonus); ev.jackpots++; ev.hist.push("j"); }
-        else { st.bowl = Math.min(cap, Math.floor(st.bowl * r.matchMult)); ev.matches++; ev.hist.push("m"); }
+        else { st.bowl = Math.min(cap, Math.max(Math.floor(st.bowl * r.matchMult), st.bowl + (r.matchFloor || 0))); ev.matches++; ev.hist.push("m"); }
         ev.winSizes.push(st.bowl - before);
         st.lastWin = true;
       } else {
@@ -309,3 +309,5 @@ function battery(r, n, seed, names) {
   save("s6-spin-mode", out.s6);
   console.log("S6 done", JSON.stringify(out.s6));
 })();
+
+module.exports = { runPolicy: runPolicy, playRun: playRun, humanPolicy: humanPolicy };

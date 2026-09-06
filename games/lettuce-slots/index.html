@@ -141,6 +141,8 @@
   #ticks i.z-red.lit.mid, #ticks i.z-green.lit.mid, #ticks i.z-gold.lit.mid { transform: scale(1.6); }
   /* Celebrations: a chase across every dot, coloured by what happened. */
   #ticks.dance i { animation: dance 1.3s ease-in-out 1; animation-delay: calc(var(--i) * 45ms); }
+  /* Matches and jackpots keep dancing until the next spin. */
+  #ticks.dance.loop i { animation-iteration-count: infinite; }
   #ticks.dance-green i { --c: #7dff9a; }
   #ticks.dance-gold i { --c: #ffe066; }
   #ticks.dance-red i { --c: #ff5a46; }
@@ -184,7 +186,11 @@
   #readout b { color: var(--fg); font-size: 1.15rem; }
   #readout .bowl { display: inline-block; }
   #readout.record b:first-of-type { color: #ffe066; }
-  #readout .roll { color: #ffe066; }
+  #readout b { display: inline-block; transition: transform 420ms cubic-bezier(0.2, 0.8, 0.2, 1.2), color 300ms; transform-origin: 0% 80%; }
+  /* While the bowl rolls it blows up to roughly twice its size and goes gold,
+     then eases back. The ticks finally have something to look at. */
+  #readout .roll { color: #ffe066; transform: scale(2.2); text-shadow: 0 2px 12px rgba(0, 0, 0, 0.5); }
+  #readout.rolling { color: rgba(165, 243, 239, 0.45); }
   #readout .bowl.wobble { animation: wobble 0.5s ease-in-out infinite; }
   #readout .bowl.hop { animation: hop 320ms ease-out; }
   @keyframes wobble {
@@ -404,6 +410,9 @@
   var FINALE = 5;            // the last five spins pay double leaves
   var PAIR_POINTS = 5;       // Spin mode: two matching on reels one and two
   var PAIR_LEAF = 1;         // Run mode: the same pair adds one extra leaf
+  var MATCH_FLOOR = 10;      // a match pays ×2 or +10, whichever is more (sized in gdd/sim)
+  var CEREMONY_MID = 20;     // gain at which a match earns the pop
+  var CEREMONY_BIG = 50;     // gain at which a match earns confetti
   var POT_BASE = 500;        // Spin mode's progressive jackpot...
   var POT_STEP = 2;          // ...grows by this every dry spin
   var STREAK_STAMPS = [5, 10, 15, 20];
@@ -439,7 +448,7 @@
     "Every spin adds more to the bowl than the last: +1, +2, +3…",
     "SERVE keeps the bowl and starts the count again at +1.",
     "The 🐰 on the third reel eats whatever's in the bowl.",
-    "A pair on the first two reels adds an extra leaf. A MATCH doubles the bowl. 🥬🥬🥬 triples it and adds 50.",
+    "A pair on the first two reels adds an extra leaf. A MATCH doubles the bowl (or adds " + MATCH_FLOOR + ", whichever is more). 🥬🥬🥬 triples it and adds 50.",
     "Two match and the third reel is crawling? SERVE is live: bank the bowl now and give up the double.",
     "The last " + FINALE + " spins pay double leaves.",
     "Whatever's still in the bowl after the last spin is served. Serve more than anyone."
@@ -599,15 +608,19 @@
       (function (k) { bandTimers.push(setTimeout(function () { bandTo(base + k, false); }, third * k)); })(k);
     }
   }
-  function dance(colour) {
-    ticksEl.classList.remove("dance", "dance-green", "dance-gold", "dance-red");
+  var danceTimer = null;
+  function dance(colour, loop) {
+    clearTimeout(danceTimer);
+    ticksEl.classList.remove("dance", "loop", "dance-green", "dance-gold", "dance-red");
     void ticksEl.offsetWidth;
     ticksEl.classList.add("dance", "dance-" + colour);
-    setTimeout(function () { ticksEl.classList.remove("dance", "dance-" + colour); }, 1400);
+    if (loop) ticksEl.classList.add("loop");   // cleared by resetMap() on the next spin
+    else danceTimer = setTimeout(function () { ticksEl.classList.remove("dance", "dance-" + colour); }, 1400);
   }
   // Fresh spin: rebuild for this mode's strip and set the standing zones.
   function resetMap() {
     clearBandTimers();
+    clearTimeout(danceTimer);
     buildDots(strip3().length);
     if (ui === "spin") setZone(LETTUCE, "green");   // 🥬🥬🥬 is always the jackpot here
     else setZone(BUNNY, "red");                     // the bunny is always the bunny
@@ -786,11 +799,9 @@
     var nr0 = nextRung(run.served);
     var crosses = run.bowl > 0 && nr0 && run.served + run.bowl >= nr0.at;
     var record = run.bowl > 0 && bestServe > 0 && run.bowl > bestServe;
-    if (cashout) {
-      serveBtn.textContent = "SERVE " + run.bowl + " NOW";
-    } else {
-      serveBtn.textContent = "SERVE " + run.bowl + (crosses ? " → " + nr0.name : record ? " · record" : "");
-    }
+    serveSuffix = cashout ? " NOW" : crosses ? " → " + nr0.name : record ? " · record" : "";
+    // Mid-roll the button shows the rolling number; otherwise the truth.
+    serveBtn.textContent = "SERVE " + (rollTimer ? shownBowl : run.bowl) + serveSuffix;
     serveBtn.classList.toggle("cashout", cashout);
     serveBtn.classList.toggle("gold", !cashout && (crosses || record));
     serveBtn.disabled = (spinning && !cashout) || run.bowl <= 0;
@@ -814,15 +825,23 @@
     var from = shownBowl, diff = target - from;
     var steps = Math.min(10, Math.abs(diff)), n = 0;
     el0.classList.add("roll");
+    readoutEl.classList.add("rolling");
     rollTimer = setInterval(function () {
       n += 1;
       shownBowl = n >= steps ? target : Math.round(from + diff * n / steps);
       var e = $("bowlnum");
       if (e) e.textContent = shownBowl;
+      // The SERVE button is the bigger number and the thing about to be pressed: it fills in step.
+      if (!cashout) serveBtn.textContent = "SERVE " + shownBowl + serveSuffix;
       if (steps > 1) tone(diff > 0 ? 700 + n * 40 : 400 - n * 20, 0.04, 0, 0.06);
-      if (n >= steps) { clearInterval(rollTimer); rollTimer = null; if (e) e.classList.remove("roll"); }
+      if (n >= steps) {
+        clearInterval(rollTimer); rollTimer = null;
+        if (e) e.classList.remove("roll");
+        readoutEl.classList.remove("rolling");
+      }
     }, 480 / steps);
   }
+  var serveSuffix = "";
   function bowlEl() { return readoutEl.querySelector(".bowl"); }
   function setBowl(cls, on) { var b = bowlEl(); if (b) b.classList.toggle(cls, !!on); }
 
@@ -1009,7 +1028,7 @@
       showPayout("+" + won.toLocaleString(), "jackpot");
       reelEls.forEach(function (el) { el.classList.add("hot"); });
       jackpotSound();
-      dance("green");
+      dance("green", true);
       Arcade.confetti(["#ffe066", "#7dff9a", "#eafffb"]);
     } else if (outcome === "match") {
       points += 50;
@@ -1019,7 +1038,7 @@
       showPayout("+50", "match");
       reelEls.forEach(function (el) { el.classList.add("hot"); });
       matchSound();
-      dance("gold");
+      dance("gold", true);
     } else if (tension) {
       // The pair pays. Two on the first reels, one off on the third.
       points += 1 + PAIR_POINTS;
@@ -1082,15 +1101,21 @@
         showPayout("JACKPOT", "jackpot");
         reelEls.forEach(function (el) { el.classList.add("hot"); });
         jackpotSound();
-        dance("green");
+        dance("green", true);
         Arcade.confetti(["#ffe066", "#7dff9a", "#eafffb"]);
       } else if (outcome === "match") {
-        run.bowl = run.bowl * 2;
-        setStatus(cashed ? "MATCH — it would've doubled" : "MATCH — bowl doubled to " + run.bowl, "match");
-        showPayout("×2", "match");
+        // ×2, or +10 when the bowl is too small for a doubling to mean anything.
+        var before = run.bowl, floored = before * 2 < before + MATCH_FLOOR;
+        run.bowl = Math.max(before * 2, before + MATCH_FLOOR);
+        var gain = run.bowl - before;
+        setStatus(cashed ? "MATCH — it would've paid +" + gain : floored ? "MATCH — +" + gain + " · bowl " + run.bowl : "MATCH — bowl doubled to " + run.bowl, "match");
         reelEls.forEach(function (el) { el.classList.add("hot"); });
         matchSound();
-        dance("gold");
+        dance("gold", true);
+        // Ceremony sized to the gain: rings and chord always, the pop from
+        // 20, confetti from 50. A +1 doubling should feel like +1.
+        if (gain >= CEREMONY_MID) showPayout(floored ? "+" + gain : "×2", "match");
+        if (gain >= CEREMONY_BIG) Arcade.confetti(["#ffe066", "#eafffb", "#fff"]);
       } else if (run.coach && run.streak <= COACH.length) {
         // First run: the first three leaves of a streak teach in the status
         // line. Keyed on the streak, not the spin, so an early bunny (which

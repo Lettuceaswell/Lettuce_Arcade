@@ -12,6 +12,7 @@ function makeRules(o) {
     strip3: o.strip3 || 6,        // 5 symbols + bunny
     bunnyP: null,                 // derived unless given
     matchMult: o.matchMult || 2,
+    matchFloor: o.matchFloor || 0,   // match pays max(×mult, +floor)
     jackMult: o.jackMult || 3,
     jackBonus: o.jackBonus == null ? 50 : o.jackBonus,
     grace: o.grace || 0,          // bunny can't eat a bowl of ≤ grace (still resets streak? no: treated as leafless no-op)
@@ -56,7 +57,7 @@ function solve(r) {
       var missP = nbP - jp - mp;
       var b1 = B + leafAdd(r, k + 1);
       var bj = Math.min(CAP, b1 * r.jackMult + r.jackBonus);
-      var bm = Math.min(CAP, Math.floor(b1 * r.matchMult));
+      var bm = Math.min(CAP, Math.max(Math.floor(b1 * r.matchMult), b1 + r.matchFloor));
       var bl = Math.min(CAP, b1);
       var bustV = B <= r.grace ? next[k * W + B] /* grace: nothing happens */ : next[0];
       return bp * bustV + jp * next[kk * W + bj] + mp * next[kk * W + bm] + missP * next[kk * W + bl];

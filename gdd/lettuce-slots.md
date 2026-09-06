@@ -563,9 +563,15 @@ keys, and it removes all of them.
 4. **Ladder rungs (100 / 200 / 300 / 450).** Set so steady play lands
    Garden most days, Chef's on a good one, Feast at p90, Legendary at p99.
    Re-derive from the table if anything above moves.
-5. **Match multiplier (×2).** Below ×2 the tension spin stops being worth
-   the bowl it risks; above it the doublings dominate the growth and the
-   serve decision gets easier. Probably never moves.
+5. **Match multiplier (×2), with a floor of +10.** Below ×2 the tension
+   spin stops being worth the bowl it risks; above it the doublings dominate
+   the growth and the serve decision gets easier. The floor exists because a
+   match one spin after a bunny doubled 1 to 2 with full ceremony, which
+   played as a joke. A match now pays ×2 or +10, whichever is more, so
+   nothing changes once the bowl is past 10. Sized in
+   `gdd/sim/lettuce-slots/floor.js`: +2% to a human-7 run, ladder shares
+   unchanged, the timid player gains most. Ceremony is sized to the gain:
+   rings and chord always, the pop from +20, confetti from +50.
 6. **Reel 3 timings (1.8s / 3.0s).** Longer reads as slow, shorter reads as
    cheap. The v1 numbers (1.4 / 2.8) are the floor.
 
