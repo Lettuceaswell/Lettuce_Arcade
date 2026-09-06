@@ -254,6 +254,7 @@
       verdictColor: r.beat && r.taps > 0 ? "#4adec5" : "#a5f3ef",
       headline: r.taps + " taps",
       strip: r.perSecond.map(function (n) { return n === peak && peak > 0 ? "🟨" : n >= peak * 0.6 ? "🟩" : n > 0 ? "🟦" : "⬛"; }).join(""),
+      stripNote: "each second · 🟨 peak · 🟩 strong · 🟦 slower · ⬛ quiet",
       rows: [["taps a second", (r.taps / DURATION).toFixed(1)], ["best second", peak], [r.beat ? "previous best" : "your best", r.beat ? (r.prevBest || "—") : best]]
     } };
   });

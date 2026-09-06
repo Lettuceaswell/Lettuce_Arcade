@@ -409,6 +409,9 @@
      .done short-circuits everything to its final state (skip, reduced motion,
      or reopening the card). */
   .reveal { opacity: 0; }
+  /* Until it's revealed, an element takes no room: the card grows with the
+     ceremony instead of sitting half-empty for a second. */
+  .card:not(.done) .reveal:not(.in) { display: none; }
   @keyframes fadeUp { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
   @keyframes stamp { 0% { transform: scale(2); opacity: 0; } 60% { transform: scale(0.95); opacity: 1; } 100% { transform: none; opacity: 1; } }
   .reveal.in { animation: fadeUp 300ms ease-out both; }

@@ -5,7 +5,7 @@
 
   var Arcade = {};
 
-  Arcade.VERSION = 52;
+  Arcade.VERSION = 53;
 
   // ---- namespacing --------------------------------------------------
 
@@ -446,7 +446,8 @@
   //   verdict: "🎉 New best!",    verdictColor: "#ffe066",   (optional)
   //   headline: "147 served",     headlineSize: 92,          (optional)
   //   tier: "🥗 Garden salad",    tierColor: "#ffe066",      (optional)
-  //   strip: "🟩🟩✨🐰",           (optional; wraps)
+  //   strip: "🟩🟩✨🐰",           (optional; shrinks to one line)
+  //   stripNote: "🟨 peak second", (optional; small legend under the strip)
   //   rows: [["biggest bowl", "40"], ["🐰", "2"]],            (optional, ≤ 6)
   //   note: "your best 147",      (optional)
   //   foot: "lettuce arcade"      (default)
@@ -499,6 +500,7 @@
           var ssize = glyphs > 18 ? 26 : glyphs > 12 ? 32 : 40;
           add(6, function () {});
           wrapGlyphs(spec.strip, ssize).forEach(function (l) { center(l, ssize, "500", "#d2f9f7", 4); });
+          if (spec.stripNote) center(spec.stripNote, 22, "500", "rgba(165,243,239,0.75)");
         }
         if (spec.rows && spec.rows.length) {
           add(14, function () {});
