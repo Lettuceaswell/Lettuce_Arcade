@@ -1,6 +1,9 @@
-# Lettuce Slots
+# Salad Spinner
 
-- **Slug:** `games/lettuce-slots/`
+- **Slug:** `games/lettuce-slots/` — the folder and every save key keep the
+  original name. Renaming them would orphan every score already on a phone.
+- **Was:** Lettuce Slots. Renamed to Salad Spinner; the rest of this document
+  still uses the old name in places, which means the same game.
 - **Emoji:** 🥬
 - **Status:** **v4 shipped (v26)** — two modes on one page. **Spin** is v1
   restored verbatim: lifetime points, jackpots, matches, the dry counter, no

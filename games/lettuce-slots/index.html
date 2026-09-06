@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-<title>Lettuce Slots — Lettuce Arcade</title>
+<title>Salad Spinner — Lettuce Arcade</title>
 <meta name="theme-color" content="#083734">
 <link rel="stylesheet" href="/shared/arcade.css">
 <style>
@@ -153,8 +153,12 @@
     75% { transform: scale(1.5); background: var(--c); }
   }
 
-  /* Run only: the run's events so far, live, same glyphs as the end card. */
-  #hist {
+  /* Run only: the run's events so far, live, same glyphs as the end card.
+     Hidden for now — it read as clutter next to the reels. The end card and
+     the share picture still show the run's events. To bring it back, drop
+     the `display: none` here and flip SHOW_HIST to true. */
+  #hist { display: none; }
+  #hist.on {
     height: 1.3rem;
     font-size: 1rem;
     line-height: 1.3rem;
@@ -162,7 +166,7 @@
     color: var(--fg-dim);
     opacity: 0.85;
   }
-  body.mode-spin #hist { display: none; }
+  body.mode-spin #hist { display: none !important; }
 
   /* Fixed height so results never reflow the reels. */
   #status {
@@ -363,7 +367,7 @@
 </head>
 <body>
 <main>
-  <h1>🥬 Lettuce Slots</h1>
+  <h1>🥬 Salad Spinner</h1>
   <div id="modes" role="tablist" aria-label="Mode">
     <button id="mode-spin" role="tab" aria-selected="true">Spin</button>
     <button id="mode-run" role="tab" aria-selected="false">Run</button>
@@ -483,6 +487,7 @@
   var TENSION_TAIL_FROM = 18;
   // A tap this soon after SPIN is a double-tap, not a stop.
   var STOP_GRACE_MS = 150;
+  var SHOW_HIST = false;   // the live run-history strip under the reels
   var DOTS_PER_STOP = 3;
   var STOP_SWEEP_MS = 14;    // per stop, when STOP fast-forwards the reel
   function legendSpin() { return "pair +" + PAIR_POINTS + " · three +50 · 🥬🥬🥬 pot " + pot(); }
@@ -807,7 +812,10 @@
     serveBtn.disabled = (spinning && !cashout) || run.bowl <= 0;
     // Events only: plain leaves are filler, and a strip that grows only when
     // something happens reads as a trophy shelf. Bunnies, matches, jackpots, serves.
-    histEl.textContent = run.hist.filter(function (h) { return h !== "l"; }).slice(-16).map(function (h) { return GLYPH[h]; }).join("");
+    if (SHOW_HIST) {
+      histEl.classList.add("on");
+      histEl.textContent = run.hist.filter(function (h) { return h !== "l"; }).slice(-16).map(function (h) { return GLYPH[h]; }).join("");
+    }
     var nr = nextRung(run.served);
     var prev = tierFor(run.served);
     ladderFill.style.width = (nr ? 100 * (run.served - prev.at) / (nr.at - prev.at) : 100) + "%";
@@ -1307,7 +1315,7 @@
   }
 
   function resultLine(r) {
-    var line = "🥬 Lettuce Slots · " + r.served + " served · " + r.tier + "\n" +
+    var line = "🥬 Salad Spinner · " + r.served + " served · " + r.tier + "\n" +
       stripFor(r.hist) + "\n" +
       "biggest bowl " + r.biggest + " · 🐰 " + r.bunnies;
     if (r.jackpots > 0) line += " · 🥬 ×" + r.jackpots;
@@ -1341,7 +1349,7 @@
     var big = el("div", "big", r.served + " served");
     var panel = el("div", "panel");
     var top = el("div", "panel-top");
-    top.appendChild(el("span", "game", "🥬 Lettuce Slots"));
+    top.appendChild(el("span", "game", "🥬 Salad Spinner"));
     top.appendChild(el("span", null, Arcade.cardDate()));
     panel.appendChild(top);
     panel.appendChild(why);
@@ -1357,8 +1365,8 @@
     var row = el("div", "row");
     var shareBtn = el("button", "btn quiet", "Share");
     Arcade.shareButton(shareBtn, hint, function () {
-      return { text: resultLine(r), title: "Lettuce Slots", card: {
-        game: "🥬 Lettuce Slots", filename: "lettuce-slots",
+      return { text: resultLine(r), title: "Salad Spinner", card: {
+        game: "🥬 Salad Spinner", filename: "salad-spinner",
         verdict: r.beat ? "🎉 New best!" : (best > r.served ? (best - r.served) + " short of your best" : "Run over"),
         verdictColor: r.beat ? "#ffe066" : "#a5f3ef",
         headline: r.served + " served", tier: "🥗 " + r.tier, strip: stripFor(r.hist),
