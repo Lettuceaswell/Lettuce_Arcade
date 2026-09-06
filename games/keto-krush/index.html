@@ -291,7 +291,7 @@
 
   /* The run arc: one bar per move, height = meter, colour = tier. The clip
      draws it left to right so the run replays itself in about a second. */
-  .arcwrap { position: relative; height: 48px; margin-top: 4px; }
+  .arcwrap { position: relative; height: 48px; margin-top: 14px; }
   .arcclip { height: 100%; clip-path: inset(0 100% 0 0); }
   .arcclip.in { clip-path: inset(0 0 0 0); transition: clip-path 1100ms linear; }
   .arc {
@@ -363,9 +363,9 @@
     height: 10px;
     border-radius: 5px;
     overflow: hidden;
-    background: var(--bg-elevated);
+    background: #b8433a; /* carbs */
   }
-  .platebar span { display: block; height: 100%; background: #b8433a; }
+  .platebar span { display: block; height: 100%; background: #4ade80; } /* protein */
 
   .highlights { display: flex; flex-direction: column; gap: 3px; }
   .hl {
@@ -1399,7 +1399,11 @@
     hl.innerHTML = "";
     hl.appendChild(highlightRow("Biggest move", run.bestMove.toLocaleString(), recs.move));
     hl.appendChild(highlightRow("Longest cascade", "x" + Math.max(run.maxCombo, 1), recs.combo));
-    hl.appendChild(highlightRow("Fat-adapted", frenzyGlyphs(run.frenzies), recs.frenzies));
+    // No frenzy and no near miss: the row would just read "—" and the
+    // footer already carries the lifetime count, so leave it out.
+    if (run.frenzies > 0 || frenzyGlyphs(run.frenzies) !== "—") {
+      hl.appendChild(highlightRow("Fat-adapted", frenzyGlyphs(run.frenzies), recs.frenzies));
+    }
 
     $("card-title").textContent = runTitle();
     $("card-foot").textContent = "Best " + highScore.toLocaleString() + " · lifetime "
@@ -1456,11 +1460,11 @@
     Array.prototype.forEach.call(reveals, function (el) { el.classList.remove("in"); });
     ceremony.active = true;
 
-    at(350, function () { arcClipEl.classList.add("in"); countUp(1100); });
-    var t = 1550;
+    at(150, function () { arcClipEl.classList.add("in"); countUp(1100); });
+    var t = 960; // stats start landing while the score is still settling
     Array.prototype.forEach.call(reveals, function (el) {
       var stamp = el.classList.contains("stamp");
-      if (stamp) t += 200;
+      if (stamp) t += 120;
       (function (el, stamp) {
         at(t, function () {
           el.classList.add("in");
@@ -1470,7 +1474,7 @@
           }
         });
       })(el, stamp);
-      t += stamp ? 400 : 140;
+      t += stamp ? 260 : 90;
     });
     at(t, finishCeremony);
   }
@@ -1525,8 +1529,9 @@
 
   function renderCanvas() {
     var S = 2, W = 420, pad = 20, inner = W - pad * 2;
-    var ARC_H = 64, ROW = 22;
-    var H = pad + 18 + 14 + ARC_H + 22 + ROW + 50 + 8 + 12 + ROW + ROW + 8 + 3 * ROW + 12 + 34 + ROW + pad + 12;
+    var ARC_H = 64, ROW = 22, LEGEND_H = 16;
+    var hlRows = 2 + (run.frenzies > 0 || frenzyGlyphs(run.frenzies) !== "—" ? 1 : 0);
+    var H = pad + 28 + 14 + ARC_H + LEGEND_H + 22 + ROW + 50 + 8 + 12 + ROW + ROW + 8 + hlRows * ROW + 12 + 34 + ROW + pad + 12;
     var cv = document.createElement("canvas");
     cv.width = W * S; cv.height = H * S;
     var g = cv.getContext("2d");
@@ -1544,7 +1549,7 @@
     g.fillText(Arcade.cardDate(), W - pad, y);
 
     // The run arc, one bar per move.
-    y += 18;
+    y += 28;
     g.fillStyle = "rgba(0,0,0,0.28)";
     roundRect(g, pad, y, inner, ARC_H, 8); g.fill();
     var h = run.history, n = Math.max(h.length, 1);
@@ -1558,7 +1563,20 @@
       g.textAlign = "center"; g.font = "14px " + font; g.fillStyle = "#fff";
       g.fillText("🍩", pad + (run.worstCarb.move + 0.5) * bw, y - 3);
     }
-    y += ARC_H + 22;
+    y += ARC_H + 14;
+
+    // Tier legend: what the arc's colours mean.
+    g.font = "500 10px " + font; g.textBaseline = "middle";
+    var items = LEGEND.map(function (pair) { return { t: TIER_COLORS[pair[0]], label: pair[1], w: g.measureText(pair[1]).width + 8 + 3 }; });
+    var lw = -10; items.forEach(function (it) { lw += it.w + 10; });
+    var lx = (W - lw) / 2;
+    items.forEach(function (it) {
+      g.fillStyle = it.t; g.beginPath(); g.arc(lx + 4, y, 4, 0, Math.PI * 2); g.fill();
+      g.textAlign = "left"; g.fillStyle = "#a5f3ef"; g.fillText(it.label, lx + 11, y);
+      lx += it.w + 10;
+    });
+    g.textBaseline = "alphabetic";
+    y += LEGEND_H + 8;
 
     // Why + score.
     g.textAlign = "center";
@@ -1603,11 +1621,11 @@
     g.textAlign = "left"; g.fillText("🍖🧀 " + pct + "%", pad, y);
     g.textAlign = "right"; g.fillText((100 - pct) + "% 🍕🥐🍪", W - pad, y);
     var barX = pad + 90, barW = inner - 180;
-    g.fillStyle = "#18aca4";
+    g.fillStyle = "#b8433a"; // carbs
     roundRect(g, barX, y - 11, barW, 10, 5); g.fill();
     if (pct > 0) {
       g.save(); roundRect(g, barX, y - 11, barW, 10, 5); g.clip();
-      g.fillStyle = "#b8433a"; g.fillRect(barX, y - 11, barW * pct / 100, 10);
+      g.fillStyle = "#4ade80"; g.fillRect(barX, y - 11, barW * pct / 100, 10); // protein
       g.restore();
     }
     y += ROW + 8;
@@ -1615,9 +1633,9 @@
     // Highlights.
     var rows = [
       ["Biggest move", run.bestMove.toLocaleString(), cardRecs.move],
-      ["Longest cascade", "x" + Math.max(run.maxCombo, 1), cardRecs.combo],
-      ["Fat-adapted", frenzyGlyphs(run.frenzies), cardRecs.frenzies]
+      ["Longest cascade", "x" + Math.max(run.maxCombo, 1), cardRecs.combo]
     ];
+    if (hlRows === 3) rows.push(["Fat-adapted", frenzyGlyphs(run.frenzies), cardRecs.frenzies]);
     rows.forEach(function (r) {
       g.textAlign = "left"; g.fillStyle = "#a5f3ef"; g.font = "500 15px " + font;
       g.fillText(r[0], pad, y);
