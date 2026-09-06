@@ -1296,7 +1296,7 @@
   function stripFor(hist) {
     var n = hist.length;
     if (!n) return "";
-    var buckets = Math.min(n, 16), out = "";
+    var buckets = Math.min(n, 12), out = ""; // 12 glyphs fit one line on a 390px phone
     for (var b = 0; b < buckets; b++) {
       var from = Math.floor(b * n / buckets), to = Math.floor((b + 1) * n / buckets);
       var top = hist[from];
@@ -1349,13 +1349,23 @@
     panel.appendChild(el("div", "tier", "🥗 " + r.tier));
     panel.appendChild(el("div", "strip", stripFor(r.hist)));
     panel.appendChild(el("p", null, "biggest bowl " + r.biggest + " · 🐰 " + r.bunnies + (r.jackpots > 0 ? " · 🥬 jackpot ×" + r.jackpots : "")));
-    panel.appendChild(el("p", null, r.beat && r.prevBest > 0 ? "previous best " + r.prevBest : "your best " + best));
+    if (!r.beat) panel.appendChild(el("p", null, "your best " + best));
+    else if (r.prevBest > 0) panel.appendChild(el("p", null, "previous best " + r.prevBest));
     panel.appendChild(el("div", "foot", "lettuce arcade"));
 
     var hint = el("div", "hint");
     var row = el("div", "row");
     var shareBtn = el("button", "btn quiet", "Share");
-    Arcade.shareButton(shareBtn, hint, function () { return { text: resultLine(r), title: "Lettuce Slots" }; });
+    Arcade.shareButton(shareBtn, hint, function () {
+      return { text: resultLine(r), title: "Lettuce Slots", card: {
+        game: "🥬 Lettuce Slots", filename: "lettuce-slots",
+        verdict: r.beat ? "🎉 New best!" : (best > r.served ? (best - r.served) + " short of your best" : "Run over"),
+        verdictColor: r.beat ? "#ffe066" : "#a5f3ef",
+        headline: r.served + " served", tier: "🥗 " + r.tier, strip: stripFor(r.hist),
+        rows: [["biggest bowl", r.biggest], ["🐰 bunnies", r.bunnies], ["🥬 jackpots", r.jackpots]],
+        note: r.beat ? (r.prevBest > 0 ? "previous best " + r.prevBest : "") : "your best " + best
+      } };
+    });
     row.appendChild(shareBtn);
     row.appendChild(button("Play again", "btn", function () { showStartCard(false); }));
 

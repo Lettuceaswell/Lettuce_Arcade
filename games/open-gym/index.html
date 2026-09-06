@@ -504,6 +504,9 @@
       render();
       setStatus("Recruited a Block.");
       checkWinLose();
+      // A capture can be the winning move. endTurn() bails on gameOver, so
+      // the overlay has to come from here or it never comes at all.
+      if (state.gameOver) setTimeout(showOverlay, 350);
       return true;
     }
     return false;

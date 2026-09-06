@@ -208,15 +208,17 @@
     r.perSecond.forEach(function (n) { if (n > peak) peak = n; });
     r.perSecond.forEach(function (n) {
       var bar = document.createElement("span");
-      bar.style.height = (peak ? Math.max(4, n / peak * 100) : 4) + "%";
+      // A quiet second still draws a real stub, not a hairline that reads as broken.
+      bar.style.height = (peak ? Math.max(12, n / peak * 100) : 12) + "%";
       if (n === peak && peak > 0) bar.className = "peak";
       pace.appendChild(bar);
     });
 
     var rate = (r.taps / DURATION).toFixed(1);
     $("card-pace").innerHTML = "<b>" + rate + "</b> taps a second · best second <b>" + peak + "</b>";
-    $("card-best").innerHTML = r.beat && r.prevBest > 0
-      ? "previous best <b>" + r.prevBest + "</b>"
+    // On a new best the headline already is the best; say what it beat, or nothing.
+    $("card-best").innerHTML = r.beat
+      ? (r.prevBest > 0 ? "previous best <b>" + r.prevBest + "</b>" : "")
       : "your best <b>" + best + "</b>";
     $("card-hint").textContent = "";
   }
@@ -241,8 +243,19 @@
     return line;
   }
 
+  // Share sends the card as a picture, with the one-line text as its caption.
   Arcade.shareButton($("share"), $("card-hint"), function () {
-    return lastResult ? { text: shareText(lastResult), title: "Tap Race" } : null;
+    var r = lastResult;
+    if (!r) return null;
+    var peak = 0; r.perSecond.forEach(function (n) { if (n > peak) peak = n; });
+    return { text: shareText(r), title: "Tap Race", card: {
+      game: "🕹️ Tap Race", filename: "tap-race",
+      verdict: r.beat && r.taps > 0 ? "🎉 New best!" : (best > r.taps ? (best - r.taps) + " short of your best" : "Time's up"),
+      verdictColor: r.beat && r.taps > 0 ? "#4adec5" : "#a5f3ef",
+      headline: r.taps + " taps",
+      strip: r.perSecond.map(function (n) { return n === peak && peak > 0 ? "🟨" : n >= peak * 0.6 ? "🟩" : n > 0 ? "🟦" : "⬛"; }).join(""),
+      rows: [["taps a second", (r.taps / DURATION).toFixed(1)], ["best second", peak], [r.beat ? "previous best" : "your best", r.beat ? (r.prevBest || "—") : best]]
+    } };
   });
 
   $("again").addEventListener("click", function () {

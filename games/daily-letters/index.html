@@ -208,6 +208,8 @@
   .card-runs .sep { opacity: 0.4; margin: 0 4px; }
   .card-score { font-size: 2rem; font-weight: 900; letter-spacing: 0.02em; margin-top: 4px; }
   .card-score.clean { color: var(--accent); }
+  .card-score.gold { color: #ffe066; }
+  .card-score.dim { color: var(--fg-dim); }
   .card-stats, .card-streak { font-size: 0.95rem; color: var(--fg-dim); }
   .card-streak { font-size: 0.9rem; }
 
@@ -231,11 +233,11 @@
   .anim-stamp { animation: stamp 0.45s cubic-bezier(0.2, 0.9, 0.3, 1.2) both; }
 
   .confetti {
-    position: fixed; top: -14px; width: 8px; height: 14px; border-radius: 2px;
+    position: fixed; top: 60vh; width: 8px; height: 14px; border-radius: 2px;
     z-index: 9500; pointer-events: none;
     animation: fall 2.8s linear forwards;
   }
-  @keyframes fall { to { transform: translateY(110vh) rotate(720deg); opacity: 0.85; } }
+  @keyframes fall { from { opacity: 0; } 10% { opacity: 1; } to { transform: translateY(50vh) rotate(720deg); opacity: 0.85; } }
 
   @media (prefers-reduced-motion: reduce) {
     .anim, .anim-fade, .anim-stamp, .ccell.filled.anim, .btn.pulse, .confetti { animation: none !important; }
@@ -615,14 +617,19 @@
     return { r0: minR, c0: minC, r1: maxR, c1: maxC };
   }
 
+  // One empty ring around the tiles, but only where it fits on both sides
+  // of an axis, so the crop is always centred on the letters.
   function bbox() {
     var b = rawBox();
     if (!b) return { r0: 0, c0: 0, r1: SIZE - 1, c1: SIZE - 1 };
-    return {
-      r0: Math.max(0, b.r0 - 1), c0: Math.max(0, b.c0 - 1),
-      r1: Math.min(SIZE - 1, b.r1 + 1), c1: Math.min(SIZE - 1, b.c1 + 1)
-    };
+    var pr = (b.r0 > 0 && b.r1 < SIZE - 1) ? 1 : 0;
+    var pc = (b.c0 > 0 && b.c1 < SIZE - 1) ? 1 : 0;
+    return { r0: b.r0 - pr, c0: b.c0 - pc, r1: b.r1 + pr, c1: b.c1 + pc };
   }
+
+  // Colour band for the score line: clean, near miss, middling, rough.
+  function scoreBand(left) { return left === 0 ? "clean" : left <= 4 ? "gold" : left <= 9 ? "" : "dim"; }
+  function scoreColor(left) { return { clean: "#4adec5", gold: "#ffe066", "": "#d2f9f7", dim: "#a5f3ef" }[scoreBand(left)]; }
 
   // ---- streaks (daily only) ----------------------------------------------
 
@@ -1003,7 +1010,7 @@
       if (t >= 0) flipOrder.push({ el: d, seq: seq[t] });
     }
     flipOrder.sort(function (x, y) { return x.seq - y.seq; });
-    var step = 40, flipsEnd = flipOrder.length * step + 280;
+    var step = 20, flipsEnd = flipOrder.length * step + 280;
     var doAnim = animate && !reducedMotion;
     if (doAnim) {
       flipOrder.forEach(function (f, k) {
@@ -1021,15 +1028,15 @@
       Array.prototype.forEach.call(spans, function (sp) {
         sp.classList.add("anim-fade");
         if (sp.className.indexOf("sep") !== -1) { sp.style.animationDelay = flipsEnd + "ms"; return; }
-        sp.style.animationDelay = (flipsEnd + k2 * 70) + "ms";
+        sp.style.animationDelay = (flipsEnd + k2 * 40) + "ms";
         k2++;
       });
-      runsEnd = flipsEnd + k2 * 70 + 150;
+      runsEnd = flipsEnd + k2 * 40 + 150;
     }
 
     var cScore = $("cScore"), cStats = $("cStats"), cStreak = $("cStreak");
     cScore.textContent = a.left === 0 ? "✨ CLEAN RACK ✨" : a.left + " left";
-    cScore.className = "card-score" + (a.left === 0 ? " clean" : "");
+    cScore.className = "card-score" + (scoreBand(a.left) ? " " + scoreBand(a.left) : "");
     cStats.className = "card-stats";
     cStreak.className = "card-streak";
     cStats.textContent = statsLine(a);
@@ -1213,7 +1220,7 @@
     runLines.forEach(function (ln) { g.fillText(ln, W / 2, y); y += 22; });
 
     y += 16 + 26;
-    g.fillStyle = a.left === 0 ? "#4adec5" : "#d2f9f7";
+    g.fillStyle = scoreColor(a.left);
     g.font = "900 32px " + font;
     g.fillText(a.left === 0 ? "✨ CLEAN RACK ✨" : a.left + " left", W / 2, y);
     y += 26;
@@ -1294,7 +1301,7 @@
     cv.toBlob(function (blob) {
       if (!blob) { $("cardHint").textContent = "Couldn't build the image — screenshot the card instead"; return; }
       var file = new File([blob], "daily-letters-" + (isDaily() ? today : "free") + ".png", { type: "image/png" });
-      var data = { files: [file], title: "Daily Letters " + modeLabel() };
+      var data = { files: [file], title: "Daily Letters " + modeLabel(), text: shareText() };
       if (navigator.canShare && navigator.canShare(data)) {
         navigator.share(data).catch(function () { /* user cancelled */ });
       } else {

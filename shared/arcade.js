@@ -5,7 +5,7 @@
 
   var Arcade = {};
 
-  Arcade.VERSION = 49;
+  Arcade.VERSION = 50;
 
   // ---- namespacing --------------------------------------------------
 
@@ -343,6 +343,7 @@
     if (payload.file && navigator.share && navigator.canShare) {
       var withFile = { files: [payload.file] };
       if (title) withFile.title = title;
+      if (text) withFile.text = text; // the picture travels with its caption
       var ok = false;
       try { ok = navigator.canShare(withFile); } catch (e) { ok = false; }
       if (ok) chain = chain.then(function () { return native(withFile); });
@@ -368,7 +369,10 @@
       try { payload = build(); } catch (e) { payload = null; }
       if (!payload) { if (hintEl) hintEl.textContent = "Screenshot the card to share it"; return; }
       btn.disabled = true;
-      Arcade.share(payload).then(function (r) {
+      var ready = payload.card && !payload.file
+        ? Arcade.cardImage(payload.card).then(function (file) { if (file) payload.file = file; return payload; }, function () { return payload; })
+        : Promise.resolve(payload);
+      ready.then(Arcade.share).then(function (r) {
         btn.disabled = false;
         if (r === "copied") {
           btn.textContent = "Copied";
@@ -428,6 +432,93 @@
     el.classList.remove("arc-stamp");
     void el.offsetWidth;
     el.classList.add("arc-stamp");
+  };
+
+  // ---- share card image -------------------------------------------------
+  //
+  // One renderer, every game. A game hands over a small spec and gets a PNG
+  // File in the house style, so a picture travels with every share and all
+  // the cards look like siblings. Drawn on a canvas, because iOS can't
+  // rasterise DOM without a library. Emoji come from the system font.
+  //
+  // spec = {
+  //   game: "🥬 Lettuce Slots",   date: Arcade.cardDate(),
+  //   verdict: "🎉 New best!",    verdictColor: "#ffe066",   (optional)
+  //   headline: "147 served",     headlineSize: 92,          (optional)
+  //   tier: "🥗 Garden salad",    tierColor: "#ffe066",      (optional)
+  //   strip: "🟩🟩✨🐰",           (optional; wraps)
+  //   rows: [["biggest bowl", "40"], ["🐰", "2"]],            (optional, ≤ 6)
+  //   note: "your best 147",      (optional)
+  //   foot: "lettuce arcade"      (default)
+  // }
+  // Returns a Promise<File|null>. Null means the platform can't make one;
+  // callers fall back to text.
+  Arcade.cardImage = function (spec) {
+    return new Promise(function (resolve) {
+      try {
+        spec = spec || {};
+        var W = 840, pad = 48, inner = W - pad * 2;
+        var font = "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif";
+        var cv = document.createElement("canvas");
+        var g = cv.getContext("2d");
+        if (!g) { resolve(null); return; }
+        // Measure pass: lay rows out to find the height, then draw.
+        var lines = [];
+        function add(h, draw) { lines.push({ h: h, draw: draw }); }
+        function center(text, size, weight, color, dy) {
+          add(size + 14, function (y) { g.textAlign = "center"; g.fillStyle = color; g.font = weight + " " + size + "px " + font; g.fillText(text, W / 2, y + size + (dy || 0)); });
+        }
+        function wrapGlyphs(text, size) {
+          // Emoji strips: break into lines by measured width.
+          g.font = "500 " + size + "px " + font;
+          var out = [], cur = "";
+          Array.from(text).forEach(function (ch) {
+            if (g.measureText(cur + ch).width > inner) { out.push(cur); cur = ch; } else cur += ch;
+          });
+          if (cur) out.push(cur);
+          return out;
+        }
+        // Header: game left, date right.
+        add(44, function (y) {
+          g.textAlign = "left"; g.fillStyle = "#d2f9f7"; g.font = "800 30px " + font; g.fillText(spec.game || "", pad, y + 32);
+          g.textAlign = "right"; g.fillStyle = "#a5f3ef"; g.font = "600 26px " + font; g.fillText(spec.date || Arcade.cardDate(), W - pad, y + 32);
+        });
+        add(18, function () {});
+        if (spec.verdict) center(spec.verdict, 34, "800", spec.verdictColor || "#a5f3ef");
+        if (spec.headline) center(spec.headline, spec.headlineSize || 92, "900", "#eafffb", 10);
+        if (spec.tier) center(spec.tier, 44, "800", spec.tierColor || "#ffe066", 6);
+        if (spec.strip) wrapGlyphs(spec.strip, 40).forEach(function (l) { center(l, 40, "500", "#d2f9f7", 4); });
+        if (spec.rows && spec.rows.length) {
+          add(14, function () {});
+          spec.rows.slice(0, 6).forEach(function (r) {
+            add(46, function (y) {
+              g.textAlign = "left"; g.fillStyle = "#a5f3ef"; g.font = "500 28px " + font; g.fillText(String(r[0]), pad + 8, y + 32);
+              g.textAlign = "right"; g.fillStyle = "#eafffb"; g.font = "800 28px " + font; g.fillText(String(r[1]), W - pad - 8, y + 32);
+              g.fillStyle = "rgba(255,255,255,0.08)"; g.fillRect(pad, y + 44, inner, 1);
+            });
+          });
+        }
+        if (spec.note) { add(8, function () {}); center(spec.note, 26, "600", "#a5f3ef"); }
+        add(20, function () {});
+        center(spec.foot || "lettuce arcade", 22, "500", "rgba(165,243,239,0.6)");
+        var H = pad + lines.reduce(function (a, l) { return a + l.h; }, 0) + pad - 10;
+        cv.width = W; cv.height = H;
+        g = cv.getContext("2d");
+        // Ground and panel.
+        g.fillStyle = "#083734"; g.fillRect(0, 0, W, H);
+        g.fillStyle = "#052926";
+        g.beginPath(); g.moveTo(24 + 28, 24); g.arcTo(W - 24, 24, W - 24, H - 24, 28); g.arcTo(W - 24, H - 24, 24, H - 24, 28); g.arcTo(24, H - 24, 24, 24, 28); g.arcTo(24, 24, W - 24, 24, 28); g.closePath(); g.fill();
+        g.strokeStyle = "rgba(255,255,255,0.1)"; g.lineWidth = 2; g.stroke();
+        g.textBaseline = "alphabetic";
+        var y = pad;
+        lines.forEach(function (l) { l.draw(y); y += l.h; });
+        if (!cv.toBlob || !window.File) { resolve(null); return; }
+        cv.toBlob(function (blob) {
+          if (!blob) { resolve(null); return; }
+          try { resolve(new File([blob], (spec.filename || "lettuce-arcade") + ".png", { type: "image/png" })); } catch (e) { resolve(null); }
+        }, "image/png");
+      } catch (e) { resolve(null); }
+    });
   };
 
   // Short date for the corner of a card: "Sep 4".
