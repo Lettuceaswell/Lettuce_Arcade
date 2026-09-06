@@ -2410,7 +2410,7 @@
       text: S.name + " · " + tier + " · " + S.careDays + " care-days · " + found.length + " of " + FINDS.length + " found",
       card: {
         game: "🐊 Totodile's Pond", filename: "totodiles-pond", date: Arcade.cardDate(),
-        verdict: S.careDays >= 3 ? tr.name : mood(),
+        verdict: S.careDays >= 3 ? tr.name + ". " + tr.desc : mood(),
         headline: S.name, headlineSize: 72,
         tier: tier, tierColor: "#4adec5",
         strip: found.map(function (f) { return f.ico; }).join(""),

@@ -5,7 +5,7 @@
 
   var Arcade = {};
 
-  Arcade.VERSION = 50;
+  Arcade.VERSION = 51;
 
   // ---- namespacing --------------------------------------------------
 
@@ -484,10 +484,22 @@
           g.textAlign = "right"; g.fillStyle = "#a5f3ef"; g.font = "600 26px " + font; g.fillText(spec.date || Arcade.cardDate(), W - pad, y + 32);
         });
         add(18, function () {});
-        if (spec.verdict) center(spec.verdict, 34, "800", spec.verdictColor || "#a5f3ef");
-        if (spec.headline) center(spec.headline, spec.headlineSize || 92, "900", "#eafffb", 10);
+        if (spec.verdict) {
+          // A long verdict shrinks to fit one line rather than clipping.
+          var vsize = 34;
+          g.font = "800 34px " + font;
+          while (vsize > 22 && g.measureText(spec.verdict).width > inner) { vsize -= 2; g.font = "800 " + vsize + "px " + font; }
+          center(spec.verdict, vsize, "800", spec.verdictColor || "#a5f3ef");
+        }
+        if (spec.headline) { center(spec.headline, spec.headlineSize || 92, "900", "#eafffb", 10); add(8, function () {}); }
         if (spec.tier) center(spec.tier, 44, "800", spec.tierColor || "#ffe066", 6);
-        if (spec.strip) wrapGlyphs(spec.strip, 40).forEach(function (l) { center(l, 40, "500", "#d2f9f7", 4); });
+        if (spec.strip) {
+          // Long strips shrink to stay on one line; emoji are ~1.25em wide.
+          var glyphs = Array.from(spec.strip).length;
+          var ssize = glyphs > 18 ? 26 : glyphs > 12 ? 32 : 40;
+          add(6, function () {});
+          wrapGlyphs(spec.strip, ssize).forEach(function (l) { center(l, ssize, "500", "#d2f9f7", 4); });
+        }
         if (spec.rows && spec.rows.length) {
           add(14, function () {});
           spec.rows.slice(0, 6).forEach(function (r) {
