@@ -1026,7 +1026,7 @@
       dry = 0;
       setStatus("JACKPOT! 🥬🥬🥬 +" + won.toLocaleString(), "jackpot");
       showPayout("+" + won.toLocaleString(), "jackpot");
-      reelEls.forEach(function (el) { el.classList.add("hot"); });
+      reelEls.forEach(function (el) { el.classList.add("hot", "leaf"); });
       jackpotSound();
       dance("green", true);
       Arcade.confetti(["#ffe066", "#7dff9a", "#eafffb"]);
@@ -1099,7 +1099,7 @@
         run.jackpots += 1;
         setStatus(cashed ? "JACKPOT — after you banked. ouch." : "JACKPOT! 🥬🥬🥬 — bowl " + run.bowl, "jackpot");
         showPayout("JACKPOT", "jackpot");
-        reelEls.forEach(function (el) { el.classList.add("hot"); });
+        reelEls.forEach(function (el) { el.classList.add("hot", "leaf"); });
         jackpotSound();
         dance("green", true);
         Arcade.confetti(["#ffe066", "#7dff9a", "#eafffb"]);
