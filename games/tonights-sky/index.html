@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>Tonight's Sky — Lettuce Arcade</title>
+<meta name="theme-color" content="#071022">
+<link rel="stylesheet" href="/shared/arcade.css">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<main id="play" hidden>
+  <header class="top">
+    <div class="date"><span id="dateLabel"></span></div>
+  </header>
+
+  <div class="stage">
+    <div class="pyramid" id="pyramid"></div>
+  </div>
+
+  <div class="caption" id="caption" aria-live="polite"></div>
+
+  <div class="thumbbar">
+    <button class="pile" id="stockPile" aria-label="Stock">
+      <div class="pileCard back" id="stockCard"></div>
+      <div class="pileCount" id="stockCount">0</div>
+      <div class="pileLabel">Stock</div>
+    </button>
+    <button class="pile" id="wastePile" disabled aria-label="Waste">
+      <div class="pileCard" id="wasteCard"></div>
+      <div class="pileLabel">Waste</div>
+    </button>
+    <button class="pile" id="pocketPile" aria-label="Pocket">
+      <div class="pileCard" id="pocketCard">—</div>
+      <div class="pileLabel">Pocket</div>
+    </button>
+  </div>
+
+  <div class="controls">
+    <button class="link" id="undoBtn">Undo</button>
+    <span class="hint" id="hint" aria-live="polite"></span>
+  </div>
+</main>
+
+<div class="result" id="result" hidden>
+  <div id="resultInner"></div>
+</div>
+
+<div class="archive" id="archive" hidden>
+  <h2>Your sky</h2>
+  <div class="archiveField" id="archiveField"></div>
+  <div class="archiveStats" id="archiveStats"></div>
+  <button class="btn quiet" id="archiveClose">Close</button>
+</div>
+
+<div class="sheet" id="helpSheet" hidden>
+  <div class="panel">
+    <h2>✦ Tonight's Sky</h2>
+    <p>Everyone gets the same 21-star pyramid tonight. Clear it by tapping a star one rank above or below your Waste card.</p>
+    <ul>
+      <li>Tap an uncovered, glowing star that's one rank above or below the Waste card. King and Ace count as neighbors.</li>
+      <li>Suits don't matter — only rank.</li>
+      <li>No move? Tap the Stock to turn over a new Waste card.</li>
+      <li>Stuck for now but the Pocket is empty? Tap the Pocket, then tap any uncovered star to tuck it away. Tap the Pocket again later to play it — no rank needed.</li>
+      <li>Clear all 21 stars, the North Star last, to light up tonight's sky.</li>
+      <li>Undo is free and unlimited. So is starting the same sky over.</li>
+    </ul>
+    <div class="settingsRow">
+      <span>Glow hints</span>
+      <button class="toggle" id="glowToggle" aria-label="Toggle glow hints"></button>
+    </div>
+    <div class="settingsRow">
+      <span>Sound</span>
+      <button class="toggle" id="soundToggle" aria-label="Toggle sound"></button>
+    </div>
+    <button class="btn" id="helpClose">Back to the sky</button>
+  </div>
+</div>
+
+<script src="/shared/arcade.js"></script>
+<script src="solver.js"></script>
+<script src="names.js"></script>
+<script src="game.js"></script>
+</body>
+</html>
