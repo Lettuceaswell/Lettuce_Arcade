@@ -208,7 +208,7 @@ main.ended .cell { border-radius: 3px; }
   text-align: center;
 }
 .peak[hidden], .tail[hidden] { display: none; }
-.peak { margin-top: 12px; }
+.peak { margin-top: 8px; }
 
 .verdict {
   font-size: 0.85rem;
@@ -228,7 +228,7 @@ main.ended .cell { border-radius: 3px; }
 .tier { margin-top: 4px; font-size: 1.25rem; font-weight: 800; color: #ffe066; }
 
 .tail {
-  margin-top: 14px;
+  margin-top: 10px;
   padding-bottom: calc(20px + env(safe-area-inset-bottom, 0px));
   animation: hc-rise 420ms ease-out both;
 }
@@ -239,7 +239,7 @@ main.ended .cell { border-radius: 3px; }
   display: flex;
   justify-content: space-between;
   gap: 12px;
-  padding: 7px 0;
+  padding: 5px 0;
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
   font-size: 0.96rem;
   color: var(--fg-dim);

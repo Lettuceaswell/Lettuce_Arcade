@@ -34,6 +34,14 @@
     [1,  "🧀 A crumb"],
     [0,  "🧀 Dust"]
   ];
+  // The run's loudest moment, named. A five-wave collapse is worth
+  // remembering even on a run that scored badly.
+  function wavesLabel(n) {
+    n = n || 0;
+    if (!n) return "nothing stirred";
+    return n === 1 ? "1 wave" : n + " waves";
+  }
+
   function tierFor(pct) {
     for (var i = 0; i < TIERS.length; i++) if (pct >= TIERS[i][0]) return TIERS[i][1];
     return TIERS[TIERS.length - 1][1];
@@ -89,7 +97,7 @@
 
   function newRun(seedString, key) {
     var grid = makeBoard(seedString);
-    return { key: key || null, grid: encode(grid), taps: 0, cheese0: C.countCheese(grid) };
+    return { key: key || null, grid: encode(grid), taps: 0, cheese0: C.countCheese(grid), deepest: 0 };
   }
   function newDaily() { return newRun("holey-cheese:" + today, today); }
   function newPractice() {
@@ -305,6 +313,7 @@
   function afterCollapse(gens, touched) {
     run.taps++;
     run.grid = encode(grid);
+    if (gens.length > (run.deepest || 0)) run.deepest = gens.length;
     persist();
 
     // The near-miss gets its beat. It is the most interesting thing that
@@ -364,7 +373,8 @@
       brokeRecord = data.days > 0 && finalScore > data.best;
       data.today = {
         key: today, score: finalScore, intact: finalPct,
-        grid: encode(grid), cheese0: run.cheese0, early: endedEarly
+        grid: encode(grid), cheese0: run.cheese0, early: endedEarly,
+        deepest: run.deepest || 0
       };
       data.daily = null;
       data.days += 1;
@@ -435,13 +445,15 @@
       actionsEl.innerHTML = "";
       shareHint.textContent = "";
 
+      var rows = [["Deepest collapse", wavesLabel(run && run.deepest)]];
+      if (!practiceMode()) rows.push(["Best slab", data.best], ["Days played", data.days]);
+      rows.forEach(function (r) {
+        var row = el("div", "statRow");
+        row.appendChild(el("span", null, r[0]));
+        row.appendChild(el("b", null, String(r[1])));
+        statCard.appendChild(row);
+      });
       if (!practiceMode()) {
-        [["Best slab", data.best], ["Days played", data.days]].forEach(function (r) {
-          var row = el("div", "statRow");
-          row.appendChild(el("span", null, r[0]));
-          row.appendChild(el("b", null, String(r[1])));
-          statCard.appendChild(row);
-        });
         var shareBtn = el("button", "btn", "Share");
         Arcade.shareButton(shareBtn, shareHint, sharepayload);
         actionsEl.appendChild(shareBtn);
@@ -470,7 +482,7 @@
         verdict: endedEarly ? "The wheel ran out" : "Largest slab",
         headline: String(finalScore),
         tier: tierFor(finalPct),
-        rows: [["wheel intact", finalPct + "%"], ["punches", String(TAPS)], ["best slab", String(data.best)]],
+        rows: [["wheel intact", finalPct + "%"], ["deepest collapse", wavesLabel(run && run.deepest)], ["best slab", String(data.best)]],
         filename: "holey-cheese"
       }
     };
@@ -506,7 +518,7 @@
   }
 
   function showFinishedDaily() {
-    run = { key: today, grid: data.today.grid, taps: TAPS, cheese0: data.today.cheese0 };
+    run = { key: today, grid: data.today.grid, taps: TAPS, cheese0: data.today.cheese0, deepest: data.today.deepest || 0 };
     grid = decode(data.today.grid) || new Uint8Array(C.CELLS);
     finalScore = data.today.score;
     finalPct = data.today.intact;
