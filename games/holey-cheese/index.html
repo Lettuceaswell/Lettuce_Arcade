@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>Holey Cheese — Lettuce Arcade</title>
+<meta name="theme-color" content="#083734">
+<link rel="stylesheet" href="/shared/arcade.css">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<main id="play" hidden>
+  <div class="day" id="dayLabel"></div>
+
+  <div class="tapbar" id="tapbar">
+    <div class="pips" id="pips" aria-hidden="true"></div>
+    <div class="tapsLabel" id="tapsLabel"></div>
+  </div>
+
+  <div class="stage">
+    <div class="board" id="board" role="grid" aria-label="Cheese wheel"></div>
+  </div>
+
+  <div class="caption" id="caption" aria-live="polite"></div>
+
+  <div class="peak" id="peak" hidden>
+    <div class="verdict" id="verdict"></div>
+    <div class="headline" id="headline">0</div>
+    <div class="subline" id="subline"></div>
+    <div class="tier" id="tier"></div>
+  </div>
+
+  <div class="tail" id="tail" hidden>
+    <div class="statCard" id="statCard"></div>
+    <div class="actions" id="actions"></div>
+    <div class="shareHint" id="shareHint"></div>
+  </div>
+
+  <div class="firstRun" id="firstRun" hidden>
+    <button class="link" id="tryPractice">New here? Punch a practice wheel first</button>
+  </div>
+</main>
+
+<div class="sheet" id="helpSheet" hidden>
+  <div class="panel">
+    <h2>🧀 Holey Cheese</h2>
+    <p class="rule">Any cheese touching three or more holes becomes a hole — over and over, until it stops.</p>
+    <ul>
+      <li>Tap a cheese square to line it up, tap it again to punch it.</li>
+      <li>Touching means up, down, left, right. Corners don't count.</li>
+      <li>All five punches must be spent. No undo, no preview.</li>
+      <li>Your score is the biggest piece still joined together at the end. Loose crumbs score nothing.</li>
+      <li>One wheel a day, the same one for everyone, one attempt. Practice wheels are unlimited and never scored.</li>
+    </ul>
+    <div class="settingsRow">
+      <span>Sound</span>
+      <button class="toggle" id="soundToggle" aria-label="Toggle sound"></button>
+    </div>
+    <button class="btn" id="helpClose">Back to the wheel</button>
+  </div>
+</div>
+
+<script src="/shared/arcade.js"></script>
+<script src="core.js"></script>
+<script src="game.js"></script>
+</body>
+</html>

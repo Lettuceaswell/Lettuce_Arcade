@@ -1,0 +1,326 @@
+/* Holey Cheese. Flat and cheap on purpose: a grid of cells, two colours,
+   and one accent held back for the very end. */
+
+:root {
+  --cheese: #f3c14b;
+  --cheese-lit: #ffdd8a;
+  --rind: #c9982c;
+  --pit: #05211f;
+  --panel: #062b29;
+}
+
+body {
+  overflow: hidden;
+  height: 100%;
+}
+
+main {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+/* Row one belongs to ← Arcade and ☰; the date sits between them. */
+.day {
+  height: 52px;
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  margin-top: calc(8px + env(safe-area-inset-top, 0px));
+  font-size: 1rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: var(--fg-dim);
+  text-transform: uppercase;
+}
+
+/* Row two is left-aligned and stops well short of the right edge, which is
+   reserved for the ↻ pin button (house rule: keep the top 110px clear). */
+.tapbar {
+  width: 100%;
+  max-width: calc(100% - 128px);
+  align-self: flex-start;
+  padding-left: calc(10px + env(safe-area-inset-left, 0px));
+  height: 52px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.pips { display: flex; gap: 7px; }
+
+.pip {
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+  background: var(--cheese);
+  box-shadow: inset 0 -2px 0 rgba(0, 0, 0, 0.18);
+  transition: background 220ms, box-shadow 220ms, transform 220ms;
+}
+.pip.spent {
+  background: var(--pit);
+  box-shadow: inset 0 2px 3px rgba(0, 0, 0, 0.7);
+  transform: scale(0.82);
+}
+
+.tapsLabel {
+  white-space: nowrap;
+  font-size: 0.85rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--fg-dim);
+  opacity: 0.75;
+}
+
+.stage {
+  flex: 1;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px 8px;
+  min-height: 0;
+}
+
+.board {
+  width: min(94vw, 100%, 60vh, 430px);
+  aspect-ratio: 1;
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  grid-template-rows: repeat(7, 1fr);
+  gap: min(1.3vw, 5px);
+  padding: min(1.3vw, 5px);
+  background: var(--panel);
+  border-radius: 14px;
+  box-shadow: 0 6px 22px rgba(0, 0, 0, 0.35);
+  touch-action: manipulation;
+  transition: width 460ms cubic-bezier(0.4, 0, 0.2, 1), gap 460ms, padding 460ms;
+}
+
+.cell {
+  border: none;
+  padding: 0;
+  border-radius: 5px;
+  background: var(--cheese);
+  box-shadow: inset 0 -3px 0 rgba(0, 0, 0, 0.16), inset 0 2px 0 rgba(255, 255, 255, 0.28);
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  cursor: pointer;
+  transition: transform 140ms ease, background 140ms, box-shadow 140ms;
+  will-change: transform;
+}
+
+.cell.hole {
+  background: var(--pit);
+  box-shadow: inset 0 3px 6px rgba(0, 0, 0, 0.75), inset 0 -1px 0 rgba(255, 255, 255, 0.05);
+  cursor: default;
+}
+
+.cell.sel {
+  background: var(--cheese-lit);
+  transform: scale(1.1);
+  box-shadow: 0 5px 12px rgba(0, 0, 0, 0.45), inset 0 -3px 0 var(--rind);
+  z-index: 3;
+}
+
+/* The punch: the tapped cell goes first, on its own beat. */
+.cell.punch { animation: hc-punch 150ms ease-in forwards; }
+@keyframes hc-punch {
+  0% { transform: scale(1.1); background: var(--cheese-lit); }
+  45% { transform: scale(0.72); background: var(--rind); }
+  100% { transform: scale(1); background: var(--pit); }
+}
+
+/* Each generation of the collapse crumbles as its own beat. */
+.cell.fall { animation: hc-fall 190ms ease-in forwards; z-index: 2; }
+@keyframes hc-fall {
+  0% { transform: scale(1) rotate(0deg); background: var(--cheese); }
+  40% { transform: scale(1.12) rotate(-3deg); background: var(--cheese-lit); }
+  100% { transform: scale(0.55) rotate(6deg); background: var(--pit); }
+}
+
+/* Cheese that came within one hole of falling, shown for a beat when the
+   collapse settles, then gone. The near-miss is the best part. */
+.cell.near { animation: hc-near 460ms ease-out 1; }
+@keyframes hc-near {
+  0%, 100% { box-shadow: inset 0 -3px 0 rgba(0, 0, 0, 0.16), inset 0 2px 0 rgba(255, 255, 255, 0.28); }
+  25%, 75% { box-shadow: 0 0 0 3px #fff3cf, inset 0 0 0 2px #fff3cf; }
+}
+
+/* The one place the arcade accent is allowed to appear. */
+.cell.slab {
+  background: var(--accent);
+  box-shadow: inset 0 -3px 0 rgba(0, 0, 0, 0.2), inset 0 2px 0 rgba(255, 255, 255, 0.35), 0 0 14px rgba(74, 222, 197, 0.45);
+  animation: hc-slab 320ms cubic-bezier(0.2, 0.9, 0.3, 1.25) both;
+}
+@keyframes hc-slab {
+  0% { transform: scale(0.82); }
+  55% { transform: scale(1.12); }
+  100% { transform: scale(1); }
+}
+
+.cell.dim { opacity: 0.4; transition: opacity 400ms; }
+
+.caption {
+  min-height: 2.4em;
+  padding: 8px 18px 0;
+  text-align: center;
+  font-size: 1rem;
+  color: var(--fg-dim);
+  line-height: 1.25;
+}
+.caption b { color: var(--fg); font-weight: 800; }
+
+.firstRun {
+  padding: 0 18px calc(10px + env(safe-area-inset-bottom, 0px));
+  text-align: center;
+}
+.link {
+  background: none;
+  border: none;
+  color: var(--fg-dim);
+  font: inherit;
+  font-size: 0.95rem;
+  text-decoration: underline;
+  text-underline-offset: 4px;
+  padding: 12px 8px;
+  min-height: 44px;
+  cursor: pointer;
+}
+
+/* ---- the ending ------------------------------------------------------
+   No card slides over the peak. The board shrinks, the lit slab and its
+   number stay on screen, and everything else arrives quietly underneath. */
+
+main.ended { overflow-y: auto; }
+main.ended .tapbar, main.ended .caption, main.ended .firstRun { display: none; }
+main.ended .stage { flex: 0 0 auto; padding-top: 0; }
+main.ended .board { width: min(52vw, 26vh, 200px); gap: 3px; padding: 4px; }
+main.ended .cell { border-radius: 3px; }
+
+.peak, .tail {
+  flex: 0 0 auto;
+  width: 100%;
+  max-width: 340px;
+  padding: 0 20px;
+  text-align: center;
+}
+.peak[hidden], .tail[hidden] { display: none; }
+.peak { margin-top: 12px; }
+
+.verdict {
+  font-size: 0.85rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--fg-dim);
+}
+.headline {
+  font-size: 4.4rem;
+  font-weight: 900;
+  line-height: 1;
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+}
+.subline { font-size: 0.98rem; color: var(--fg-dim); }
+.tier { margin-top: 4px; font-size: 1.25rem; font-weight: 800; color: #ffe066; }
+
+.tail {
+  margin-top: 14px;
+  padding-bottom: calc(20px + env(safe-area-inset-bottom, 0px));
+  animation: hc-rise 420ms ease-out both;
+}
+@keyframes hc-rise { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+
+.statCard { display: flex; flex-direction: column; gap: 2px; text-align: left; }
+.statRow {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 7px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  font-size: 0.96rem;
+  color: var(--fg-dim);
+}
+.statRow b { color: #ffe066; font-variant-numeric: tabular-nums; }
+
+.actions { display: flex; flex-direction: column; gap: 10px; margin-top: 12px; align-items: stretch; }
+.actions .link { align-self: center; }
+.actions .btn { width: 100%; min-height: 54px; font-weight: 800; }
+.actions .btn.quiet { background: var(--bg-elevated); }
+.shareHint { min-height: 1.3em; margin-top: 6px; font-size: 0.9rem; color: var(--fg-dim); }
+
+/* ---- help sheet ------------------------------------------------------- */
+
+.sheet {
+  position: fixed;
+  inset: 0;
+  z-index: 10002;
+  background: rgba(8, 55, 52, 0.98);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: calc(56px + env(safe-area-inset-top, 0px)) 20px calc(24px + env(safe-area-inset-bottom, 0px));
+  overflow-y: auto;
+}
+.sheet[hidden] { display: none; }
+.panel { width: 100%; max-width: 360px; }
+.panel h2 { font-size: 1.5rem; text-align: center; margin-bottom: 10px; }
+.panel .rule {
+  color: #ffe066;
+  font-weight: 700;
+  text-align: center;
+  font-size: 1.05rem;
+  line-height: 1.35;
+  margin-bottom: 14px;
+}
+.panel ul { text-align: left; padding-left: 1.2em; font-size: 0.98rem; }
+.panel li { margin: 9px 0; color: var(--fg); }
+.panel .btn { width: 100%; min-height: 56px; margin-top: 16px; font-weight: 800; }
+
+.settingsRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 18px;
+  padding: 10px 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+.toggle {
+  width: 58px;
+  height: 34px;
+  min-height: 34px;
+  border-radius: 17px;
+  border: none;
+  background: rgba(255, 255, 255, 0.18);
+  position: relative;
+  cursor: pointer;
+}
+.toggle::after {
+  content: "";
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: #fff;
+  transition: transform 160ms;
+}
+.toggle.on { background: var(--accent); }
+.toggle.on::after { transform: translateX(24px); }
+
+/* Seven cells cannot be 44px wide on a 320px phone, so the smallest screens
+   get every pixel back from the gaps. The two-tap confirm is what actually
+   protects against a mistap at this size. */
+@media (max-width: 360px) {
+  .board { width: min(96vw, 100%, 60vh, 430px); gap: 3px; padding: 3px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tail { animation: none; }
+  .board { transition: none; }
+  .cell, .cell.punch, .cell.fall, .cell.near, .cell.slab { animation: none !important; transition: none !important; }
+}
