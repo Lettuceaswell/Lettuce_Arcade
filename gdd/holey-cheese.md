@@ -147,8 +147,46 @@ lookahead the way chess does. Worth watching over a week of real play.
 
 ## Still open
 
-- Whether one-ply greedy being near-optimal flattens the game over a week.
-- Whether the tier names ("Swiss enough", "Crumbly") are calibrated right —
-  the thresholds were set from simulated distributions, not from watching
-  anyone play.
-- Whether 40px cells are genuinely fine on a 320px phone.
+### The rim is cheap, and that is the biggest open question
+
+Because edges are edges (§4.2), a border square needs all three of its
+neighbours to be holes and a **corner square can never fall at all**. The
+border is therefore structurally safe, and "just punch around the outside"
+is a powerful heuristic that costs no thought:
+
+| strategy | mean score |
+|---|---|
+| random | 10.8 |
+| punch the rim (corners, then edges) | 17.9 |
+| one-ply greedy | 21.3 |
+
+**The rim trick captures 68% of the skill gap**, and greedy itself punches the
+border 85% of the time. About 3.4 points of genuine board-reading skill sit on
+top of it. A family that discovers "the outside holds" gets most of the
+benefit without engaging with the puzzle — though discovering it is itself a
+satisfying moment, and it is why nobody ever scores zero.
+
+**The tested alternative:** count the open air outside the wheel as a hole, so
+every square is judged the same way and the rule becomes "a square with three
+or more of its four sides open falls off". Measured at 14 starting holes, this
+cuts the rim trick to **24%** of the gap and widens greedy's spread
+(p10–p90 of 10–30 against 16–25). It was **not** shipped, for two reasons:
+it contradicts §4.2 outright, and it drops the share of runs containing a
+3+ generation cascade from **77% to 24%** — the collapse is §8.1's single
+most important feel requirement, and that is too much of it to trade away.
+
+It is worth revisiting after a week of real play. The change is `OPEN[i] =
+4 - NB[i].length` added to the neighbour count in `core.js`, plus a hole
+count of about 14.
+
+### Smaller
+
+- One-ply greedy is within 0.2 points of a beam search, so expert play
+  converges. May flatten over a week.
+- "Three or more" is a harder count than "two or more" for a six-year-old.
+  The compensation is that mistakes are much cheaper now.
+- The tier names ("Swiss enough", "Crumbly") were calibrated from simulated
+  distributions, not from watching anyone play.
+- 40px cells on a 320px phone — probably fine, unverified on glass.
+- "Dust" (0%) is effectively unreachable, since a corner survives unless it is
+  punched. Harmless, but the tier is dead copy.
