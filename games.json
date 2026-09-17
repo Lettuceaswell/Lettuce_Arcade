@@ -62,7 +62,6 @@
     "slug": "tonights-sky",
     "title": "Tonight's Sky",
     "blurb": "The same 52-card sky for everyone, every night. Clear the pyramid, light the North Star, say goodnight.",
-    "emoji": "🌌",
-    "beta": true
+    "emoji": "🌌"
   }
 ]

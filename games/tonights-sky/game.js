@@ -83,7 +83,7 @@
     if (stale) { data.current = newDailyCurrent(); persist(); }
   }
 
-  var deck, sim, wasteCard;
+  var deck, sim, wasteCard, clearOrder, closestLeft, jitter;
 
   // Mirrors SkyCore.replay(), but also tracks the exact card (rank + suit)
   // sitting on the Waste — the solver only needs its rank, but the table
@@ -91,21 +91,68 @@
   function replayView(moves) {
     var s = SC.initialState(deck);
     var wc = deck.stock.length ? deck.stock[0] : null;
+    var order = [];   // slots in the order they left the pyramid
+    var closest = SC.TOTAL_SLOTS;
     for (var i = 0; i < moves.length; i++) {
       var m = moves[i];
       if (m.t === "draw") wc = deck.stock[s.stockPtr];
       else if (m.t === "play") wc = deck.pyramid[m.slot];
       else if (m.t === "unpocket") wc = deck.pyramid[s.pocket];
+      if (m.t === "play" || m.t === "pocket") order.push(m.slot);
       s = SC.applyMove(deck, s, m);
+      var left = SC.starsLeft(s);
+      if (left < closest) closest = left;
     }
-    return { state: s, wasteCard: wc };
+    return { state: s, wasteCard: wc, order: order, closest: closest };
+  }
+
+  // Which stars join up. Each star, as it is cleared, links to the nearest
+  // star already lit — the same rule real constellation figures follow, so
+  // the picture stays a figure instead of a scribble, while still being
+  // drawn by the player's own route through the sky.
+  function constellationEdges(order) {
+    var norm = [];
+    for (var i = 0; i < SC.TOTAL_SLOTS; i++) {
+      var m = SC.META[i];
+      norm[i] = {
+        x: m.col + (5 - m.row) / 2 + jitter[i].x * 0.28,
+        y: m.row * 0.72 + jitter[i].y * 0.28
+      };
+    }
+    var edges = [];
+    for (i = 1; i < order.length; i++) {
+      var here = norm[order[i]], best = -1, bestD = Infinity;
+      for (var j = 0; j < i; j++) {
+        var there = norm[order[j]];
+        var d = (here.x - there.x) * (here.x - there.x) + (here.y - there.y) * (here.y - there.y);
+        if (d < bestD) { bestD = d; best = order[j]; }
+      }
+      edges.push([best, order[i]]);
+    }
+    return edges;
+  }
+
+  // The constellation is the night's own: each star sits a little off the
+  // lattice, by the same seeded amount on the board and on the win screen,
+  // so the shape that lights up is the one the player watched build.
+  function buildJitter(seed) {
+    var rng = Arcade.seededRandom(String(seed) + ":jitter");
+    var j = [];
+    for (var i = 0; i < SC.TOTAL_SLOTS; i++) j.push({ x: rng() * 2 - 1, y: rng() * 2 - 1 });
+    return j;
   }
 
   function loadActive() {
     deck = SC.buildDeck(data.current.seed);
-    var v = replayView(data.current.moves);
+    jitter = buildJitter(data.current.seed);
+    applyView(replayView(data.current.moves));
+  }
+
+  function applyView(v) {
     sim = v.state;
     wasteCard = v.wasteCard;
+    clearOrder = v.order;
+    closestLeft = v.closest;
   }
 
   function markPlayedToday() {
@@ -127,6 +174,8 @@
 
   var pocketArmed = false;
   var starEls = [];
+  var linesEl = null;
+  var drawing = false;
   var cardW = 56, cardH = 80, gapPx = 5;
 
   // ---- layout -------------------------------------------------------
@@ -134,10 +183,26 @@
   function leftEdge(r, c) { return (cardW + gapPx) * (c + (5 - r) / 2); }
   function topEdge(r) { return r * (cardH * 0.6); }
 
+  // The ☰ menu's pinned restart sits at top 60px and is 44px tall; the sky
+  // starts below it. Short screens give up some of that cushion.
+  function pinBand() { return window.innerHeight < 660 ? 40 : 52; }
+
   function layout() {
-    var stageWidth = document.querySelector(".stage").clientWidth || window.innerWidth - 16;
+    var stage = document.querySelector(".stage");
+    var stageWidth = stage.clientWidth || window.innerWidth - 16;
     var byWidth = Math.floor((stageWidth - 5 * 4) / 6);
-    cardW = Math.max(52, Math.min(64, byWidth));
+    // A pyramid is four card-heights tall (five 0.6 steps plus one card), so
+    // a short screen sizes the cards down rather than pushing the thumb bar
+    // off the bottom. Budget from the viewport, not from the stage: the
+    // stage's own height depends on what this function decides.
+    var reserved = 0;
+    [".top", ".caption", ".thumbbar", ".controls"].forEach(function (sel) {
+      var e = document.querySelector(sel);
+      if (e) reserved += e.offsetHeight;
+    });
+    reserved += pinBand() + 30; // the pinned restart's band, plus gaps and padding
+    var byHeight = Math.floor(Math.max(120, window.innerHeight - reserved) / (4 * 1.43));
+    cardW = Math.max(44, Math.min(64, Math.min(byWidth, byHeight)));
     gapPx = Math.max(3, Math.round(cardW * 0.08));
     cardH = Math.round(cardW * 1.43);
     var pyramidW = 6 * cardW + 5 * gapPx;
@@ -150,11 +215,46 @@
       e.style.top = topEdge(m.row) + "px";
       e.style.width = cardW + "px";
       e.style.height = cardH + "px";
+      e.style.setProperty("--jx", (jitter[i].x * cardW * 0.14).toFixed(1) + "px");
+      e.style.setProperty("--jy", (jitter[i].y * cardW * 0.14).toFixed(1) + "px");
+    }
+    if (linesEl) {
+      linesEl.setAttribute("width", pyramidW);
+      linesEl.setAttribute("height", pyramidH);
+      linesEl.setAttribute("viewBox", "0 0 " + pyramidW + " " + pyramidH);
+    }
+    drawSkyLines();
+  }
+
+  // Where a cleared star sits: the slot's centre, nudged by tonight's jitter.
+  function starPoint(i) {
+    var m = SC.META[i];
+    return {
+      x: leftEdge(m.row, m.col) + cardW / 2 + jitter[i].x * cardW * 0.14,
+      y: topEdge(m.row) + cardH / 2 + jitter[i].y * cardW * 0.14
+    };
+  }
+
+  // The constellation draws itself as the sky clears: one line from each
+  // cleared star to the one cleared before it.
+  function drawSkyLines() {
+    if (!linesEl) return;
+    while (linesEl.firstChild) linesEl.removeChild(linesEl.firstChild);
+    var edges = constellationEdges(clearOrder);
+    for (var i = 0; i < edges.length; i++) {
+      var a = starPoint(edges[i][0]), b = starPoint(edges[i][1]);
+      var line = document.createElementNS(linesEl.namespaceURI, "line");
+      line.setAttribute("x1", a.x.toFixed(1)); line.setAttribute("y1", a.y.toFixed(1));
+      line.setAttribute("x2", b.x.toFixed(1)); line.setAttribute("y2", b.y.toFixed(1));
+      linesEl.appendChild(line);
     }
   }
 
   function buildPyramidDom() {
     pyramidEl.innerHTML = "";
+    linesEl = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    linesEl.setAttribute("class", "skyLines");
+    pyramidEl.appendChild(linesEl);
     starEls = [];
     for (var i = 0; i < SC.TOTAL_SLOTS; i++) {
       var b = document.createElement("button");
@@ -240,6 +340,8 @@
       var uncovered = SC.isUncovered(sim.removedMask, i);
       var suitInfo = SC.SUITS[card.suit];
       e.classList.toggle("removed", removed);
+      e.classList.toggle("north", i === 0);
+      e.classList.toggle("stranded", !removed && !resultEl.hidden && resultEl.classList.contains("miss"));
       e.classList.toggle("faceup", uncovered && !removed);
       e.classList.toggle("covered", !uncovered);
       e.classList.toggle("red", suitInfo.red);
@@ -283,6 +385,7 @@
 
     undoBtn.disabled = data.current.moves.length === 0;
 
+    drawSkyLines();
     updateCaption();
   }
 
@@ -302,7 +405,9 @@
     else if (m.t === "play") wasteCard = deck.pyramid[m.slot];
     else if (m.t === "unpocket") wasteCard = deck.pyramid[sim.pocket];
     data.current.moves.push(m);
+    if (m.t === "play" || m.t === "pocket") clearOrder.push(m.slot);
     sim = SC.applyMove(deck, sim, m);
+    if (SC.starsLeft(sim) < closestLeft) closestLeft = SC.starsLeft(sim);
     if (!data.seenCaption) { data.seenCaption = true; }
     markPlayedToday();
     afterStateChange();
@@ -332,15 +437,30 @@
   function onTapStar(ev) { tapStar(+ev.currentTarget.dataset.slot); }
 
   stockPile.addEventListener("click", function () {
+    if (drawing) return;
     if (sim.stockPtr >= deck.stock.length) { flashHint("Stock is empty for tonight"); return; }
-    pushMove({ t: "draw" });
-    tone("draw");
+    // Near the end, the card you turn over is the whole run. Hold it a beat,
+    // and jitter the beat so the wait never settles into a rhythm.
+    var left = SC.starsLeft(sim);
+    var wait = (left <= 5 && !Arcade.reducedMotion()) ? 240 + Math.floor(Math.random() * 260) : 0;
+    if (!wait) { pushMove({ t: "draw" }); tone("draw"); return; }
+    drawing = true;
+    stockPile.classList.add("shake");
+    setTimeout(function () {
+      stockPile.classList.remove("shake");
+      drawing = false;
+      pushMove({ t: "draw" });
+      tone("draw");
+    }, wait);
   });
 
   pocketPile.addEventListener("click", function () {
     if (sim.pocket !== -1) {
       if (sim.wasteRank == null || !SC.adjacent(deck.pyramid[sim.pocket].rank, sim.wasteRank)) {
         flashHint("Needs to be next to the " + SC.RANK_LABELS[sim.wasteRank]);
+        pocketPile.classList.remove("shake");
+        void pocketPile.offsetWidth;
+        pocketPile.classList.add("shake");
         return;
       }
       pushMove({ t: "unpocket" });
@@ -354,8 +474,7 @@
   undoBtn.addEventListener("click", function () {
     if (!data.current.moves.length) return;
     data.current.moves.pop();
-    var v = replayView(data.current.moves);
-    sim = v.state; wasteCard = v.wasteCard;
+    applyView(replayView(data.current.moves));
     pocketArmed = false;
     hideResult();
     persist();
@@ -364,8 +483,7 @@
 
   function restartSame() {
     data.current.moves = [];
-    var v = replayView(data.current.moves);
-    sim = v.state; wasteCard = v.wasteCard;
+    applyView(replayView(data.current.moves));
     pocketArmed = false;
     hideResult();
     persist();
@@ -382,6 +500,23 @@
   }
 
   // ---- brag / lifetime stats -------------------------------------------
+
+  // Consecutive days played, counted back from today (or from yesterday, so
+  // a sky not yet opened tonight doesn't read as a broken run).
+  function currentStreak() {
+    function keyOf(d) {
+      return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
+    }
+    var cursor = new Date(today + "T00:00:00");
+    if (!data.playedDates[today]) cursor.setDate(cursor.getDate() - 1);
+    var n = 0;
+    while (data.playedDates[keyOf(cursor)]) {
+      n++;
+      cursor.setDate(cursor.getDate() - 1);
+      if (n > 4000) break;
+    }
+    return n;
+  }
 
   function solvedCount() {
     var n = 0;
@@ -431,9 +566,15 @@
     showResultMiss();
   }
 
-  function hideResult() { resultEl.hidden = true; }
+  function hideResult() {
+    resultEl.hidden = true;
+    resultEl.classList.remove("miss");
+  }
 
-  function buildCascadeSvg(container, reduced) {
+  // The night's constellation: the stars, in the order the player cleared
+  // them, joined one line at a time. Both the shape and the route are the
+  // player's own, so no two nights draw the same picture.
+  function buildConstellationSvg(container, order, reduced) {
     var UNIT = 26, GAP = 5;
     function le(r, c) { return (UNIT + GAP) * (c + (5 - r) / 2); }
     function te(r) { return r * (UNIT * 0.72); }
@@ -443,41 +584,45 @@
     var pts = [];
     for (var i = 0; i < SC.TOTAL_SLOTS; i++) {
       var m = SC.META[i];
-      pts[i] = { x: le(m.row, m.col) + UNIT / 2, y: te(m.row) + UNIT / 2 };
+      pts[i] = {
+        x: le(m.row, m.col) + UNIT / 2 + jitter[i].x * UNIT * 0.28,
+        y: te(m.row) + UNIT / 2 + jitter[i].y * UNIT * 0.28
+      };
     }
-    var STEP = 420, LINEDUR = 460, maxDelay = 0;
-    for (i = 0; i < SC.TOTAL_SLOTS; i++) {
-      var mm = SC.META[i];
-      if (!mm.children.length) continue;
-      var delay = reduced ? 0 : (4 - mm.row) * STEP;
-      if (delay > maxDelay) maxDelay = delay;
-      for (var k = 0; k < mm.children.length; k++) {
-        var ch = mm.children[k];
-        var line = document.createElementNS(svg.namespaceURI, "line");
-        line.setAttribute("x1", pts[i].x); line.setAttribute("y1", pts[i].y);
-        line.setAttribute("x2", pts[ch].x); line.setAttribute("y2", pts[ch].y);
-        line.setAttribute("class", "peakLine");
-        if (!reduced) line.style.animationDelay = delay + "ms";
-        svg.appendChild(line);
-      }
+
+    var STEP = 80, LINEDUR = 320;
+    var seq = (order && order.length === SC.TOTAL_SLOTS) ? order : SC.META.map(function (m, k) { return k; });
+    var edges = constellationEdges(seq);
+    for (i = 0; i < edges.length; i++) {
+      var a = pts[edges[i][0]], b = pts[edges[i][1]];
+      var line = document.createElementNS(svg.namespaceURI, "line");
+      line.setAttribute("x1", a.x); line.setAttribute("y1", a.y);
+      line.setAttribute("x2", b.x); line.setAttribute("y2", b.y);
+      line.setAttribute("class", "peakLine");
+      if (!reduced) line.style.animationDelay = (i * STEP) + "ms";
+      svg.appendChild(line);
     }
-    for (i = 0; i < SC.TOTAL_SLOTS; i++) {
+    var total = reduced ? 0 : (edges.length - 1) * STEP + LINEDUR;
+
+    for (i = 0; i < seq.length; i++) {
+      var slot = seq[i], p = pts[slot];
       var c = document.createElementNS(svg.namespaceURI, "circle");
-      c.setAttribute("cx", pts[i].x); c.setAttribute("cy", pts[i].y);
-      c.setAttribute("r", i === 0 ? 3.4 : 2.2);
-      c.setAttribute("class", "peakDot" + (i === 0 ? " north" : ""));
-      if (i === 0) {
-        c.classList.add("northFlare");
-        if (!reduced) c.style.animationDelay = (maxDelay + LINEDUR) + "ms";
+      c.setAttribute("cx", p.x); c.setAttribute("cy", p.y);
+      c.setAttribute("r", slot === 0 ? 3.4 : 2.2);
+      c.setAttribute("class", "peakDot" + (slot === 0 ? " north northFlare" : ""));
+      if (!reduced) {
+        if (slot === 0) c.style.animationDelay = total + "ms";
+        else { c.style.opacity = "0"; c.style.animation = "fadeUp 260ms ease-out forwards"; c.style.animationDelay = (i * STEP) + "ms"; }
       }
       svg.appendChild(c);
     }
     container.appendChild(svg);
-    return reduced ? 0 : (maxDelay + LINEDUR);
+    return reduced ? 0 : total + 900;
   }
 
   function showResultWin(fresh) {
     resultEl.hidden = false;
+    resultEl.classList.remove("miss");
     resultInner.innerHTML = "";
     var reduced = Arcade.reducedMotion() || !fresh;
     var practice = !!data.current.practice;
@@ -485,20 +630,23 @@
 
     var stage = el("div", "peakStage");
     resultInner.appendChild(stage);
-    var totalMs = buildCascadeSvg(stage, reduced);
+    var totalMs = buildConstellationSvg(stage, clearOrder, reduced);
 
-    if (!practice) {
-      var name = window.SkyNames.pick(data.current.seed);
-      var nameEl = el("div", "constellation", "✦ " + name);
-      if (reduced) { nameEl.style.animation = "none"; nameEl.style.opacity = "1"; }
-      else nameEl.style.animationDelay = totalMs + "ms";
-      resultInner.appendChild(nameEl);
+    // Everything below waits for the sky to finish drawing. The score is the
+    // payoff, so it must not be readable while the build-up is still running.
+    var at = totalMs;
+    function staged(node, gap) {
+      at += (gap == null ? 260 : gap);
+      if (!reduced) { node.classList.add("staged"); node.style.animationDelay = at + "ms"; }
+      resultInner.appendChild(node);
+      return node;
     }
-    if (fresh) tone("north");
 
-    resultInner.appendChild(el("div", "verdict", practice ? "Practice sky" : "Tonight's sky"));
-    resultInner.appendChild(el("div", "headline", "Solved"));
-    resultInner.appendChild(el("div", "subline", spare + (spare === 1 ? " card" : " cards") + " to spare"));
+    if (!practice) staged(el("div", "constellation", "✦ " + window.SkyNames.pick(data.current.seed)), 60);
+    staged(el("div", "verdict", practice ? "Practice sky" : "Tonight's sky"), 340);
+    staged(el("div", "headline", "Solved"), 120);
+    staged(el("div", "score", spare + (spare === 1 ? " card" : " cards") + " to spare"), 220);
+    if (!practice && spare >= data.best && spare > 0) staged(el("div", "subline", "Your best yet."), 160);
 
     var stat = el("div", "statCard");
     var nights = Object.keys(data.playedDates).length;
@@ -508,8 +656,8 @@
       row.appendChild(el("b", null, String(r[1])));
       stat.appendChild(row);
     });
-    resultInner.appendChild(stat);
-    resultInner.appendChild(el("div", "signoff", signoffLine()));
+    staged(stat, 260);
+    staged(el("div", "signoff", signoffLine()), 200);
 
     var actions = el("div", "actions");
     var shareHint = el("div", "shareHint");
@@ -523,27 +671,55 @@
     actions.appendChild(shareBtn);
     actions.appendChild(button("Another sky", "btn quiet", startPractice));
     actions.appendChild(button("Your sky", "btn quiet", function () { showArchive(); }));
-    resultInner.appendChild(actions);
+    staged(actions, 220);
     resultInner.appendChild(shareHint);
 
-    if (fresh && (spare >= 15 || (data.best === spare && spare > 0))) Arcade.confetti(["#ffe066", "#a5f3ef", "#eafffb"]);
+    // Anyone who doesn't want to wait out the reveal can tap through it.
+    if (!reduced) {
+      var skip = function () {
+        resultEl.removeEventListener("click", skip);
+        [].forEach.call(resultInner.querySelectorAll(".staged"), function (n) {
+          n.style.animationDelay = "0ms";
+        });
+      };
+      resultEl.addEventListener("click", skip);
+      setTimeout(function () { resultEl.removeEventListener("click", skip); }, at + 600);
+    }
+
+    // The chime and the confetti belong to the flare, not to the tap that
+    // set it off.
+    var bigNight = spare >= 15 || (data.best === spare && spare > 0);
+    if (fresh) {
+      if (reduced) { tone("north"); if (bigNight) Arcade.confetti(["#ffe066", "#a5f3ef", "#eafffb"]); }
+      else {
+        setTimeout(function () { tone("north"); }, Math.max(0, totalMs - 900));
+        if (bigNight) setTimeout(function () { Arcade.confetti(["#ffe066", "#a5f3ef", "#eafffb"]); }, totalMs);
+      }
+    }
   }
 
   function showResultMiss() {
     resultEl.hidden = false;
+    resultEl.classList.add("miss");
     resultInner.innerHTML = "";
     var practice = !!data.current.practice;
     var left = SC.starsLeft(sim);
 
+    // The near-miss stays on screen: the sheet sits over the live board and
+    // the stranded stars pulse behind it.
+    render();
+
     resultInner.appendChild(el("div", "headline", left + (left === 1 ? " star short." : " stars short.")));
+    if (closestLeft < left) {
+      resultInner.appendChild(el("div", "peakline", "Closest tonight: " + closestLeft + (closestLeft === 1 ? " star left" : " stars left")));
+    }
     resultInner.appendChild(el("div", "subline", "Same sky, try again?"));
 
     var actions = el("div", "actions");
     if (data.current.moves.length) {
       actions.appendChild(button("Undo", "btn quiet", function () {
         data.current.moves.pop();
-        var v = replayView(data.current.moves);
-        sim = v.state; wasteCard = v.wasteCard;
+        applyView(replayView(data.current.moves));
         hideResult();
         persist();
         render();
@@ -565,18 +741,28 @@
     var dates = Object.keys(data.playedDates).sort();
     dates.forEach(function (d) {
       var rng = Arcade.seededRandom("tonights-sky-archive:" + d);
-      var x = 6 + rng() * 86, y = 8 + rng() * 78;
+      var x = 8 + rng() * 82, y = 10 + rng() * 74;
       var rec = data.days[d];
-      var star = el("div", "archiveStar" + (rec && rec.solved ? " solved" : "") + (d === today ? " today" : ""));
+      // A 10px dot is a 10px target: the star is a 44px button with the dot
+      // drawn in the middle of it.
+      var star = el("button", "archiveStar" + (rec && rec.solved ? " solved" : "") + (d === today ? " today" : ""));
+      star.setAttribute("aria-label", prettyDate(d) + (rec && rec.solved ? ", solved" : ", played"));
       star.style.left = x + "%";
       star.style.top = y + "%";
       star.addEventListener("click", function () { showArchiveDetail(d); });
       archiveField.appendChild(star);
     });
 
+    var legend = document.querySelector(".archiveLegend");
+    if (!legend) {
+      legend = el("div", "archiveLegend");
+      archiveField.parentNode.insertBefore(legend, archiveField.nextSibling);
+    }
+    legend.textContent = dates.length ? "Gold: solved · White: played · Tap a star" : "Play a sky and it joins your archive.";
+
     archiveStats.innerHTML = "";
     var nights = dates.length;
-    [["Nights played", nights], ["Dailies solved", solvedCount()], ["Best to spare", data.best], ["Current run", nights]]
+    [["Nights played", nights], ["Dailies solved", solvedCount()], ["Best to spare", data.best], ["Current run", currentStreak()]]
       .forEach(function (r) {
         var row = el("div", "row");
         row.appendChild(el("span", null, r[0]));
@@ -620,7 +806,7 @@
       return "Nights played, best to-spare, and tonight's progress in Tonight's Sky.";
     },
     actions: [{
-      label: "Try tonight's sky again",
+      label: "Restart sky",
       pinned: true,
       confirm: "This sky resets to the start. Nothing scored is lost.",
       onClick: restartSame,

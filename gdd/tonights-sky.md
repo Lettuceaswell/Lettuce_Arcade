@@ -2,10 +2,10 @@
 
 - **Slug:** `games/tonights-sky/`
 - **Emoji:** 🌌
-- **Status:** shipped behind the beta flag (df21bc5, `Arcade.VERSION` 54).
-  The Pocket rule was fixed in v56. This GDD was written afterwards, from
-  the code. The GDD the build commit refers to never made it into the
-  repo.
+- **Status:** shipped. Built in df21bc5 (v54), the Pocket rule fixed in
+  v56, the presentation pass and the move to the main game list in v57.
+  This GDD was written after the build, from the code. The GDD the build
+  commit refers to never made it into the repo.
 
 ## One-line pitch
 A daily patience game: the same 52-card deal for the whole family every
@@ -87,15 +87,23 @@ won at all.
 - **Glow hints** are on by default and can be turned off in the help
   sheet. Legal plays glow, the Pocket glows once its card can come out,
   and once the Pocket is armed, pocketable stars glow too.
+- A tap the game can't act on answers where it landed: the Pocket shakes
+  when its card doesn't match, on top of the words.
+- The Waste is the brightest card in the thumb bar, because it's the card
+  every decision is measured against. The Pocket sits a shade behind it.
 - Tapping a card that can't move shows a short hint instead of an error:
   "Needs to be next to the 7" (for a star or the Pocket) or "Tap the
   Pocket first…".
 - Teaching happens through captions, not a tutorial. The first caption is
   "Tap a star one above or below the 7". The first time there's no direct
   play, a one-time caption says "You can pocket a card for later."
-- Cards scale between 52 and 64px wide to fit the screen, so star targets
-  stay above 44px. The top-right corner stays clear for the ☰ menu and the
-  pinned restart button.
+- Cards scale between 44 and 64px wide against both the width and the
+  height of the screen, so star targets stay at or above 44px and the
+  thumb bar never leaves the viewport. On a screen under 660px tall the
+  chrome (gaps, pile size, caption) compresses first.
+- The sky is centred in the space between the header and the thumb bar,
+  and starts below the pinned restart's band (52px, 40px on short
+  screens), so that button never covers the North Star.
 
 ## Session shape
 
@@ -109,20 +117,32 @@ won at all.
 
 ## The peak
 
-- **Win:** the result screen draws the pyramid as a constellation. Lines
-  light up row by row from the base to the tip, 420ms per row. The North
-  Star flares last, then the constellation's name fades in. The name is
-  picked from a bank of 84 homely names in `names.js` ("The Kettle",
-  "Grandmother's Chair"), seeded from the day, so the whole family sees
-  the same name. A rising four-note chime plays, and confetti fires if you
-  had 15+ cards to spare or tied your best. Then "Solved · N cards to
-  spare", a stats card, and a sign-off: "Goodnight." after 9pm, "See you
+**The constellation builds while you play.** A cleared card leaves a lit
+star where it stood, nudged off the lattice by an amount seeded from the
+day, and a line joins it to the nearest star already lit. By the last few
+cards the board is more sky than cards, and the figure is one the player
+drew: their route decides which stars link up, so no two nights and no
+two players produce the same picture.
+
+- **Win:** the result screen redraws that figure larger, one line every
+  80ms, the stars lighting in the order they were cleared, and the North
+  Star flaring last with the chime. **Nothing else is on screen while
+  that runs.** The name, "Solved", the score, the stats and the buttons
+  each fade in after the flare, so the payoff can't be read during the
+  build-up. A tap skips to the end of the reveal. The name comes from a
+  bank of 84 homely names in `names.js` ("The Kettle", "Grandmother's
+  Chair"), seeded from the day, so the whole family sees the same name.
+  Confetti fires on 15+ to spare or a tied best, and a new personal best
+  says so. Last is the sign-off: "Goodnight." after 9pm, "See you
   tonight." before.
-- **Miss:** "N stars short. Same sky, try again?" with Undo, Try again,
-  and Another sky. The miss screen names how close you got instead of
-  calling it a loss.
+- **Miss:** a sheet rises over the **live board**, not over a blank
+  screen. The stars still stranded on the pyramid pulse behind a gold
+  ring, so the near-miss is the picture. "N stars short.", the run's
+  closest call when it was closer than the end ("Closest tonight: 2 stars
+  left"), then Undo, Try again, and Another sky. Nothing is called a
+  loss.
 - With reduced motion (`Arcade.reducedMotion()`), or when a solved day is
-  reopened, the finished constellation shows without the animation.
+  reopened, the finished constellation shows at once.
 
 ## Scoring / persistence
 
@@ -146,12 +166,17 @@ Saved under one `Arcade.save("save")` object:
 - `playedDates[date]` — set on the first move of any sky, practice
   included.
 - `best` — the best spare on a daily.
+- `v` — the save format. A v1 save (scored while the Pocket ignored rank)
+  has its scores, solved days and in-progress sky cleared on load; nights
+  played and settings survive.
 - `seenCaption`, `seenPocketHint` — one-time teaching flags.
 
 Shown in three places: `Arcade.stats` (nights played, dailies solved, best
 to spare), `Arcade.brag` ("✦ Solved · N to spare"), and the **"Your sky"
 archive**. The archive draws each night played as a star at a spot seeded
-by its date. Solved nights shine brighter, and tapping a star shows that
+by its date, each one a 44px target around a 10px dot, with a legend and
+a real "Current run" (consecutive nights, counted back from tonight or
+last night). Solved nights shine brighter, and tapping a star shows that
 night's result. **Share** sends "Tonight's Sky · Sep 16 · ✦ Solved, 12 to
 spare".
 
@@ -187,7 +212,7 @@ After the change, that loop wins 0 of 1,000 deals. Saves from v1 had
 their scores, solved days and in-progress sky reset on load. Nights
 played and settings were kept.
 
-### 2. The pinned restart's `nudge` can never show
+### 2. (Still open) The pinned restart's `nudge` can never show
 
 `nudge` requires `isStuck` *and* a hidden result screen. But being stuck
 opens the miss screen right away, and that screen can only be closed by
@@ -197,11 +222,11 @@ with a small budget, even though moves are still available. That's the
 stale-run case CLAUDE.md describes, and it's more useful than the literal
 dead end.
 
-### 3. "Current run" in the archive shows nights played
+### 3. Resolved (v57): "Current run" counts consecutive nights
 
-The archive's "Current run" row just repeats the total nights played.
-Either calculate a real streak of consecutive nights or cut the row.
-Cutting it matches "cut before adding".
+It used to repeat the nights-played total. `currentStreak()` now walks
+back a day at a time from tonight (or last night, so a sky not yet opened
+doesn't read as a broken run).
 
 ### 4. How it stacks up against the Design section
 
@@ -209,15 +234,14 @@ Cutting it matches "cut before adding".
   decisions: which neighbor to take when two are showing, which blocker
   to pocket and bet on, when to draw. The best possible score varies
   from 5 to 22 a night, so there's room at the top.
-- **Anticipation:** the constellation cascade is a good peak. During play
-  there's no moment that builds toward it. Ideas that deepen what's
-  already there instead of widening the game: turn over the Stock card
-  with a short delay once the pyramid is down to its last few stars, and
-  make the North Star's tap its own sound, separate from the win chime.
-- **Variable payout:** the payout is fixed: same animation, one chime,
-  confetti at a threshold. Scaling the cascade with cards to spare (for
-  example, more of the sky lighting up) would vary the size of the reward
-  without adding rules.
-- **End on the peak:** the win screen shows the peak. The miss screen
-  shows how close you got but not your best position in that sky. "You
-  got within 2 stars" is the peak of a missed run.
+- **Anticipation:** the constellation now builds all run, and the win
+  screen holds the score back until it finishes. With five or fewer stars
+  left, the Stock flip waits a jittered 240–500ms before the card lands,
+  so the turn that decides the run is the one that makes you wait.
+- **Variable payout:** still the weakest axis. The animation is the same
+  length every night and the chime is one phrase. Scaling the reveal with
+  cards to spare (a longer, brighter flare for a great score) would vary
+  the size of the reward without adding a rule. Worth trying next.
+- **End on the peak:** both endings end on one now. The win replays the
+  figure the player drew; the miss shows the stranded stars and names the
+  run's closest call.
