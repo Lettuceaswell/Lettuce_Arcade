@@ -22,7 +22,7 @@
 
   function freshData() {
     return {
-      v: 1,
+      v: 2,
       settings: { glow: true, sound: false },
       seenCaption: false,
       seenPocketHint: false,
@@ -35,6 +35,16 @@
 
   var data = Arcade.load("save", null);
   if (!data || typeof data !== "object") data = freshData();
+  // v1 saves were scored while the Pocket ignored rank, so every solve
+  // was 30 to spare. Keep nights and settings; wipe scores and the
+  // in-progress sky (its log may hold a now-illegal unpocket).
+  if (data.v !== 2) {
+    data.v = 2;
+    data.current = null;
+    data.days = {};
+    data.best = 0;
+    Arcade.save("save", data);
+  }
   if (!data.settings || typeof data.settings !== "object") data.settings = { glow: true, sound: false };
   if (typeof data.settings.glow !== "boolean") data.settings.glow = true;
   if (typeof data.settings.sound !== "boolean") data.settings.sound = false;
@@ -268,7 +278,8 @@
     } else {
       pocketCardEl.textContent = "—";
     }
-    pocketPile.classList.toggle("glow", pocketArmed && sim.pocket === -1);
+    var pocketPlayable = sim.pocket !== -1 && sim.wasteRank != null && SC.adjacent(deck.pyramid[sim.pocket].rank, sim.wasteRank);
+    pocketPile.classList.toggle("glow", (pocketArmed && sim.pocket === -1) || (data.settings.glow && pocketPlayable));
 
     undoBtn.disabled = data.current.moves.length === 0;
 
@@ -328,6 +339,10 @@
 
   pocketPile.addEventListener("click", function () {
     if (sim.pocket !== -1) {
+      if (sim.wasteRank == null || !SC.adjacent(deck.pyramid[sim.pocket].rank, sim.wasteRank)) {
+        flashHint("Needs to be next to the " + SC.RANK_LABELS[sim.wasteRank]);
+        return;
+      }
       pushMove({ t: "unpocket" });
       tone("pocket");
       return;

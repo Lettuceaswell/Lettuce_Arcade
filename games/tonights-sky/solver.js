@@ -76,7 +76,8 @@
       if (s.wasteRank != null && adjacent(deck.pyramid[i].rank, s.wasteRank)) moves.push({ t: "play", slot: i });
       if (s.pocket === -1) moves.push({ t: "pocket", slot: i });
     }
-    if (s.pocket !== -1) moves.push({ t: "unpocket" });
+    // The pocketed card leaves like any star: one rank from the Waste.
+    if (s.pocket !== -1 && s.wasteRank != null && adjacent(deck.pyramid[s.pocket].rank, s.wasteRank)) moves.push({ t: "unpocket" });
     if (s.stockPtr < deck.stock.length) moves.push({ t: "draw" });
     return moves;
   }
@@ -101,24 +102,12 @@
 
   function isWin(s) { return s.removedMask === FULL_MASK && s.pocket === -1; }
 
-  // No forward progress: the stock is spent, the waste doesn't unlock
-  // anything on the sky, and the pocket (empty or full) doesn't either.
-  // An empty pocket is never itself a dead end — pocketing any uncovered
-  // star is always legal — so this only fires once the pocket is occupied
-  // and useless too.
+  // No legal move left. An empty pocket with any uncovered star is never
+  // stuck (pocketing is always legal), so this only fires once the stock
+  // is spent, the pocket is full, and neither the waste nor the pocket
+  // card has a neighbor to play.
   function isStuck(deck, s) {
-    if (s.stockPtr < deck.stock.length) return false;
-    if (isWin(s)) return false;
-    var anyUncovered = false;
-    for (var i = 0; i < TOTAL_SLOTS; i++) {
-      if ((s.removedMask >> i) & 1) continue;
-      if (!isUncovered(s.removedMask, i)) continue;
-      anyUncovered = true;
-      if (s.wasteRank != null && adjacent(deck.pyramid[i].rank, s.wasteRank)) return false;
-      if (s.pocket !== -1 && adjacent(deck.pyramid[i].rank, deck.pyramid[s.pocket].rank)) return false;
-    }
-    if (s.pocket === -1) return false; // free to pocket the next uncovered star instead
-    return anyUncovered || s.pocket !== -1;
+    return !isWin(s) && legalMoves(deck, s).length === 0;
   }
 
   // Cards still sitting on the pyramid (a pocketed card has already left it,
