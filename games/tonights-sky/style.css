@@ -53,7 +53,7 @@ main {
   .caption { min-height: 0; }
   .thumbbar { gap: 14px; }
   .pileCard { width: 48px; height: 68px; }
-  .pileCard.filled { font-size: 1.2rem; }
+  .pileCard.filled { font-size: 1.6rem; }
 }
 
 /* ---- pyramid stage ---- */
@@ -113,9 +113,14 @@ main {
 .star.faceup { transform-style: preserve-3d; }
 .star .face, .star .back { transition: transform 320ms cubic-bezier(.4,.2,.2,1); }
 
-.star .rank { position: absolute; top: 2px; left: 4px; font-weight: 800; font-size: 0.8rem; line-height: 1; }
-.star .rank.br { top: auto; left: auto; bottom: 2px; right: 4px; transform: rotate(180deg); }
-.star .suit { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 1.15rem; opacity: 0.9; }
+/* Only rank matters, so rank is the face: big and centered, sized off the
+   card width (--cw, set by layout) so "10" still clears the edges on an SE.
+   The suit shrinks to a corner mark. */
+.star .rank {
+  position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+  font-weight: 800; font-size: calc(var(--cw, 56px) * 0.56); line-height: 1; letter-spacing: -0.05em;
+}
+.star .suit { position: absolute; top: 3px; left: 4px; font-size: calc(var(--cw, 56px) * 0.26); line-height: 1; opacity: 0.9; }
 .star.red .rank, .star.red .suit { color: var(--card-coral); }
 
 .star.covered { opacity: 0.98; }
@@ -225,9 +230,14 @@ main {
   color: var(--card-ink);
   border: none;
   box-shadow: inset 0 -3px 0 rgba(0,0,0,0.12);
+  flex-direction: column;
+  gap: 2px;
   font-weight: 800;
-  font-size: 1.4rem;
+  font-size: 1.9rem;
+  line-height: 1;
+  letter-spacing: -0.05em;
 }
+.pileCard.filled .pipSuit { font-size: 0.55em; letter-spacing: 0; }
 .pileCard.filled.red { color: var(--card-coral); }
 .pile:active .pileCard.filled, .pile:active .pileCard.back { transform: scale(0.95); }
 .pile[disabled] { opacity: 1; }

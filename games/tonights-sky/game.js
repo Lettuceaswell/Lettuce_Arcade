@@ -209,6 +209,7 @@
     var pyramidH = topEdge(5) + cardH;
     pyramidEl.style.width = pyramidW + "px";
     pyramidEl.style.height = pyramidH + "px";
+    pyramidEl.style.setProperty("--cw", cardW + "px");
     for (var i = 0; i < SC.TOTAL_SLOTS; i++) {
       var m = SC.META[i], e = starEls[i];
       e.style.left = leftEdge(m.row, m.col) + "px";
@@ -263,11 +264,16 @@
       b.style.zIndex = SC.META[i].row;
       b.innerHTML =
         '<div class="back"></div>' +
-        '<div class="face"><span class="rank"></span><span class="suit"></span><span class="rank br"></span></div>';
+        '<div class="face"><span class="rank"></span><span class="suit"></span></div>';
       b.addEventListener("click", onTapStar);
       pyramidEl.appendChild(b);
       starEls.push(b);
     }
+  }
+
+  // Rank on top, big; suit tucked under it.
+  function pileFace(card) {
+    return SC.RANK_LABELS[card.rank] + '<span class="pipSuit">' + SC.SUITS[card.suit].sym + '</span>';
   }
 
   // ---- sound --------------------------------------------------------
@@ -347,8 +353,7 @@
       e.classList.toggle("red", suitInfo.red);
       if (uncovered) {
         var label = SC.RANK_LABELS[card.rank];
-        e.querySelector(".rank:not(.br)").textContent = label;
-        e.querySelector(".rank.br").textContent = label;
+        e.querySelector(".rank").textContent = label;
         e.querySelector(".suit").textContent = suitInfo.sym;
       }
       var playable = !removed && uncovered && sim.wasteRank != null && SC.adjacent(card.rank, sim.wasteRank);
@@ -366,7 +371,7 @@
     if (wasteCard) {
       wasteCardEl.classList.add("filled");
       if (SC.SUITS[wasteCard.suit].red) wasteCardEl.classList.add("red");
-      wasteCardEl.textContent = SC.RANK_LABELS[wasteCard.rank] + SC.SUITS[wasteCard.suit].sym;
+      wasteCardEl.innerHTML = pileFace(wasteCard);
     } else {
       wasteCardEl.textContent = "";
     }
@@ -376,7 +381,7 @@
       var pc = deck.pyramid[sim.pocket];
       pocketCardEl.classList.add("filled");
       if (SC.SUITS[pc.suit].red) pocketCardEl.classList.add("red");
-      pocketCardEl.textContent = SC.RANK_LABELS[pc.rank] + SC.SUITS[pc.suit].sym;
+      pocketCardEl.innerHTML = pileFace(pc);
     } else {
       pocketCardEl.textContent = "—";
     }
